@@ -16,9 +16,17 @@ monday.setApiVersion("2024-10");
 const generateMondayUrl = (boardId, itemId) => {
   const template = process.env.MONDAY_URL_TEMPLATE || 
                   `https://${process.env.ACCOUNT_SLUG}.monday.com/boards/{board_id}/pulses/{item_id}`;
-  return template
+  
+  let url = template
     .replace('{board_id}', boardId)
     .replace('{item_id}', itemId);
+  
+  // Asegurar que la URL comience con https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  
+  return url;
 };
 
 // Definición de tipos de commit
@@ -185,9 +193,27 @@ function formatSelectedTasks(tasks) {
     return '';
   }
   
+  // Formatear cada tarea como un ítem de lista con bullet point
   return tasks.map(task => 
-    `${task.title} (ID: ${task.id}, URL: ${task.url})`
-  ).join(', ');
+    `- ${task.title} (ID: ${task.id}, URL: ${task.url})`
+  ).join('\n');
+}
+
+// Función para reemplazar los separadores | por saltos de línea
+function replaceBreaklineChar(text) {
+  if (!text) return '';
+  return text.replace(/\|/g, '\n');
+}
+
+// Función para formatear texto de pruebas con bullets
+function formatTestDetails(text) {
+  if (!text) return '';
+  
+  // Primero reemplazar los separadores | por saltos de línea
+  const lines = text.split('|');
+  
+  // Añadir un bullet point a cada línea y juntarlas de nuevo
+  return lines.map(line => line.trim() ? `- ${line.trim()}` : '').filter(Boolean).join('\n');
 }
 
 async function createCommit() {
@@ -272,14 +298,14 @@ async function createCommit() {
     const bodyResponse = await prompts({
       type: 'text',
       name: 'body',
-      message: 'Enter a DETAILED description (optional):'
+      message: 'Enter a DETAILED description (optional, use | for new lines):'
     });
     
     // Preguntar por breaking changes
     const breakingResponse = await prompts({
       type: 'text',
       name: 'breaking',
-      message: 'List any BREAKING CHANGES (optional):'
+      message: 'List any BREAKING CHANGES (optional, use | for new lines):'
     });
     
     // Preguntar por test details
@@ -322,22 +348,22 @@ async function createCommit() {
     
     // Añadir descripción
     if (bodyResponse.body) {
-      commitMessage += `\n\n${bodyResponse.body}`;
+      commitMessage += `\n\n${replaceBreaklineChar(bodyResponse.body)}`;
     }
     
     // Añadir breaking changes
     if (breakingResponse.breaking) {
-      commitMessage += `\n\nBREAKING CHANGE: ${breakingResponse.breaking}`;
+      commitMessage += `\n\nBREAKING CHANGE: ${replaceBreaklineChar(breakingResponse.breaking)}`;
     }
     
     // Añadir test details
     if (testDetailsResponse.testDetails) {
-      commitMessage += `\n\nTest Details: ${testDetailsResponse.testDetails}`;
+      commitMessage += `\n\nTest Details:\n${formatTestDetails(testDetailsResponse.testDetails)}`;
     }
     
     // Añadir seguridad
     const security = securityResponse.security && securityResponse.security.trim() 
-      ? securityResponse.security 
+      ? replaceBreaklineChar(securityResponse.security) 
       : 'NA';
     commitMessage += `\n\nSecurity: ${security}`;
     
@@ -353,13 +379,14 @@ async function createCommit() {
     
     // Añadir tareas de Monday
     if (mondayTasks) {
-      commitMessage += `\n\nMONDAY TASKS: ${mondayTasks}`;
+      commitMessage += `\n\nMONDAY TASKS:\n${mondayTasks}`;
     }
     
     // Mostrar vista previa del mensaje
     console.log('\n--- Vista previa del mensaje de commit ---');
     console.log(commitMessage);
     console.log('----------------------------------------------');
+    console.log('Nota: Los separadores | se han convertido en saltos de línea.');
     
     // Confirmar commit
     const confirmResponse = await prompts({
