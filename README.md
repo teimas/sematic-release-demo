@@ -111,10 +111,10 @@ Este script te permitirá buscar tareas por nombre en el tablero configurado o, 
 
 #### Commits Vinculados a Tareas de Monday
 
-El script `commit:monday` ofrece una integración completa entre tus commits y las tareas de Monday.com:
+El script `commit` ofrece una integración completa entre tus commits y las tareas de Monday.com:
 
 ```bash
-npm run commit:monday
+npm run commit
 ```
 
 **Características:**
