@@ -34,6 +34,162 @@ const commitTypes = [
   { value: 'revert', name: 'revert:   Revert to a commit' }
 ];
 
+// Función auxiliar para obtener los IDs de las tareas seleccionadas
+function getTaskIdsFromSelection(tasks) {
+  if (!tasks || tasks.length === 0) {
+    return '';
+  }
+  return tasks.map(task => task.id).join('|');
+}
+
+// Función para construir la consulta de búsqueda de tareas
+function buildSearchQuery(boardId) {
+  if (boardId) {
+    // Búsqueda en un tablero específico
+    return `query ($boardId: [ID!], $limit: Int!, $queryParams: ItemsQuery) {
+      boards(ids: $boardId) {
+        name
+        items_page(limit: $limit, query_params: $queryParams) {
+          cursor
+          items {
+            id
+            name
+            state
+            board { id }
+          }
+        }
+      }
+    }`;
+  } else {
+    // Búsqueda global
+    return `query ($limit: Int!, $queryParams: ItemsQuery) {
+      items_page(limit: $limit, query_params: $queryParams) {
+        cursor
+        items {
+          id
+          name
+          state
+          board { id name }
+        }
+      }
+    }`;
+  }
+}
+
+// Función para construir las variables de búsqueda
+function buildSearchVariables(searchTerm, boardId) {
+  const variables = { limit: 20 };
+  
+  // Añadir regla de búsqueda por texto
+  const rules = [
+    {
+      column_id: "name",
+      operator: "contains_text",
+      compare_value: searchTerm
+    }
+  ];
+  
+  // Definir parámetros de consulta
+  variables.queryParams = { rules: rules, operator: "and" };
+  
+  // Añadir boardId si está disponible
+  if (boardId) {
+    variables.boardId = [boardId];
+  }
+  
+  return variables;
+}
+
+// Función para realizar la búsqueda en Monday
+async function searchMondayTasks(searchTerm) {
+  try {
+    const boardId = process.env.MONDAY_BOARD_ID;
+    
+    // Construir consulta y variables
+    const searchQuery = buildSearchQuery(boardId);
+    const variables = buildSearchVariables(searchTerm, boardId);
+    
+    console.log('Buscando tareas en Monday...');
+    const result = await monday.api(searchQuery, { variables });
+    
+    return processSearchResults(result, boardId);
+  } catch (error) {
+    console.error('Error al buscar tareas en Monday:', error.message);
+    return [];
+  }
+}
+
+// Función para procesar los resultados de búsqueda
+function processSearchResults(result, boardId) {
+  let items = [];
+  
+  if (boardId && result.data && result.data.boards && result.data.boards.length > 0) {
+    // Caso de búsqueda en un tablero específico
+    const board = result.data.boards[0];
+    
+    if (board.items_page && board.items_page.items) {
+      items = board.items_page.items
+        .filter(item => item.state === "active")
+        .map(item => ({
+          title: item.name,
+          id: item.id,
+          boardId: boardId,
+          boardName: board.name,
+          url: generateMondayUrl(boardId, item.id)
+        }));
+    }
+  } else if (!boardId && result.data && result.data.items_page) {
+    // Caso de búsqueda global
+    items = result.data.items_page.items
+      .filter(item => item.state === "active")
+      .map(item => ({
+        title: item.name,
+        id: item.id,
+        boardId: item.board?.id,
+        boardName: item.board?.name,
+        url: generateMondayUrl(item.board?.id, item.id)
+      }));
+  }
+  
+  return items;
+}
+
+// Función para permitir al usuario seleccionar tareas
+async function selectMondayTasks(tasks) {
+  if (tasks.length === 0) {
+    console.log('No se encontraron tareas que coincidan con los criterios de búsqueda.');
+    return [];
+  }
+  
+  // Preparar opciones para selección múltiple
+  const choices = tasks.map(item => ({
+    title: `${item.title} (ID: ${item.id})`,
+    value: item
+  }));
+  
+  // Permitir selección múltiple de tareas
+  const selectedResponse = await prompts({
+    type: 'multiselect',
+    name: 'selectedTasks',
+    message: 'Selecciona las tareas resueltas por este commit:',
+    choices: choices,
+    hint: '- Espacio para seleccionar, Enter para confirmar'
+  });
+  
+  return selectedResponse.selectedTasks || [];
+}
+
+// Función para formatear las tareas para el mensaje de commit
+function formatSelectedTasks(tasks) {
+  if (!tasks || tasks.length === 0) {
+    return '';
+  }
+  
+  return tasks.map(task => 
+    `${task.title} (ID: ${task.id}, URL: ${task.url})`
+  ).join(', ');
+}
+
 async function createCommit() {
   try {
     // Variable para almacenar el scope
@@ -41,6 +197,12 @@ async function createCommit() {
     
     // Variable para almacenar las tareas de Monday
     let mondayTasks = '';
+    
+    // Variable para almacenar la referencia de tickets
+    let ticketReference = '';
+    
+    // Variable para almacenar las tareas seleccionadas
+    let selectedMondayTasks = [];
     
     // Solicitar término de búsqueda para Monday
     const searchResponse = await prompts({
@@ -50,124 +212,29 @@ async function createCommit() {
     });
   
     if (searchResponse.searchTerm && searchResponse.searchTerm.trim()) {
-      const boardId = process.env.MONDAY_BOARD_ID;
-      let items = [];
+      // Buscar tareas en Monday
+      const items = await searchMondayTasks(searchResponse.searchTerm.trim());
       
-      // Configurar búsqueda
-      let searchQuery;
-      let variables = { limit: 20 };
-      let rules = [];
+      // Permitir selección de tareas
+      selectedMondayTasks = await selectMondayTasks(items);
       
-      // Añadir regla de búsqueda por texto
-      rules.push({
-        column_id: "name",
-        operator: "contains_text",
-        compare_value: searchResponse.searchTerm
-      });
-      
-      // Definir parámetros de consulta
-      const queryParams = { rules: rules, operator: "and" };
-      variables.queryParams = queryParams;
-      
-      if (boardId) {
-        // Búsqueda en un tablero específico
-        searchQuery = `query ($boardId: [ID!], $limit: Int!, $queryParams: ItemsQuery) {
-          boards(ids: $boardId) {
-            name
-            items_page(limit: $limit, query_params: $queryParams) {
-              cursor
-              items {
-                id
-                name
-                state
-                board { id }
-              }
-            }
-          }
-        }`;
-        variables.boardId = [boardId];
-      } else {
-        // Búsqueda global
-        searchQuery = `query ($limit: Int!, $queryParams: ItemsQuery) {
-          items_page(limit: $limit, query_params: $queryParams) {
-            cursor
-            items {
-              id
-              name
-              state
-              board { id name }
-            }
-          }
-        }`;
-      }
-      
-      console.log('Buscando tareas en Monday...');
-      const result = await monday.api(searchQuery, { variables });
-      
-      // Procesar resultados de búsqueda
-      if (boardId && result.data && result.data.boards && result.data.boards.length > 0) {
-        const board = result.data.boards[0];
+      if (selectedMondayTasks.length > 0) {
+        // Formatear las tareas seleccionadas para el mensaje de commit
+        mondayTasks = formatSelectedTasks(selectedMondayTasks);
         
-        if (board.items_page && board.items_page.items) {
-          items = board.items_page.items
-            .filter(item => item.state === "active")
-            .map(item => ({
-              title: item.name,
-              id: item.id,
-              boardId: boardId,
-              boardName: board.name,
-              url: generateMondayUrl(boardId, item.id)
-            }));
+        console.log('\nTareas seleccionadas:');
+        console.log(mondayTasks);
+        
+        // Extraer scope e IDs para referencias de tickets
+        if (selectedMondayTasks.length > 0) {
+          // Usar los IDs de las tareas como scope
+          scope = getTaskIdsFromSelection(selectedMondayTasks);
+          console.log(`Scope generado automáticamente de IDs de tareas: ${scope}`);
+          
+          // Usar los mismos IDs para la referencia de tickets
+          ticketReference = scope;
+          console.log(`Referencia de tickets generada automáticamente: ${ticketReference}`);
         }
-      } else if (!boardId && result.data && result.data.items_page) {
-        items = result.data.items_page.items
-          .filter(item => item.state === "active")
-          .map(item => ({
-            title: item.name,
-            id: item.id,
-            boardId: item.board?.id,
-            boardName: item.board?.name,
-            url: generateMondayUrl(item.board?.id, item.id)
-          }));
-      }
-      
-      if (items.length > 0) {
-        // Preparar opciones para selección múltiple
-        const choices = items.map(item => ({
-          title: `${item.title} (ID: ${item.id})`,
-          value: item
-        }));
-        
-        // Permitir selección múltiple de tareas
-        const selectedResponse = await prompts({
-          type: 'multiselect',
-          name: 'selectedTasks',
-          message: 'Selecciona las tareas resueltas por este commit:',
-          choices: choices,
-          hint: '- Espacio para seleccionar, Enter para confirmar'
-        });
-        
-        if (selectedResponse.selectedTasks && selectedResponse.selectedTasks.length > 0) {
-          // Guardar las tareas seleccionadas para extraer scopes después
-          const selectedTasks = selectedResponse.selectedTasks;
-          
-          // Formatear las tareas seleccionadas para el mensaje de commit
-          mondayTasks = selectedTasks.map(task => 
-            `${task.title} (ID: ${task.id}, URL: ${task.url})`
-          ).join(', ');
-          
-          console.log('\nTareas seleccionadas:');
-          console.log(mondayTasks);
-          
-          // Extraer scope de las tareas de Monday si están disponibles
-          if (selectedTasks.length > 0) {
-            // Usar los IDs de las tareas como scope
-            scope = selectedTasks.map(task => task.id).join('|');
-            console.log(`Scope generado automáticamente de IDs de tareas: ${scope}`);
-          }
-        }
-      } else {
-        console.log('No se encontraron tareas que coincidan con los criterios de búsqueda.');
       }
     }
 
@@ -229,12 +296,15 @@ async function createCommit() {
       message: 'Enter SECURITY considerations (use | for new lines, NA if not applicable):'
     });
     
-    // Preguntar por ticket reference
-    const referencesResponse = await prompts({
-      type: 'text',
-      name: 'references',
-      message: 'Enter ticket reference (mXXXXXXXXXX format):'
-    });
+    // Preguntar por ticket reference solo si no hay tareas seleccionadas
+    if (!ticketReference) {
+      const referencesResponse = await prompts({
+        type: 'text',
+        name: 'references',
+        message: 'Enter ticket reference (mXXXXXXXXXX format):',
+      });
+      ticketReference = referencesResponse.references || '';
+    }
     
     // Preguntar por change ID
     const changeIdResponse = await prompts({
@@ -272,8 +342,8 @@ async function createCommit() {
     commitMessage += `\n\nSecurity: ${security}`;
     
     // Añadir referencias
-    if (referencesResponse.references) {
-      commitMessage += `\n\nRefs: ${referencesResponse.references}`;
+    if (ticketReference) {
+      commitMessage += `\n\nRefs: ${ticketReference}`;
     }
     
     // Añadir change ID
