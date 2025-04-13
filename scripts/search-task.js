@@ -9,7 +9,16 @@ monday.setToken(process.env.MONDAY_API_KEY);
 // Establece la versión de la API según la documentación (última versión disponible)
 monday.setApiVersion("2024-10");
 
-async function searchTasks() {
+// Función para generar URL de Monday
+const generateMondayUrl = (boardId, itemId) => {
+  const template = process.env.MONDAY_URL_TEMPLATE || 
+                  `https://${process.env.ACCOUNT_SLUG}.monday.com/boards/{board_id}/pulses/{item_id}`;
+  return template
+    .replace('{board_id}', boardId)
+    .replace('{item_id}', itemId);
+};
+
+async function searchTasks() { 
   // Solicitar término de búsqueda
   const searchResponse = await prompts({
     type: 'text',
@@ -197,7 +206,8 @@ async function searchTasks() {
         } else {
           console.log(`\nTareas encontradas (${items.length}):`);
           items.forEach(item => {
-            console.log(`- ${item.name} (ID: ${item.id})`);
+            const url = generateMondayUrl(boardId, item.id);
+            console.log(`- ${item.name} (ID: ${item.id}) URL ${url}`);
             console.log(`  Actualizado: ${new Date(item.updated_at).toLocaleString()}`);
             console.log(`  Creado por: ${item.creator?.name || 'N/A'}`);
             console.log(`  Grupo: ${item.group?.title || 'N/A'}`);
@@ -236,7 +246,8 @@ async function searchTasks() {
       } else {
         console.log(`\nTareas encontradas (${items.length}):`);
         items.forEach(item => {
-          console.log(`- ${item.name} (ID: ${item.id})`);
+          const url = generateMondayUrl(item.board?.id, item.id);
+          console.log(`- ${item.name} (ID: ${item.id}) URL ${url}`);
           console.log(`  Actualizado: ${new Date(item.updated_at).toLocaleString()}`);
           console.log(`  Creado por: ${item.creator?.name || 'N/A'}`);
           console.log(`  Tablero: ${item.board?.name} (ID: ${item.board?.id})`);

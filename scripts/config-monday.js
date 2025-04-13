@@ -33,6 +33,13 @@ async function configureMonday() {
     },
     {
       type: 'text',
+      name: 'accountSlug',
+      message: 'Slug de la cuenta (subdominio de Monday.com):',
+      initial: (existingEnv.match(/ACCOUNT_SLUG=(.+)/) || [])[1] || '',
+      validate: value => value.length > 0 ? true : 'El slug de la cuenta es obligatorio'
+    },
+    {
+      type: 'text',
       name: 'boardId',
       message: 'ID del tablero principal (opcional):',
       initial: (existingEnv.match(/MONDAY_BOARD_ID=(.+)/) || [])[1] || ''
@@ -85,6 +92,23 @@ async function configureMonday() {
       }
     }
     
+    // Actualizar o añadir ACCOUNT_SLUG
+    if (response.accountSlug) {
+      if (newEnv.includes('ACCOUNT_SLUG=')) {
+        newEnv = newEnv.replace(/ACCOUNT_SLUG=.+/, `ACCOUNT_SLUG=${response.accountSlug}`);
+      } else {
+        newEnv += `\nACCOUNT_SLUG=${response.accountSlug}`;
+      }
+      
+      // Añadir o actualizar URL template
+      const mondayUrlTemplate = `https://${response.accountSlug}.monday.com/boards/{board_id}/pulses/{item_id}`;
+      if (newEnv.includes('MONDAY_URL_TEMPLATE=')) {
+        newEnv = newEnv.replace(/MONDAY_URL_TEMPLATE=.+/, `MONDAY_URL_TEMPLATE=${mondayUrlTemplate}`);
+      } else {
+        newEnv += `\nMONDAY_URL_TEMPLATE=${mondayUrlTemplate}`;
+      }
+    }
+    
     // Actualizar o añadir MONDAY_BOARD_ID
     if (response.boardId) {
       if (newEnv.includes('MONDAY_BOARD_ID=')) {
@@ -115,6 +139,19 @@ async function configureMonday() {
     console.log('monday.setApiVersion("2024-10");');
     console.log('```');
     
+    console.log('');
+    console.log('URL de Monday.com configurada:');
+    console.log(`https://${response.accountSlug}.monday.com/boards/{board_id}/pulses/{item_id}`);
+    console.log('');
+    console.log('Puedes generar URLs para tareas con:');
+    console.log('```');
+    console.log('const generateMondayUrl = (boardId, itemId) => {');
+    console.log('  return process.env.MONDAY_URL_TEMPLATE');
+    console.log('    .replace("{board_id}", boardId)');
+    console.log('    .replace("{item_id}", itemId);');
+    console.log('};');
+    console.log('```');
+    
     // Verificar si el script search-task.js ya existe
     const examplePath = path.join(process.cwd(), 'scripts', 'search-task.js');
     const scriptExists = fs.existsSync(examplePath);
@@ -138,6 +175,15 @@ const prompts = require('prompts');
 monday.setToken(process.env.MONDAY_API_KEY);
 // Establece la versión de la API según la documentación (última versión disponible)
 monday.setApiVersion("2024-10");
+
+// Función para generar URL de Monday
+const generateMondayUrl = (boardId, itemId) => {
+  const template = process.env.MONDAY_URL_TEMPLATE || 
+                  \`\https://${process.env.ACCOUNT_SLUG}.monday.com/boards/{board_id}/pulses/{item_id}\`;
+  return template
+    .replace('{board_id}', boardId)
+    .replace('{item_id}', itemId);
+};
 
 async function searchTasks() {
   // Solicitar término de búsqueda
@@ -345,6 +391,7 @@ async function searchTasks() {
             console.log(\`  Actualizado: \${new Date(item.updated_at).toLocaleString()}\`);
             console.log(\`  Creado por: \${item.creator?.name || 'N/A'}\`);
             console.log(\`  Grupo: \${item.group?.title || 'N/A'}\`);
+            console.log(\`  URL: \${generateMondayUrl(boardId, item.id)}\`);
             
             console.log('  Detalles:');
             if (item.column_values && item.column_values.length > 0) {
@@ -384,6 +431,7 @@ async function searchTasks() {
           console.log(\`  Creado por: \${item.creator?.name || 'N/A'}\`);
           console.log(\`  Tablero: \${item.board?.name} (ID: \${item.board?.id})\`);
           console.log(\`  Grupo: \${item.group?.title || 'N/A'}\`);
+          console.log(\`  URL: \${generateMondayUrl(item.board?.id, item.id)}\`);
           console.log('');
         });
         
