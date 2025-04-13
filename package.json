@@ -4,10 +4,12 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "commit": "git-cz",
+    "commit": "node scripts/commit-with-monday.js",
+    "commit:simple": "git-cz",
     "semantic-release": "semantic-release",
     "config": "node scripts/config-monday.js",
-    "search-task": "node scripts/search-task.js"
+    "search-task": "node scripts/search-task.js",
+    "monday-selector": "node scripts/monday-task-selector.js"
   },
   "keywords": [],
   "author": "",

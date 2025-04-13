@@ -16,7 +16,7 @@ module.exports = {
     subject: 'Enter a SHORT title:',
     body: 'Enter a DETAILED description (optional):',
     breaking: 'List any BREAKING CHANGES (optional):',
-    footer: 'List any ISSUES CLOSED by this change (optional). E.g.: #31, #34:',
+    footer: 'Additional Monday tasks (press Enter to skip):',
     confirmCommit: 'Proceed with the commit?'
   },
   allowCustomScopes: true,
@@ -24,7 +24,7 @@ module.exports = {
   subjectLimit: 100,
   upperCaseSubject: true,
   breakingPrefix: 'BREAKING CHANGE:',
-  footerPrefix: 'REFERENCES:',
+  footerPrefix: 'MONDAY TASKS:',
   breaklineChar: '|',
   additionalQuestions: [
     {
@@ -53,6 +53,20 @@ module.exports = {
     }
   ],
   formatMessageCb: function (answers) {
+    // Try to read Monday tasks from the temp file
+    let mondayTasks = '';
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const tasksFilePath = path.join(__dirname, '.monday-tasks-temp');
+      
+      if (fs.existsSync(tasksFilePath)) {
+        mondayTasks = fs.readFileSync(tasksFilePath, 'utf8').trim();
+      }
+    } catch (error) {
+      console.error('Error reading Monday tasks:', error);
+    }
+    
     let msg = '';
 
     // Format: Type(scope): Subject
@@ -69,7 +83,7 @@ module.exports = {
 
     // Add breaking changes
     if (answers.breaking) {
-      msg += `\n\n${answers.breakingPrefix} ${answers.breaking}`;
+      msg += `\n\n${this.breakingPrefix} ${answers.breaking}`;
     }
 
     // Add test details
@@ -91,11 +105,38 @@ module.exports = {
       msg += `\n\nChange-Id: ${answers.changeId}`;
     }
 
-    // Add footer
-    if (answers.footer) {
-      msg += `\n\n${answers.footerPrefix} ${answers.footer}`;
+    // Add Monday tasks from temp file if available
+    if (mondayTasks) {
+      msg += `\n\n${this.footerPrefix} ${mondayTasks}`;
+    }
+    
+    // Add additional Monday tasks if entered manually
+    if (answers.footer && answers.footer.trim()) {
+      if (mondayTasks) {
+        msg += `, ${answers.footer}`;
+      } else {
+        msg += `\n\n${this.footerPrefix} ${answers.footer}`;
+      }
     }
 
     return msg;
+  },
+  prompter: function(cz, commit) {
+    // Use the default prompter with a custom footer hook
+    cz.prompt.registerPrompt('monday', require('./scripts/monday-task-selector.js'));
+    
+    // Get all the questions
+    const questions = cz.getQuestions();
+    
+    // Replace the footer question to use our custom prompter
+    const footerQuestionIndex = questions.findIndex(q => q.name === 'footer');
+    if (footerQuestionIndex >= 0) {
+      questions[footerQuestionIndex].type = 'monday';
+      questions[footerQuestionIndex].when = true; // Always show this question
+    }
+    
+    cz.prompt(questions).then(answers => {
+      commit(cz.buildCommitMessage(answers));
+    });
   }
 };  
