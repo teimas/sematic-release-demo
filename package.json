@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "commit": "node scripts/commit-with-monday.js",
+    "commit": "node scripts/monday-commit.js",
     "commit:simple": "git-cz",
     "semantic-release": "semantic-release",
     "config": "node scripts/config-monday.js",

@@ -53,21 +53,36 @@ module.exports = {
     }
   ],
   formatMessageCb: function (answers) {
-    // Try to read Monday tasks from the temp file
+    let msg = '';
     let mondayTasks = '';
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const tasksFilePath = path.join(__dirname, '.monday-tasks-temp');
-      
-      if (fs.existsSync(tasksFilePath)) {
-        mondayTasks = fs.readFileSync(tasksFilePath, 'utf8').trim();
-      }
-    } catch (error) {
-      console.error('Error reading Monday tasks:', error);
+    
+    console.log('CHECKING', process.env.MONDAY_TASKS);
+    // Try to get Monday tasks from environment variable first (backup approach)
+    if (process.env.MONDAY_TASKS) {
+      console.log('Found Monday tasks in environment variable');
+      mondayTasks = process.env.MONDAY_TASKS;
     }
     
-    let msg = '';
+    // If not found in env, try reading from file
+    if (!mondayTasks) {
+      try {
+        console.log('Reading Monday tasks file...');
+        const fs = require('fs');
+        const path = require('path');
+        const tasksFilePath = path.resolve(__dirname, '.monday-tasks-temp');
+        console.log('Tasks file path:', tasksFilePath);
+        
+        if (fs.existsSync(tasksFilePath)) {
+          console.log('Tasks file exists, reading content...');
+          mondayTasks = fs.readFileSync(tasksFilePath, 'utf8').trim();
+          console.log('Monday tasks read from file:', mondayTasks);
+        } else {
+          console.log('Tasks file does not exist');
+        }
+      } catch (error) {
+        console.error('Error reading Monday tasks:', error);
+      }
+    }
 
     // Format: Type(scope): Subject
     msg += `${answers.type}`;
@@ -83,7 +98,7 @@ module.exports = {
 
     // Add breaking changes
     if (answers.breaking) {
-      msg += `\n\n${this.breakingPrefix} ${answers.breaking}`;
+      msg += `\n\nBREAKING CHANGE: ${answers.breaking}`;
     }
 
     // Add test details
@@ -107,36 +122,20 @@ module.exports = {
 
     // Add Monday tasks from temp file if available
     if (mondayTasks) {
-      msg += `\n\n${this.footerPrefix} ${mondayTasks}`;
+      msg += `\n\nMONDAY TASKS: ${mondayTasks}`;
     }
-    
+
     // Add additional Monday tasks if entered manually
     if (answers.footer && answers.footer.trim()) {
       if (mondayTasks) {
         msg += `, ${answers.footer}`;
       } else {
-        msg += `\n\n${this.footerPrefix} ${answers.footer}`;
+        msg += `\n\nMONDAY TASKS: ${answers.footer}`;
       }
     }
-
+    
+    console.log('Final commit message preview:');
+    console.log(msg);
     return msg;
-  },
-  prompter: function(cz, commit) {
-    // Use the default prompter with a custom footer hook
-    cz.prompt.registerPrompt('monday', require('./scripts/monday-task-selector.js'));
-    
-    // Get all the questions
-    const questions = cz.getQuestions();
-    
-    // Replace the footer question to use our custom prompter
-    const footerQuestionIndex = questions.findIndex(q => q.name === 'footer');
-    if (footerQuestionIndex >= 0) {
-      questions[footerQuestionIndex].type = 'monday';
-      questions[footerQuestionIndex].when = true; // Always show this question
-    }
-    
-    cz.prompt(questions).then(answers => {
-      commit(cz.buildCommitMessage(answers));
-    });
   }
 };  

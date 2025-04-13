@@ -13,6 +13,7 @@ monday.setApiVersion("2024-10");
 
 // Path to the temporary file where we'll store selected tasks
 const tasksFilePath = path.join(__dirname, '..', '.monday-tasks-temp');
+console.log("Temporary file path:", tasksFilePath);
 
 // Función para generar URL de Monday
 const generateMondayUrl = (boardId, itemId) => {
@@ -175,13 +176,38 @@ searchAndSelectTasks()
       console.log(result);
       console.log('\nEstas tareas se incluirán en el mensaje de commit.');
       
-      // Save selected tasks to a temporary file
-      fs.writeFileSync(tasksFilePath, result);
+      // Save selected tasks to a temporary file with additional options
+      try {
+        // Force create the file with all permissions
+        fs.writeFileSync(tasksFilePath, result, { 
+          encoding: 'utf8',
+          mode: 0o666, // Read and write for all
+          flag: 'w'    // Create or overwrite
+        });
+        
+        // Make sure the file exists by checking
+        if (fs.existsSync(tasksFilePath)) {
+          const fileContent = fs.readFileSync(tasksFilePath, 'utf8');
+          console.log(`Tasks saved to file: ${tasksFilePath}`);
+          console.log(`File content verification: ${fileContent.substring(0, 50)}...`);
+        } else {
+          console.error(`Failed to create file: ${tasksFilePath}`);
+        }
+      } catch (error) {
+        console.error(`Error saving tasks to file: ${error.message}`);
+      }
     } else {
       console.log('No se seleccionaron tareas.');
       // Ensure the file is empty if no tasks are selected
-      if (fs.existsSync(tasksFilePath)) {
-        fs.writeFileSync(tasksFilePath, '');
+      try {
+        fs.writeFileSync(tasksFilePath, '', { 
+          encoding: 'utf8',
+          mode: 0o666,
+          flag: 'w'
+        });
+        console.log(`Empty tasks file created: ${tasksFilePath}`);
+      } catch (error) {
+        console.error(`Error creating empty tasks file: ${error.message}`);
       }
     }
     process.exit(0);
