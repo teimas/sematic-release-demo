@@ -4,18 +4,25 @@
 
 - **Versión**: próxima versión
 - **Fecha**: 13/04/2025
-- **Total de Commits**: 8
-- **Tareas de Monday relacionadas**: 3
+- **Total de Commits**: 9
+- **Tareas de Monday relacionadas**: 4
 
 ## Instrucciones
 
 Necesito que generes unas notas de versión detalladas en español, basadas en los datos proporcionados a continuación. Estas notas deben estar dirigidas a usuarios finales y equipos técnicos, destacando las nuevas funcionalidades, correcciones y mejoras. Organiza la información por categorías (Nuevas funcionalidades, Correcciones, Mejoras, etc.) y destaca las tareas más importantes. Incluye menciones a las tareas de Monday.com relevantes y sus detalles cuando sea apropiado. El tono debe ser profesional pero accesible, evitando jerga excesivamente técnica. La estructura debe ser clara con encabezados, viñetas y párrafos concisos.
 
+Siempre tiene que incluir la url de monday en cualquier referencia.
+
+Al final tienes que incluir el listado completo de commits con toda la información de cada uno.
+
 ## Resumen de Cambios
 
-### Nuevas Funcionalidades (6)
+### Nuevas Funcionalidades (7)
 
-- **First version of release-notes** [91a82d8]
+- **Release-notes for gemini** [9101462]
+  - Detalles: feat(7975905049): Release-notes for gemini | First iteration of the release notes for gemini | Security: NA | Refs: 7975905049 | MONDAY TASKS: | - [PE.25.001] RAEE. INFORMES. Informe de historicos por código de etiquetas (ID: 7975905049, URL: https://teimas.monday.com/boards/1013914950/pulses/7975905049)
+- **First version of release-notes** [
+91a82d]
   - Detalles: feat(8851673176|8872179232|8838736619): First version of release-notes | Release notes version with markdown prepared for gemini | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
 - **Improvements** [
 5f0c72]
@@ -53,6 +60,33 @@ a570a6]
 
 ## Detalles de Tareas de Monday
 
+### [PE.25.001] RAEE. INFORMES. Informe de historicos por código de etiquetas (ID: 7975905049)
+
+- **Estado**: active
+- **Tablero**: TEC-DEV-Teixo (ID: 1013914950)
+- **Grupo**: Backlog PE
+- **Detalles**:
+  - numbers7: 64
+  - n_meros9: 64
+  - numeric: 64
+  - bot_n__1: T.Invertido
+  - status2: Parado
+  - status: En espera
+  - estado_1: No desplegado
+  - label: PE
+  - status0: Sin especificar
+  - dup__of_prioridad__1: Sin especificar
+  - men__desplegable7: AP
+  - fecha9: 2024-12-03
+  - label9__1: PE.25.001.11 Informes
+  - check2: v
+  - id__de_elemento: 7975905049
+  - button: Crear Toggl
+  - status5: -
+  - estado_1__1: -
+- **Commits Relacionados**:
+  - feat: Release-notes for gemini [9101462]
+
 ### [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619)
 
 - **Estado**: active
@@ -87,7 +121,8 @@ a570a6]
   - 10/04/2025 por DG: <h4>Review</h4><ul><li>27208: refs m8785679195 [PE.25.002] VERIFACTU. Registro de eventos (Migración...
   - 03/04/2025 por DG: <h4>Alcance</h4> <p></p> <p dir="ltr">Se almacenará un registro de evento, cuando ocurra algún event...
 - **Commits Relacionados**:
-  - feat: First version of release-notes [91a82d8]
+  - feat: First version of release-notes [
+91a82d]
   - feat: Improvements [
 5f0c72]
 
@@ -123,7 +158,8 @@ a570a6]
 - **Actualizaciones Recientes**:
   - 03/04/2025 por DG: <h4>Alcance</h4> <ul><li>Reunión con POE.</li><ul data-checklist-holder='true' data-checklist-id='14...
 - **Commits Relacionados**:
-  - feat: First version of release-notes [91a82d8]
+  - feat: First version of release-notes [
+91a82d]
   - feat: Improvements [
 5f0c72]
 
@@ -162,13 +198,24 @@ a570a6]
   - 25/03/2025 por DG: <h4>Revisión</h4> <ul data-checklist-holder="true" data-checklist-id="145616455"></ul>
   - 21/03/2025 por IE: Gerrit: <a href="https://gerrit.teimas.com/c/teixo/+/26836" target="_blank" rel="noopener noreferrer...
 - **Commits Relacionados**:
-  - feat: First version of release-notes [91a82d8]
+  - feat: First version of release-notes [
+91a82d]
   - feat: Improvements [
 5f0c72]
 
 ## Detalles Completos de Commits
 
-### feat(8851673176|8872179232|8838736619): First version of release-notes [91a82d8]
+### feat(7975905049): Release-notes for gemini [9101462]
+
+feat(7975905049): Release-notes for gemini | First iteration of the release notes for gemini | Security: NA | Refs: 7975905049 | MONDAY TASKS: | - [PE.25.001] RAEE. INFORMES. Informe de historicos por código de etiquetas (ID: 7975905049, URL: https://teimas.monday.com/boards/1013914950/pulses/7975905049)
+
+**Tareas relacionadas**:
+- [PE.25.001] RAEE. INFORMES. Informe de historicos por código de etiquetas (ID: 7975905049, Estado: active)
+
+---
+
+### feat(8851673176|8872179232|8838736619): First version of release-notes [
+91a82d]
 
 feat(8851673176|8872179232|8838736619): First version of release-notes | Release notes version with markdown prepared for gemini | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
 

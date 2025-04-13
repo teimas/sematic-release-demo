@@ -35,5 +35,8 @@
     "cz-customizable": {
       "config": ".cz-config.js"
     }
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0"
   }
 }

@@ -4,6 +4,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const mondaySdk = require('monday-sdk-js');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Inicializar el SDK de Monday
 const monday = mondaySdk();
@@ -18,6 +19,79 @@ if (!fs.existsSync(outputDir)) {
 
 // Archivo de salida para el documento de Gemini
 const outputFile = path.join(outputDir, `release-notes-${new Date().toISOString().split('T')[0]}.md`);
+const geminiOutputFile = path.join(outputDir, `release-notes-${new Date().toISOString().split('T')[0]}_GEMINI.md`);
+
+// Función para procesar el documento con Gemini
+async function processWithGemini(document) {
+  console.log('🤖 Enviando documento a Google Gemini API...');
+  
+  try {
+    // Verificar que el token de Gemini esté configurado
+    if (!process.env.GEMINI_TOKEN) {
+      console.error('❌ Error: No se ha configurado GEMINI_TOKEN en el archivo .env');
+      console.log('   Ejecuta "npm run config" para configurar el token de Gemini.');
+      return null;
+    }
+    
+    // Inicializar el cliente de Gemini
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_TOKEN);
+    // Usar gemini-1.5-pro o gemini-1.0-pro dependiendo de la disponibilidad
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    
+    console.log('⏳ Generando notas de versión con IA...');
+    
+    // Configuración de generación
+    const generationConfig = {
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+    };
+    
+    // Llamar a la API de Gemini con la configuración adecuada
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: document }] }],
+      generationConfig,
+    });
+    
+    const response = result.response.text();
+    
+    console.log('✅ Respuesta recibida de Google Gemini API');
+    
+    return response;
+  } catch (error) {
+    console.error('❌ Error al procesar con Gemini:', error.message);
+    if (error.stack) {
+      console.error('Stack:', error.stack);
+    }
+    
+    // Intentar con un modelo alternativo
+    try {
+      console.log('🔄 Intentando con modelo alternativo gemini-1.0-pro...');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_TOKEN);
+      const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+      
+      const generationConfig = {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      };
+      
+      const result = await fallbackModel.generateContent({
+        contents: [{ role: "user", parts: [{ text: document }] }],
+        generationConfig,
+      });
+      
+      const response = result.response.text();
+      console.log('✅ Respuesta recibida del modelo alternativo');
+      return response;
+    } catch (fallbackError) {
+      console.error('❌ Error con el modelo alternativo:', fallbackError.message);
+      return null;
+    }
+  }
+}
 
 // Función principal para generar las notas de versión
 async function generateReleaseNotes() {
@@ -179,6 +253,23 @@ async function generateReleaseNotes() {
     fs.writeFileSync(outputFile, document, 'utf8');
     console.log(`✅ Documento generado exitosamente: ${outputFile}`);
     console.log(`   Ruta completa: ${path.resolve(outputFile)}`);
+    
+    // 7. Procesar el documento con Gemini si está configurado
+    if (process.env.GEMINI_TOKEN) {
+      const geminiResponse = await processWithGemini(document);
+      
+      if (geminiResponse) {
+        // Guardar la respuesta de Gemini en un nuevo archivo
+        fs.writeFileSync(geminiOutputFile, geminiResponse, 'utf8');
+        console.log(`✅ Notas de versión generadas por Gemini: ${geminiOutputFile}`);
+        console.log(`   Ruta completa: ${path.resolve(geminiOutputFile)}`);
+      } else {
+        console.log(`❌ No se pudo generar las notas de versión con Gemini.`);
+      }
+    } else {
+      console.log(`ℹ️ No se encontró token de Gemini en el archivo .env`);
+      console.log(`   Ejecuta "npm run config" para configurar el token de Gemini y generar notas con IA.`);
+    }
     
   } catch (error) {
     console.error('❌ Error al generar las notas de versión:', error);
