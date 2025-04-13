@@ -5,7 +5,7 @@
 - **Versión**: próxima versión
 - **Fecha**: 13/04/2025
 - **Total de Commits**: 8
-- **Tareas de Monday relacionadas**: 0
+- **Tareas de Monday relacionadas**: 3
 
 ## Instrucciones
 
@@ -13,81 +13,236 @@ Necesito que generes unas notas de versión detalladas en español, basadas en l
 
 ## Resumen de Cambios
 
-### Nuevas Funcionalidades (4)
+### Nuevas Funcionalidades (6)
 
-- **Better monday** [ac1aa49]
-  - Detalles: Now we can add the scope with the ids of monday
-- **Monday tasks 2** [c0f79d8]
-  - Detalles: Monday tasks
-- **Add url to search task** [ce6fe6c]
-  - Detalles: search task with url so we can click and point to monday
-- **First version** [104e185]
-  - Detalles: First version of the system. It has loads of thing, but the main ones are related to the commit
+- **First version of release-notes** [91a82d8]
+  - Detalles: feat(8851673176|8872179232|8838736619): First version of release-notes | Release notes version with markdown prepared for gemini | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
+- **Improvements** [
+5f0c72]
+  - Detalles: feat(8851673176|8872179232|8838736619): Improvements | Improvements with new lines | Test Details: | - Test 1 | - Test 2 | - Test 3 | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
+- **Better monday** [
+ac1aa4]
+  - Detalles: feat(BM): Better monday | Now we can add the scope with the ids of monday | Security: NA
+- **Monday tasks 2** [
+c0f79d]
+  - Detalles: feat: Monday tasks 2 | Monday tasks | Security: NA
+- **Add url to search task** [
+ce6fe6]
+  - Detalles: feat(custom): Add url to search task | search task with url so we can click and point to monday | security NA
+- **First version** [
+104e18]
+  - Detalles: feat(custom): First version | First version of the system. It has loads of thing, but the main ones are related to the commit | message. I'll iterate over them in the next commits | testDetails No tests for now | security NA | references NA | BREAKING CHANGE: | First version, it is a breaking change
 
 ### Correcciones (1)
 
-- **Remove NPM versioning** [a570a65]
-  - Detalles: Remove npm versioning because we don't use it
-
-### Otros Cambios (2)
-
-- **feat(8851673176** [5f0c72a]
-  - Detalles: 8872179232|8838736619): Improvements|Improvements with new lines
-- **8872179232** [Refs: 8]
-  - Detalles: 8838736619
+- **Remove NPM versioning** [
+a570a6]
+  - Detalles: fix(NPM_REMOVAL): Remove NPM versioning | Remove npm versioning because we don't use it | Security: NA
 
 ### Refactorizaciones (1)
 
-- **Better code** [03041c0]
-  - Detalles: Code better
+- **Better code** [
+03041c]
+  - Detalles: refactor(Code): Better code | Code better | Security: NA
+
+## Cambios que Rompen Compatibilidad
+
+- **First version** [
+104e18]
+  - Detalles: First version, it is a breaking change
+
+## Detalles de Tareas de Monday
+
+### [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619)
+
+- **Estado**: active
+- **Tablero**: TEC-DEV-Teixo (ID: 1013914950)
+- **Grupo**: 1.112.00 - 20250416 (actual)
+- **Detalles**:
+  - person: DG
+  - people8: DP
+  - numbers7: 12
+  - n_meros9: 12
+  - numeric: 3
+  - numbers1: 3.0597222222222222
+  - bot_n__1: T.Invertido
+  - status2: Parado
+  - status: RSI
+  - estado_1: SIN DESPLIEGUE
+  - label: PE
+  - status0: Sin especificar
+  - dup__of_prioridad__1: Sin especificar
+  - men__desplegable: Si
+  - men__desplegable7: DG
+  - fecha9: 2025-04-02
+  - date: 2025-04-11
+  - label9__1: PE.25.002.01 Registros
+  - id__de_elemento: 8838736619
+  - button: Crear Toggl
+  - text0: 235716789
+  - status5: -
+  - date__1: 2025-04-11
+  - estado_1__1: -
+- **Actualizaciones Recientes**:
+  - 10/04/2025 por DG: <h4>Review</h4><ul><li>27208: refs m8785679195 [PE.25.002] VERIFACTU. Registro de eventos (Migración...
+  - 03/04/2025 por DG: <h4>Alcance</h4> <p></p> <p dir="ltr">Se almacenará un registro de evento, cuando ocurra algún event...
+- **Commits Relacionados**:
+  - feat: First version of release-notes [91a82d8]
+  - feat: Improvements [
+5f0c72]
+
+### [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176)
+
+- **Estado**: active
+- **Tablero**: TEC-DEV-Teixo (ID: 1013914950)
+- **Grupo**: 1.112.00 - 20250416 (actual)
+- **Detalles**:
+  - person: DG
+  - numbers7: 2
+  - n_meros9: 2
+  - numeric: 1
+  - numbers1: 1.1422222222222222
+  - bot_n__1: T.Invertido
+  - status2: Parado
+  - status: Hecho
+  - estado_1: SIN DESPLIEGUE
+  - label: PE
+  - status0: Sin especificar
+  - dup__of_prioridad__1: Sin especificar
+  - men__desplegable: Si
+  - men__desplegable7: DG
+  - fecha9: 2025-04-03
+  - date: 2025-04-11
+  - label9__1: PE.25.002 A
+  - id__de_elemento: 8851673176
+  - button: Crear Toggl
+  - text0: 235796176
+  - status5: -
+  - date__1: 2025-04-08
+  - estado_1__1: -
+- **Actualizaciones Recientes**:
+  - 03/04/2025 por DG: <h4>Alcance</h4> <ul><li>Reunión con POE.</li><ul data-checklist-holder='true' data-checklist-id='14...
+- **Commits Relacionados**:
+  - feat: First version of release-notes [91a82d8]
+  - feat: Improvements [
+5f0c72]
+
+### [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232)
+
+- **Estado**: active
+- **Tablero**: TEC-DEV-Teixo (ID: 1013914950)
+- **Grupo**: 1.112.00 - 20250416 (actual)
+- **Detalles**:
+  - person: DG
+  - people8: DP, JM
+  - numbers7: 4
+  - n_meros9: 4
+  - numeric: 14
+  - numbers1: 14.092777777777778
+  - bot_n__1: T.Invertido
+  - status2: Parado
+  - status: RSI
+  - estado_1: SIN DESPLIEGUE
+  - label: PE
+  - status0: Sin especificar
+  - dup__of_prioridad__1: Sin especificar
+  - men__desplegable: Si
+  - men__desplegable7: DG
+  - fecha9: 2025-04-07
+  - date: 2025-04-11
+  - label9__1: PE.25.002 RE
+  - id__de_elemento: 8872179232
+  - button: Crear Toggl
+  - text0: 235796177
+  - status5: -
+  - date__1: 2025-04-11
+  - estado_1__1: -
+- **Actualizaciones Recientes**:
+  - 28/03/2025 por DG: <h4>Alcance</h4><p>Tarefa para a revisión e corrección dos 2 commits que indico abaixo.</p>
+  - 25/03/2025 por DG: <h4>Revisión</h4> <ul data-checklist-holder="true" data-checklist-id="145616455"></ul>
+  - 21/03/2025 por IE: Gerrit: <a href="https://gerrit.teimas.com/c/teixo/+/26836" target="_blank" rel="noopener noreferrer...
+- **Commits Relacionados**:
+  - feat: First version of release-notes [91a82d8]
+  - feat: Improvements [
+5f0c72]
 
 ## Detalles Completos de Commits
 
-### fix(NPM_REMOVAL): Remove NPM versioning [a570a65]
+### feat(8851673176|8872179232|8838736619): First version of release-notes [91a82d8]
 
-Remove npm versioning because we don't use it
+feat(8851673176|8872179232|8838736619): First version of release-notes | Release notes version with markdown prepared for gemini | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
 
----
-
-### other: feat(8851673176 [5f0c72a]
-
-8872179232|8838736619): Improvements|Improvements with new lines
-
----
-
-### other: 8872179232 [Refs: 8]
-
-8838736619
+**Tareas relacionadas**:
+- [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, Estado: active)
 
 ---
 
-### refactor(Code): Better code [03041c0]
+### fix(NPM_REMOVAL): Remove NPM versioning [
+a570a6]
 
-Code better
-
----
-
-### feat(BM): Better monday [ac1aa49]
-
-Now we can add the scope with the ids of monday
+fix(NPM_REMOVAL): Remove NPM versioning | Remove npm versioning because we don't use it | Security: NA
 
 ---
 
-### feat: Monday tasks 2 [c0f79d8]
+### feat(8851673176|8872179232|8838736619): Improvements [
+5f0c72]
 
-Monday tasks
+feat(8851673176|8872179232|8838736619): Improvements | Improvements with new lines | Test Details: | - Test 1 | - Test 2 | - Test 3 | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
+
+**Pruebas**:
+- Test 1
+- Test 2
+- Test 3
+
+**Tareas relacionadas**:
+- [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, Estado: active)
 
 ---
 
-### feat(custom): Add url to search task [ce6fe6c]
+### refactor(Code): Better code [
+03041c]
 
-search task with url so we can click and point to monday
+refactor(Code): Better code | Code better | Security: NA
 
 ---
 
-### feat(custom): First version [104e185]
+### feat(BM): Better monday [
+ac1aa4]
 
-First version of the system. It has loads of thing, but the main ones are related to the commit
+feat(BM): Better monday | Now we can add the scope with the ids of monday | Security: NA
+
+---
+
+### feat: Monday tasks 2 [
+c0f79d]
+
+feat: Monday tasks 2 | Monday tasks | Security: NA
+
+---
+
+### feat(custom): Add url to search task [
+ce6fe6]
+
+feat(custom): Add url to search task | search task with url so we can click and point to monday | security NA
+
+---
+
+### feat(custom): First version [
+104e18]
+
+feat(custom): First version | First version of the system. It has loads of thing, but the main ones are related to the commit | message. I'll iterate over them in the next commits | testDetails No tests for now | security NA | references NA | BREAKING CHANGE: | First version, it is a breaking change
+
+**Pruebas**:
+- No tests for now
+- security NA
+- references NA
+
+**Seguridad**: NA
+references NA
 
 ---
 

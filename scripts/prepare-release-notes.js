@@ -56,10 +56,14 @@ async function generateReleaseNotes() {
       console.log('No se encontraron etiquetas previas, utilizando todos los commits');
     }
     
-    // Obtener los commits entre la última etiqueta y HEAD
+    // Obtener los commits entre la última etiqueta y HEAD usando un formato que preserve la estructura
+    // Usamos un delimitador especial que es poco probable que aparezca en los mensajes
+    const COMMIT_DELIMITER = '---COMMIT_DELIMITER---';
+    const SECTION_DELIMITER = '---SECTION_DELIMITER---';
+    
     const gitLogCommand = lastTag 
-      ? `git log ${lastTag}..HEAD --pretty=format:"%H|%s|%b" --no-merges` 
-      : 'git log --pretty=format:"%H|%s|%b" --no-merges';
+      ? `git log ${lastTag}..HEAD --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${COMMIT_DELIMITER}"` 
+      : `git log --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${COMMIT_DELIMITER}"`;
     
     console.log(`Ejecutando comando: ${gitLogCommand}`);
     
@@ -69,33 +73,36 @@ async function generateReleaseNotes() {
     
     try {
       const commitsOutput = execSync(gitLogCommand, { encoding: 'utf8' });
-      const commitLines = commitsOutput.split('\n').filter(line => line.trim() !== '');
+      // Dividir la salida en commits individuales usando el delimitador
+      const commitBlocks = commitsOutput.split(COMMIT_DELIMITER).filter(block => block.trim() !== '');
       
-      console.log(`📊 Se encontraron ${commitLines.length} commits para analizar`);
+      console.log(`📊 Se encontraron ${commitBlocks.length} commits para analizar`);
       
-      if (commitLines.length === 0) {
+      if (commitBlocks.length === 0) {
         console.log('⚠️ No se encontraron commits para analizar. Verificar historial de Git.');
         console.log('Generando documento con información mínima...');
       } else {
         // Para depuración, mostrar los primeros commits
         console.log(`Muestra de commits (primeros 2):`);
-        commitLines.slice(0, 2).forEach((line, index) => {
-          console.log(`Commit ${index + 1}: ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}`);
+        commitBlocks.slice(0, 2).forEach((block, index) => {
+          console.log(`Commit ${index + 1}: ${block.substring(0, 100)}${block.length > 100 ? '...' : ''}`);
         });
         
-        for (const line of commitLines) {
+        for (const block of commitBlocks) {
           try {
-            const parts = line.split('|');
+            const parts = block.split(SECTION_DELIMITER);
             
-            if (parts.length < 2) {
-              console.log(`Advertencia: Formato de commit inesperado, saltando: ${line.substring(0, 50)}...`);
+            if (parts.length < 3) {
+              console.log(`Advertencia: Formato de commit inesperado, saltando: ${block.substring(0, 50)}...`);
               continue;
             }
             
             const hash = parts[0] || '';
             const subject = parts[1] || '';
-            const bodyParts = parts.slice(2);
-            const body = bodyParts.join('|');
+            const body = parts[2] || '';
+            
+            // Para depuración
+            console.log(`Procesando commit: ${hash.substring(0, 7)} - ${subject}`);
             
             // Extraer información del commit
             const commitInfo = {
@@ -115,9 +122,11 @@ async function generateReleaseNotes() {
             
             // Recopilar todos los IDs de tareas de Monday
             if (commitInfo.mondayTasks && commitInfo.mondayTasks.mentions) {
+              console.log(`Encontradas ${commitInfo.mondayTasks.mentions.length} tareas de Monday en el commit ${hash.substring(0, 7)}`);
               commitInfo.mondayTasks.mentions.forEach(mention => {
                 if (mention.id) {
                   mondayTaskIds.add(mention.id);
+                  console.log(`  - ID de tarea: ${mention.id}`);
                 }
               });
             }
@@ -125,7 +134,13 @@ async function generateReleaseNotes() {
             // También buscar IDs en el scope
             if (commitInfo.scope) {
               const scopeIds = commitInfo.scope.split('|').filter(id => /^\d+$/.test(id));
-              scopeIds.forEach(id => mondayTaskIds.add(id));
+              if (scopeIds.length > 0) {
+                console.log(`Encontrados ${scopeIds.length} IDs de Monday en el scope del commit ${hash.substring(0, 7)}`);
+                scopeIds.forEach(id => {
+                  mondayTaskIds.add(id);
+                  console.log(`  - ID en scope: ${id}`);
+                });
+              }
             }
             
             commits.push(commitInfo);
@@ -181,8 +196,13 @@ function extractCommitType(subject) {
 // Función para extraer el scope del commit
 function extractCommitScope(subject) {
   if (!subject) return '';
+  
+  // Patrón para extraer scope entre paréntesis después del tipo
   const match = subject.match(/^\w+\((.*?)\):/);
-  return match ? match[1] : '';
+  if (!match) return '';
+  
+  // El scope puede contener múltiples IDs separados por | en su interior
+  return match[1];
 }
 
 // Función para extraer la descripción principal del commit
@@ -195,51 +215,130 @@ function extractCommitDescription(subject) {
 // Función para extraer breaking changes del cuerpo del commit
 function extractBreakingChanges(body) {
   if (!body) return '';
-  const match = body.match(/BREAKING CHANGE:([\s\S]*?)(?:\n\n|$)/);
-  return match ? match[1].trim() : '';
+  
+  // Intentar diferentes patrones para mayor flexibilidad
+  const patterns = [
+    /BREAKING\s+CHANGE:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /BREAKING\s+CHANGES:\s*([\s\S]*?)(?:\n\n|$)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  return '';
 }
 
 // Función para extraer detalles de test del cuerpo del commit
 function extractTestDetails(body) {
   if (!body) return [];
-  const match = body.match(/Test Details:([\s\S]*?)(?:\n\n|$)/);
-  if (!match) return [];
-
-  // Dividir por líneas y filtrar las que empiezan con -
-  return match[1].trim().split('\n')
-    .map(line => line.trim())
-    .filter(line => line.startsWith('-'))
-    .map(line => line.substring(1).trim());
+  
+  // Intentar diferentes patrones para mayor flexibilidad
+  const patterns = [
+    /Test\s+Details:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /Test[s]?:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /testDetails\s*([\s\S]*?)(?:\n\n|$)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      // Dividir por líneas y filtrar las que empiezan con -
+      const lines = match[1].trim().split('\n')
+        .map(line => line.trim());
+      
+      // Si hay líneas que empiezan con -, filtramos por ellas
+      const bulletLines = lines.filter(line => line.startsWith('-'));
+      
+      if (bulletLines.length > 0) {
+        return bulletLines.map(line => line.substring(1).trim());
+      }
+      
+      // Si no hay líneas con -, devolvemos todas las líneas
+      return lines;
+    }
+  }
+  
+  return [];
 }
 
 // Función para extraer información de seguridad
 function extractSecurity(body) {
   if (!body) return 'NA';
-  const match = body.match(/Security:([\s\S]*?)(?:\n\n|$)/);
-  return match ? match[1].trim() : 'NA';
+  
+  // Intentar diferentes patrones para mayor flexibilidad
+  const patterns = [
+    /Security:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /security\s*([\s\S]*?)(?:\n\n|$)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      return match[1].trim() || 'NA';
+    }
+  }
+  
+  return 'NA';
 }
 
 // Función para extraer referencias a tickets
 function extractRefs(body) {
   if (!body) return '';
-  const match = body.match(/Refs:([\s\S]*?)(?:\n\n|$)/);
-  return match ? match[1].trim() : '';
+  
+  // Intentar diferentes patrones para mayor flexibilidad
+  const patterns = [
+    /Refs:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /references\s*([\s\S]*?)(?:\n\n|$)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  return '';
 }
 
 // Función para extraer Change-Id
 function extractChangeId(body) {
   if (!body) return '';
-  const match = body.match(/Change-Id:([\s\S]*?)(?:\n\n|$)/);
-  return match ? match[1].trim() : '';
+  
+  // Intentar diferentes patrones para mayor flexibilidad
+  const patterns = [
+    /Change-Id:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /Change-ID:\s*([\s\S]*?)(?:\n\n|$)/i,
+    /changeId\s*([\s\S]*?)(?:\n\n|$)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  return '';
 }
 
 // Función para extraer tareas de Monday del cuerpo del commit
 function extractMondayTasks(body) {
   if (!body) return null;
-  const match = body.match(/MONDAY TASKS:([\s\S]*?)(?:\n\n|$)/);
-  if (!match) return null;
   
-  const tasksText = match[1].trim();
+  // Primero intentar extraer usando el patrón "MONDAY TASKS:"
+  const mondayTasksMatch = body.match(/MONDAY\s+TASKS:\s*([\s\S]*?)(?:\n\n|$)/i);
+  
+  if (!mondayTasksMatch) {
+    return null;
+  }
+  
+  const tasksText = mondayTasksMatch[1].trim();
+  console.log(`Encontrado texto de tareas de Monday: ${tasksText.substring(0, 100)}${tasksText.length > 100 ? '...' : ''}`);
   
   // Extraer las menciones de tareas
   const mentions = [];
@@ -258,6 +357,7 @@ function extractMondayTasks(body) {
         title: titleMatch ? titleMatch[1].trim() : '',
         url: urlMatch ? urlMatch[1].trim() : ''
       });
+      console.log(`  - Tarea encontrada: ID=${idMatch[1]}, Título=${titleMatch ? titleMatch[1].trim() : 'Sin título'}`);
     }
   }
   
@@ -274,50 +374,94 @@ async function fetchMondayTasksDetails(taskIds) {
   console.log(`📦 Consultando detalles de ${taskIds.length} tareas en Monday.com...`);
   
   try {
-    // Consultar detalles de las tareas en Monday.com
-    const query = `query ($itemIds: [ID!]) {
-      items (ids: $itemIds) {
-        id
-        name
-        state
-        board {
-          id
-          name
-        }
-        group {
-          id
-          title
-        }
-        column_values {
-          id
-          title
-          text
-          value
-          type
-        }
-        updates {
-          id
-          body
-          created_at
-          creator {
-            name
-          }
-        }
-      }
-    }`;
-    
-    const variables = { itemIds: taskIds };
-    const response = await monday.api(query, { variables });
-    
-    if (response.data && response.data.items) {
-      console.log(`✅ Se obtuvieron detalles de ${response.data.items.length} tareas de Monday.com`);
-      return response.data.items;
-    } else {
-      console.log('❌ No se pudieron obtener detalles de Monday.com', response.errors);
+    // Verificar que el token de API esté configurado
+    if (!process.env.MONDAY_API_KEY) {
+      console.error('❌ Error: No se ha configurado MONDAY_API_KEY en el archivo .env');
       return [];
     }
+    
+    // Asegurar que monday esté correctamente inicializado
+    monday.setToken(process.env.MONDAY_API_KEY);
+    monday.setApiVersion("2024-10");
+    
+    // Dividir las consultas en bloques más pequeños para evitar límites de la API
+    const BATCH_SIZE = 10;
+    let allItems = [];
+    
+    // Procesar los IDs en lotes
+    for (let i = 0; i < taskIds.length; i += BATCH_SIZE) {
+      const batchIds = taskIds.slice(i, i + BATCH_SIZE);
+      console.log(`Procesando lote ${Math.floor(i/BATCH_SIZE) + 1} con ${batchIds.length} tareas...`);
+      
+      // Consultar detalles de las tareas en Monday.com
+      const query = `query ($itemIds: [ID!]) {
+        items (ids: $itemIds) {
+          id
+          name
+          state
+          board {
+            id
+            name
+          }
+          group {
+            id
+            title
+          }
+          column_values {
+            id
+            type
+            text
+            value
+          }
+          updates(limit: 5) {
+            id
+            body
+            created_at
+            creator {
+              id
+              name
+            }
+          }
+        }
+      }`;
+      
+      const variables = { itemIds: batchIds };
+      
+      console.log(`Consultando datos para IDs: ${batchIds.join(', ')}`);
+      
+      try {
+        const response = await monday.api(query, { variables });
+        
+        if (response.errors) {
+          console.error('⚠️ Errores en la respuesta de Monday:', response.errors);
+          continue;
+        }
+        
+        if (response.data && response.data.items) {
+          console.log(`✅ Obtenidos datos de ${response.data.items.length} tareas`);
+          allItems = [...allItems, ...response.data.items];
+        } else {
+          console.log('⚠️ No se encontraron items en la respuesta de este lote');
+        }
+      } catch (batchError) {
+        console.error(`❌ Error en lote ${Math.floor(i/BATCH_SIZE) + 1}:`, batchError.message);
+        continue;
+      }
+      
+      // Esperar entre lotes para no exceder límites de rate
+      if (i + BATCH_SIZE < taskIds.length) {
+        console.log('Esperando 1 segundo antes del siguiente lote...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    console.log(`✅ Se obtuvieron detalles de ${allItems.length} tareas de Monday.com de ${taskIds.length} solicitadas`);
+    return allItems;
   } catch (error) {
     console.error('❌ Error al consultar tareas en Monday.com:', error.message);
+    if (error.data) {
+      console.error('Detalles del error:', JSON.stringify(error.data, null, 2));
+    }
     return [];
   }
 }
@@ -352,6 +496,8 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   document += `Incluye menciones a las tareas de Monday.com relevantes y sus detalles cuando sea apropiado. `;
   document += `El tono debe ser profesional pero accesible, evitando jerga excesivamente técnica. `;
   document += `La estructura debe ser clara con encabezados, viñetas y párrafos concisos.\n\n`;
+  document += `Siempre tiene que incluir la url de monday en cualquier referencia.\n\n`;
+  document += `Al final tienes que incluir el listado completo de commits con toda la información de cada uno.\n\n`;
   
   // Resumen de cambios por tipo
   document += `## Resumen de Cambios\n\n`;
@@ -427,7 +573,7 @@ function generateGeminiDocument(version, commits, mondayTasks) {
         
         if (relevantColumns.length > 0) {
           relevantColumns.forEach(col => {
-            document += `  - ${col.title || col.id}: ${col.text}\n`;
+            document += `  - ${col.id}: ${col.text}\n`;
           });
         } else {
           document += `  - No hay detalles adicionales disponibles\n`;

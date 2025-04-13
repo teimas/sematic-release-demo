@@ -22,6 +22,7 @@ async function configureMonday() {
   
   // Extraer valores existentes si los hay
   const existingApiKey = (existingEnv.match(/MONDAY_API_KEY=(.+)/) || [])[1] || '';
+  const existingGeminiToken = (existingEnv.match(/GEMINI_TOKEN=(.+)/) || [])[1] || '';
   
   const questions = [
     {
@@ -43,6 +44,12 @@ async function configureMonday() {
       name: 'boardId',
       message: 'ID del tablero principal (opcional):',
       initial: (existingEnv.match(/MONDAY_BOARD_ID=(.+)/) || [])[1] || ''
+    },
+    {
+      type: 'password',
+      name: 'geminiToken',
+      message: 'Ingresa tu token de API de Google Gemini (opcional):',
+      initial: existingGeminiToken
     }
   ];
 
@@ -118,6 +125,15 @@ async function configureMonday() {
       }
     }
     
+    // Actualizar o añadir GEMINI_TOKEN
+    if (response.geminiToken) {
+      if (newEnv.includes('GEMINI_TOKEN=')) {
+        newEnv = newEnv.replace(/GEMINI_TOKEN=.+/, `GEMINI_TOKEN=${response.geminiToken}`);
+      } else {
+        newEnv += `\nGEMINI_TOKEN=${response.geminiToken}`;
+      }
+    }
+    
     // Asegurarse de que empiece con una nueva línea si ya había contenido
     if (existingEnv && !newEnv.startsWith('\n')) {
       newEnv = '\n' + newEnv;
@@ -151,6 +167,30 @@ async function configureMonday() {
     console.log('    .replace("{item_id}", itemId);');
     console.log('};');
     console.log('```');
+    
+    // Mostrar información sobre Gemini API si se configuró
+    if (response.geminiToken) {
+      console.log('');
+      console.log('🤖 Google Gemini API configurada');
+      console.log('--------------------------------');
+      console.log('Puedes usar la API de Google Gemini en tus scripts con:');
+      console.log('```');
+      console.log('const { GoogleGenerativeAI } = require("@google/generative-ai");');
+      console.log('const genAI = new GoogleGenerativeAI(process.env.GEMINI_TOKEN);');
+      console.log('const model = genAI.getGenerativeModel({ model: "gemini-pro" });');
+      console.log('');
+      console.log('// Ejemplo de uso:');
+      console.log('async function generateReleaseNotes(prompt) {');
+      console.log('  const result = await model.generateContent(prompt);');
+      console.log('  return result.response.text();');
+      console.log('}');
+      console.log('```');
+      console.log('');
+      console.log('Para usar el script de generación de notas de versión:');
+      console.log('```');
+      console.log('npm run release-notes');
+      console.log('```');
+    }
     
     // Verificar si el script search-task.js ya existe
     const examplePath = path.join(process.cwd(), 'scripts', 'search-task.js');
