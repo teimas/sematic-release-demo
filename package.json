@@ -8,8 +8,8 @@
     "commit:simple": "git-cz",
     "semantic-release": "semantic-release",
     "config": "node scripts/config-monday.js",
-    "search-task": "node scripts/search-task.js",
-    "monday-selector": "node scripts/monday-task-selector.js"
+    "monday-selector": "node scripts/monday-task-selector.js",
+    "release-notes": "node scripts/prepare-release-notes.js"
   },
   "keywords": [],
   "author": "",
