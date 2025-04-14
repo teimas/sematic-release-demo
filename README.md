@@ -2,6 +2,8 @@
 
 Este repositorio está configurado con semantic-release y commitizen para mensajes de commit estandarizados, versionado automático y generación de notas de versión enriquecidas con IA.
 
+Hi TEIMAS!
+
 ## Formato de Mensaje de Commit
 
 El formato del mensaje de commit sigue esta plantilla:
