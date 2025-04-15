@@ -504,12 +504,12 @@ async function fetchMondayTasksDetails(taskIds) {
             text
             value
           }
-          updates(limit: 15) {
+          updates(limit: 5) {
             id
             body
             created_at
             creator {
-              id"
+              id
               name
             }
           }

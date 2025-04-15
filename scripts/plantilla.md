@@ -15,7 +15,7 @@ Tickets que se solucionan en esta actualización
 
 ### Responsable despliegue
 
-[Andrés Pedraza de la Cuesta](mailto:andres.pedraza@teimas.com)
+Aquí el nombre de la persona que lanzó la petición 
 
 ### Etiquetas
 
@@ -128,4 +128,25 @@ Aquí vendrán todos los tests que están marcados en CADA UNO DE LOS COMMITS. N
 
 # **Referencia commits**
 
-Aquí irán absolutamente TODOS los commits que recibas. No dejes ninguno. Exactamente como tienes en el documento de entrada.
+Aquí irán absolutamente TODOS los commits que recibas. No dejes ninguno. Exactamente como tienes en el documento de entrada. El commit tiene que ser verboso, es decir, con toda la información posible. Incluye fechas, nombre de la persona, email, etc.
+
+Utiliza esta plantilla:
+
+---
+
+### feat(8851673176|8872179232|8838736619): Improvements [
+5f0c72]
+
+feat(8851673176|8872179232|8838736619): Improvements | Improvements with new lines | Test Details: | - Test 1 | - Test 2 | - Test 3 | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
+
+**Pruebas**:
+- Test 1
+- Test 2
+- Test 3
+
+**Tareas relacionadas**:
+- [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, Estado: active)
+- [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, Estado: active)
+
+---
