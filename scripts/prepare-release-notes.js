@@ -504,12 +504,12 @@ async function fetchMondayTasksDetails(taskIds) {
             text
             value
           }
-          updates(limit: 5) {
+          updates(limit: 15) {
             id
             body
             created_at
             creator {
-              id
+              id"
               name
             }
           }
@@ -583,12 +583,6 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   document += `## Instrucciones\n\n`;
   document += `Necesito que generes unas notas de versión detalladas en español, basadas en los datos proporcionados a continuación. `;
   document += `Estas notas deben estar dirigidas a usuarios finales y equipos técnicos, destacando las nuevas funcionalidades, correcciones y mejoras. `;
-  document += `Organiza la información por categorías (Nuevas funcionalidades, Correcciones, Mejoras, etc.) y destaca las tareas más importantes. `;
-  document += `Incluye menciones a las tareas de Monday.com relevantes y sus detalles cuando sea apropiado. `;
-  document += `El tono debe ser profesional pero accesible, evitando jerga excesivamente técnica. `;
-  document += `La estructura debe ser clara con encabezados, viñetas y párrafos concisos.\n\n`;
-  document += `Siempre tiene que incluir la url de monday en cualquier referencia.\n\n`;
-  document += `Al final tienes que incluir el listado completo de commits con toda la información de cada uno.\n\n`;
   
   // Resumen de cambios por tipo
   document += `## Resumen de Cambios\n\n`;
@@ -751,7 +745,22 @@ function generateGeminiDocument(version, commits, mondayTasks) {
     
     document += `---\n\n`;
   });
-  
+
+  document += `La plantilla a utilizar para generar el documento tiene que ser la siguiente. Fijate en todo lo que hay y emúlalo por completo.`;
+  // Leer el contenido de la plantilla y añadirlo al documento
+  try {
+    const plantillaPath = path.join(__dirname, 'plantilla.md');
+    if (fs.existsSync(plantillaPath)) {
+      const plantillaContent = fs.readFileSync(plantillaPath, 'utf8');
+      document += `\n\n${plantillaContent}`;
+      console.log(`✅ Plantilla cargada exitosamente: ${plantillaPath}`);
+    } else {
+      console.log(`⚠️ No se encontró el archivo de plantilla: ${plantillaPath}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error al leer la plantilla: ${error.message}`);
+  }
+
   return document;
 }
 

@@ -64,6 +64,15 @@ function buildSearchQuery(boardId) {
             name
             state
             board { id }
+            updates(limit: 15) {
+              id
+              body
+              created_at
+              creator {
+                id
+                name
+              }
+            }
           }
         }
       }
@@ -78,6 +87,15 @@ function buildSearchQuery(boardId) {
           name
           state
           board { id name }
+          updates(limit: 5) {
+            id
+            body
+            created_at
+            creator {
+              id
+              name
+            }
+          }
         }
       }
     }`;
@@ -143,7 +161,8 @@ function processSearchResults(result, boardId) {
           id: item.id,
           boardId: boardId,
           boardName: board.name,
-          url: generateMondayUrl(boardId, item.id)
+          url: generateMondayUrl(boardId, item.id),
+          updates: item.updates || []
         }));
     }
   } else if (!boardId && result.data && result.data.items_page) {
@@ -155,7 +174,8 @@ function processSearchResults(result, boardId) {
         id: item.id,
         boardId: item.board?.id,
         boardName: item.board?.name,
-        url: generateMondayUrl(item.board?.id, item.id)
+        url: generateMondayUrl(item.board?.id, item.id),
+        updates: item.updates || []
       }));
   }
   
@@ -230,6 +250,9 @@ async function createCommit() {
     // Variable para almacenar las tareas seleccionadas
     let selectedMondayTasks = [];
     
+    // Variable para almacenar el enlace de SupportBee
+    let supportBeeTicketUrl = '';
+    
     // Solicitar término de búsqueda para Monday
     const searchResponse = await prompts({
       type: 'text',
@@ -260,6 +283,27 @@ async function createCommit() {
           // Usar los mismos IDs para la referencia de tickets
           ticketReference = scope;
           console.log(`Referencia de tickets generada automáticamente: ${ticketReference}`);
+          
+          // Buscar enlaces de SupportBee en los comentarios
+          console.log('Buscando enlaces de SupportBee en los comentarios...');
+          for (const task of selectedMondayTasks) {
+            if (task.updates && task.updates.length > 0) {
+              for (const update of task.updates) {
+                if (update.body) {
+                  // Buscar URLs que contengan "teimas.supportbee"
+                  const supportBeeRegex = /(https?:\/\/[^\s]*teimas\.supportbee[^\s]*)/gi;
+                  const matches = update.body.match(supportBeeRegex);
+                  
+                  if (matches && matches.length > 0) {
+                    supportBeeTicketUrl = matches[0];
+                    console.log(`Encontrado enlace de SupportBee: ${supportBeeTicketUrl}`);
+                    break;
+                  }
+                }
+              }
+              if (supportBeeTicketUrl) break; // Salir si ya se encontró un enlace
+            }
+          }
         }
       }
     }
@@ -350,6 +394,17 @@ async function createCommit() {
     if (bodyResponse.body) {
       commitMessage += `\n\n${replaceBreaklineChar(bodyResponse.body)}`;
     }
+
+    // Añadir tareas de Monday
+    if (mondayTasks) {
+      commitMessage += `\n\nMONDAY TASKS:\n${mondayTasks}`;
+    }
+
+
+    // Añadir enlace de SupportBee si se encontró
+    if (supportBeeTicketUrl) {
+      commitMessage += `\n\nTicket de SupportBee: ${supportBeeTicketUrl}`;
+    }
     
     // Añadir breaking changes
     if (breakingResponse.breaking) {
@@ -377,11 +432,7 @@ async function createCommit() {
       commitMessage += `\n\nChange-Id: ${changeIdResponse.changeId}`;
     }
     
-    // Añadir tareas de Monday
-    if (mondayTasks) {
-      commitMessage += `\n\nMONDAY TASKS:\n${mondayTasks}`;
-    }
-    
+   
     // Mostrar vista previa del mensaje
     console.log('\n--- Vista previa del mensaje de commit ---');
     console.log(commitMessage);
