@@ -3,7 +3,7 @@
 ## Información General
 
 - **Versión**: próxima versión
-- **Fecha**: 15/04/2025
+- **Fecha**: 16/04/2025
 - **Total de Commits**: 14
 - **Tareas de Monday relacionadas**: 10
 
@@ -13,63 +13,63 @@ Necesito que generes unas notas de versión detalladas en español, basadas en l
 
 ### Nuevas Funcionalidades (10)
 
-- **X** [734d142]
+- **X** [734d142] - LudoBermejoES <LudoGithub@gmail.com> (Tue Apr 15 16:59:45 2025 +0200)
   - Detalles: feat(8816787071): X | Y | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Exportación registros de facturación [E16] (ID: 8816787071, URL: https://teimas.monday.com/boards/1013914950/pulses/8816787071) | BREAKING CHANGE: Z | Test Details: | - TEST 1 | - TEST 2 | Security: SEC 1 | SEC 2 | Refs: 8816787071
 - **Better template** [
-4c7596]
+4c7596] - LudoBermejoES <LudoGithub@gmail.com> (Tue Apr 15 09:54:56 2025 +0200)
   - Detalles: feat(8817155664|8874527315|8884168044): Better template | Better template AI | MONDAY TASKS: | - BUG. Correción de informe "Resumen anual de entradas por centro" (ID: 8817155664, URL: https://teimas.monday.com/boards/1013914950/pulses/8817155664) | - BUG. Error al eliminar descuentos de líneas (ID: 8874527315, URL: https://teimas.monday.com/boards/1013914950/pulses/8874527315) | - BUG. En el listado "Listado de líneas de albarán entre fechas de entrega" se muestran albaranes facturados cuando no lo están (ID: 8884168044, URL: https://teimas.monday.com/boards/1013914950/pulses/8884168044) | Ticket de SupportBee: https://teimas.supportbee.com/tickets/51279217" | Security: NA | Refs: 8817155664|8874527315|8884168044
 - **use gemini from google to generate the release notes** [
-27a55a]
+27a55a] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 17:06:29 2025 +0200)
   - Detalles: feat(Use gemini ): use gemini from google to generate the release notes | To use it, I implemented everything to call 1.5-pro model | Security: NA
 - **Release-notes for gemini** [
-910146]
+910146] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 16:56:05 2025 +0200)
   - Detalles: feat(7975905049): Release-notes for gemini | First iteration of the release notes for gemini | Security: NA | Refs: 7975905049 | MONDAY TASKS: | - [PE.25.001] RAEE. INFORMES. Informe de historicos por código de etiquetas (ID: 7975905049, URL: https://teimas.monday.com/boards/1013914950/pulses/7975905049)
 - **First version of release-notes** [
-91a82d]
+91a82d] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 15:47:49 2025 +0200)
   - Detalles: feat(8851673176|8872179232|8838736619): First version of release-notes | Release notes version with markdown prepared for gemini | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
 - **Improvements** [
-5f0c72]
+5f0c72] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 13:20:05 2025 +0200)
   - Detalles: feat(8851673176|8872179232|8838736619): Improvements | Improvements with new lines | Test Details: | - Test 1 | - Test 2 | - Test 3 | Security: NA | Refs: 8851673176|8872179232|8838736619 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Análisis series para facturas rectificativas [A] (ID: 8851673176, URL: https://teimas.monday.com/boards/1013914950/pulses/8851673176) | - [PE.25.002] VERIFACTU. Bloque 1. Creación de registros de facturación [E1] [IV] (ID: 8872179232, URL: https://teimas.monday.com/boards/1013914950/pulses/8872179232) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [III] (ID: 8838736619, URL: https://teimas.monday.com/boards/1013914950/pulses/8838736619)
 - **Better monday** [
-ac1aa4]
+ac1aa4] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 12:39:13 2025 +0200)
   - Detalles: feat(BM): Better monday | Now we can add the scope with the ids of monday | Security: NA
 - **Monday tasks 2** [
-c0f79d]
+c0f79d] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 12:14:59 2025 +0200)
   - Detalles: feat: Monday tasks 2 | Monday tasks | Security: NA
 - **Add url to search task** [
-ce6fe6]
+ce6fe6] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 10:35:14 2025 +0200)
   - Detalles: feat(custom): Add url to search task | search task with url so we can click and point to monday | security NA
 - **First version** [
-104e18]
+104e18] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 10:20:27 2025 +0200)
   - Detalles: feat(custom): First version | First version of the system. It has loads of thing, but the main ones are related to the commit | message. I'll iterate over them in the next commits | testDetails No tests for now | security NA | references NA | BREAKING CHANGE: | First version, it is a breaking change
 
 ### Correcciones (1)
 
 - **Remove NPM versioning** [
-a570a6]
+a570a6] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 13:27:59 2025 +0200)
   - Detalles: fix(NPM_REMOVAL): Remove NPM versioning | Remove npm versioning because we don't use it | Security: NA
 
 ### Documentación (2)
 
 - **Readme change** [
-096edc]
+096edc] - LudoBermejoES <LudoGithub@gmail.com> (Mon Apr 14 18:42:45 2025 +0200)
   - Detalles: docs(8816790292|8912876059): Readme change | Cambio en el readme | Test Details: | - TEST 1 | - TEST 2 | Security: Tened cuidado | Refs: 8816790292|8912876059 | MONDAY TASKS: | - [PE.25.002] VERIFACTU. Bloque 1. Guardado XML en S3 [E11] (ID: 8816790292, URL: https://teimas.monday.com/boards/1013914950/pulses/8816790292) | - [PE.25.002] VERIFACTU. Bloque 1. Modelo registros de eventos [E3] [IV] (ID: 8912876059, URL: https://teimas.monday.com/boards/1013914950/pulses/8912876059)
 - **Fix readme** [
-8522c7]
+8522c7] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 17:12:18 2025 +0200)
   - Detalles: docs(README): Fix readme | Add all the new info to the readme | Security: NA
 
 ### Refactorizaciones (1)
 
 - **Better code** [
-03041c]
+03041c] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 13:13:05 2025 +0200)
   - Detalles: refactor(Code): Better code | Code better | Security: NA
 
 ## Cambios que Rompen Compatibilidad
 
-- **X** [734d142]
+- **X** [734d142] - LudoBermejoES <LudoGithub@gmail.com> (Tue Apr 15 16:59:45 2025 +0200)
   - Detalles: Z
 - **First version** [
-104e18]
+104e18] - LudoBermejoES <LudoGithub@gmail.com> (Sun Apr 13 10:20:27 2025 +0200)
   - Detalles: First version, it is a breaking change
 
 ## Detalles de Tareas de Monday

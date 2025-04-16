@@ -136,8 +136,8 @@ async function generateReleaseNotes() {
     const SECTION_DELIMITER = '---SECTION_DELIMITER---';
     
     const gitLogCommand = lastTag 
-      ? `git log ${lastTag}..HEAD --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${COMMIT_DELIMITER}"` 
-      : `git log --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${COMMIT_DELIMITER}"`;
+      ? `git log ${lastTag}..HEAD --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${SECTION_DELIMITER}%an${SECTION_DELIMITER}%ae${SECTION_DELIMITER}%ad${COMMIT_DELIMITER}"` 
+      : `git log --no-merges --pretty=format:"%H${SECTION_DELIMITER}%s${SECTION_DELIMITER}%B${SECTION_DELIMITER}%an${SECTION_DELIMITER}%ae${SECTION_DELIMITER}%ad${COMMIT_DELIMITER}"`;
     
     console.log(`Ejecutando comando: ${gitLogCommand}`);
     
@@ -166,7 +166,7 @@ async function generateReleaseNotes() {
           try {
             const parts = block.split(SECTION_DELIMITER);
             
-            if (parts.length < 3) {
+            if (parts.length < 6) {
               console.log(`Advertencia: Formato de commit inesperado, saltando: ${block.substring(0, 50)}...`);
               continue;
             }
@@ -174,6 +174,9 @@ async function generateReleaseNotes() {
             const hash = parts[0] || '';
             const subject = parts[1] || '';
             const body = parts[2] || '';
+            const authorName = parts[3] || '';
+            const authorEmail = parts[4] || '';
+            const commitDate = parts[5] || '';
             
             // Para depuración
             console.log(`Procesando commit: ${hash.substring(0, 7)} - ${subject}`);
@@ -183,6 +186,9 @@ async function generateReleaseNotes() {
               hash,
               subject,
               body,
+              authorName,
+              authorEmail,
+              commitDate,
               type: extractCommitType(subject),
               scope: extractCommitScope(subject),
               description: extractCommitDescription(subject),
@@ -591,7 +597,7 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   if (commitsByType.feat && commitsByType.feat.length > 0) {
     document += `### Nuevas Funcionalidades (${commitsByType.feat.length})\n\n`;
     commitsByType.feat.forEach(commit => {
-      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}]\n`;
+      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}] - ${commit.authorName} <${commit.authorEmail}> (${commit.commitDate})\n`;
       if (commit.body) {
         document += `  - Detalles: ${formatMultilineText(commit.body)}\n`;
       }
@@ -603,7 +609,7 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   if (commitsByType.fix && commitsByType.fix.length > 0) {
     document += `### Correcciones (${commitsByType.fix.length})\n\n`;
     commitsByType.fix.forEach(commit => {
-      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}]\n`;
+      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}] - ${commit.authorName} <${commit.authorEmail}> (${commit.commitDate})\n`;
       if (commit.body) {
         document += `  - Detalles: ${formatMultilineText(commit.body)}\n`;
       }
@@ -618,7 +624,7 @@ function generateGeminiDocument(version, commits, mondayTasks) {
       if (commitsByType[type] && commitsByType[type].length > 0) {
         document += `### ${getTypeTitle(type)} (${commitsByType[type].length})\n\n`;
         commitsByType[type].forEach(commit => {
-          document += `- **${commit.description}** [${commit.hash.substring(0, 7)}]\n`;
+          document += `- **${commit.description}** [${commit.hash.substring(0, 7)}] - ${commit.authorName} <${commit.authorEmail}> (${commit.commitDate})\n`;
           if (commit.body) {
             document += `  - Detalles: ${formatMultilineText(commit.body)}\n`;
           }
@@ -633,7 +639,7 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   if (breakingChanges.length > 0) {
     document += `## Cambios que Rompen Compatibilidad\n\n`;
     breakingChanges.forEach(commit => {
-      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}]\n`;
+      document += `- **${commit.description}** [${commit.hash.substring(0, 7)}] - ${commit.authorName} <${commit.authorEmail}> (${commit.commitDate})\n`;
       document += `  - Detalles: ${formatMultilineText(commit.breakingChanges)}\n`;
     });
     document += `\n`;
@@ -712,6 +718,9 @@ function generateGeminiDocument(version, commits, mondayTasks) {
   
   commits.forEach(commit => {
     document += `### ${commit.type}${commit.scope ? `(${commit.scope})` : ''}: ${commit.description} [${commit.hash.substring(0, 7)}]\n\n`;
+    
+    document += `**Autor**: ${commit.authorName} <${commit.authorEmail}>\n`;
+    document += `**Fecha**: ${commit.commitDate}\n\n`;
     
     if (commit.body) {
       document += `${formatMultilineText(commit.body)}\n\n`;
