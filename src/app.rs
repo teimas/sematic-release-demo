@@ -2237,12 +2237,16 @@ impl App {
         let gemini_finished = Arc::new(Mutex::new(false));
         let gemini_success = Arc::new(Mutex::new(true));
         let gemini_result = Arc::new(Mutex::new(String::new()));
+        let gemini_security = Arc::new(Mutex::new(String::new()));
+        let gemini_breaking = Arc::new(Mutex::new(String::new()));
         
         // Clone for the thread
         let status_clone = gemini_status.clone();
         let finished_clone = gemini_finished.clone();
         let success_clone = gemini_success.clone();
         let result_clone = gemini_result.clone();
+        let security_clone = gemini_security.clone();
+        let breaking_clone = gemini_breaking.clone();
         
         // Get current form data for the thread
         let config_clone = self.config.clone();
@@ -2332,10 +2336,10 @@ impl App {
 
             // Update status: generating description
             if let Ok(mut status) = status_clone.lock() {
-                *status = "📝 Generando descripción técnica detallada...".to_string();
+                *status = "📝 Generando descripción y analizando seguridad...".to_string();
             }
 
-            // Make the async Gemini call in a blocking context
+            // Make the async Gemini calls in a blocking context
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
                 Err(e) => {
@@ -2355,13 +2359,20 @@ impl App {
             let commit_type_ref = commit_type.as_deref();
             let scope_ref = scope.as_deref();
             
-            match rt.block_on(gemini_client.generate_commit_description(&changes, commit_type_ref, scope_ref, &title)) {
+            // Run three Gemini analyses in parallel
+            let results = rt.block_on(async {
+                let description_future = gemini_client.generate_commit_description(&changes, commit_type_ref, scope_ref, &title);
+                let security_future = gemini_client.analyze_security_risks(&changes, commit_type_ref, scope_ref, &title);
+                let breaking_future = gemini_client.analyze_breaking_changes(&changes, commit_type_ref, scope_ref, &title);
+                
+                tokio::join!(description_future, security_future, breaking_future)
+            });
+            
+            // Handle the results
+            match results.0 {
                 Ok(description) => {
                     if let Ok(mut result) = result_clone.lock() {
                         *result = description;
-                    }
-                    if let Ok(mut status) = status_clone.lock() {
-                        *status = "✅ Descripción generada exitosamente".to_string();
                     }
                 }
                 Err(e) => {
@@ -2370,9 +2381,32 @@ impl App {
                         *result = "Cambios realizados en el código del proyecto.".to_string();
                     }
                     if let Ok(mut status) = status_clone.lock() {
-                        *status = format!("⚠️ Gemini falló, usando descripción básica: {}", e);
+                        *status = format!("⚠️ Gemini falló en descripción: {}", e);
                     }
                 }
+            }
+            
+            // Handle security analysis result
+            if let Ok(security) = results.1 {
+                if !security.is_empty() {
+                    if let Ok(mut sec) = security_clone.lock() {
+                        *sec = security;
+                    }
+                }
+            }
+            
+            // Handle breaking changes analysis result
+            if let Ok(breaking) = results.2 {
+                if !breaking.is_empty() {
+                    if let Ok(mut brk) = breaking_clone.lock() {
+                        *brk = breaking;
+                    }
+                }
+            }
+            
+            // Update final status
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "✅ Análisis completado exitosamente".to_string();
             }
             
             // Mark as finished
@@ -2405,9 +2439,21 @@ impl App {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
         
-        // Get the result and update the form
+        // Get the results and update the form
         if let Ok(result) = gemini_result.lock() {
             self.commit_form.description = result.clone();
+        }
+        
+        if let Ok(security) = gemini_security.lock() {
+            if !security.is_empty() {
+                self.commit_form.security = security.clone();
+            }
+        }
+        
+        if let Ok(breaking) = gemini_breaking.lock() {
+            if !breaking.is_empty() {
+                self.commit_form.breaking_change = breaking.clone();
+            }
         }
         
         // Check if there was an error

@@ -96,6 +96,129 @@ Escribe una descripción técnica completa en español, sin encabezados ni forma
         }
     }
 
+    pub async fn analyze_security_risks(&self, changes: &str, commit_type: Option<&str>, scope: Option<&str>, title: &str) -> Result<String> {
+        let commit_type_str = commit_type.unwrap_or("general");
+        let scope_str = scope.filter(|s| !s.is_empty()).unwrap_or("sistema");
+        
+        let prompt = format!(
+            r#"Eres un experto en seguridad informática que debe analizar cambios de código para identificar posibles riesgos de seguridad.
+
+CONTEXTO DEL COMMIT:
+- Tipo: {}
+- Ámbito: {}
+- Título: {}
+
+CAMBIOS EN EL CÓDIGO:
+{}
+
+INSTRUCCIONES:
+1. Analiza MINUCIOSAMENTE todos los cambios de código para identificar posibles vulnerabilidades o riesgos de seguridad
+2. Busca patrones peligrosos como:
+   - Inyección SQL, XSS, CSRF
+   - Manejo inseguro de datos sensibles (passwords, tokens, keys)
+   - Validación insuficiente de entrada
+   - Exposición de información sensible
+   - Configuraciones de seguridad débiles
+   - Dependencias con vulnerabilidades conocidas
+   - Privilegios elevados innecesarios
+   - Manejo inseguro de archivos o rutas
+3. Si NO encuentras riesgos de seguridad relevantes, responde EXACTAMENTE: "NA"
+4. Si SÍ encuentras riesgos, describe SOLO los riesgos específicos encontrados en 1-2 líneas máximo
+
+FORMATO DE RESPUESTA:
+- Si no hay riesgos: "NA"
+- Si hay riesgos: Una descripción concisa de los riesgos específicos encontrados (máximo 2 líneas)"#,
+            commit_type_str, scope_str, title, changes
+        );
+
+        // Try Gemini 1.5 Pro first, then fallback to 1.0 Pro
+        match self.call_gemini_api(&prompt, "gemini-1.5-pro").await {
+            Ok(response) => {
+                let trimmed = response.trim();
+                Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                    String::new() 
+                } else { 
+                    trimmed.to_string() 
+                })
+            },
+            Err(_) => {
+                eprintln!("Gemini 1.5 Pro failed, trying 1.0 Pro...");
+                match self.call_gemini_api(&prompt, "gemini-1.0-pro").await {
+                    Ok(response) => {
+                        let trimmed = response.trim();
+                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                            String::new() 
+                        } else { 
+                            trimmed.to_string() 
+                        })
+                    },
+                    Err(_) => Ok(String::new()) // Return empty if both fail
+                }
+            }
+        }
+    }
+
+    pub async fn analyze_breaking_changes(&self, changes: &str, commit_type: Option<&str>, scope: Option<&str>, title: &str) -> Result<String> {
+        let commit_type_str = commit_type.unwrap_or("general");
+        let scope_str = scope.filter(|s| !s.is_empty()).unwrap_or("sistema");
+        
+        let prompt = format!(
+            r#"Eres un experto en desarrollo de software que debe analizar cambios de código para identificar breaking changes (cambios que rompen compatibilidad).
+
+CONTEXTO DEL COMMIT:
+- Tipo: {}
+- Ámbito: {}
+- Título: {}
+
+CAMBIOS EN EL CÓDIGO:
+{}
+
+INSTRUCCIONES:
+1. Analiza CUIDADOSAMENTE todos los cambios para identificar breaking changes como:
+   - Eliminación de APIs públicas, funciones, clases o métodos
+   - Cambios en signatures de funciones (parámetros, tipos de retorno)
+   - Modificación de contratos de interfaz
+   - Cambios en formatos de datos o protocolos
+   - Eliminación de configuraciones o variables de entorno
+   - Cambios en comportamiento esperado de APIs existentes
+   - Modificaciones de esquemas de base de datos
+   - Cambios en URLs de endpoints
+2. Si NO encuentras breaking changes, responde EXACTAMENTE: "NA"
+3. Si SÍ encuentras breaking changes, describe SOLO los cambios específicos que rompen compatibilidad en 1-2 líneas máximo
+
+FORMATO DE RESPUESTA:
+- Si no hay breaking changes: "NA"
+- Si hay breaking changes: Una descripción concisa de los cambios que rompen compatibilidad (máximo 2 líneas)"#,
+            commit_type_str, scope_str, title, changes
+        );
+
+        // Try Gemini 1.5 Pro first, then fallback to 1.0 Pro
+        match self.call_gemini_api(&prompt, "gemini-1.5-pro").await {
+            Ok(response) => {
+                let trimmed = response.trim();
+                Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                    String::new() 
+                } else { 
+                    trimmed.to_string() 
+                })
+            },
+            Err(_) => {
+                eprintln!("Gemini 1.5 Pro failed, trying 1.0 Pro...");
+                match self.call_gemini_api(&prompt, "gemini-1.0-pro").await {
+                    Ok(response) => {
+                        let trimmed = response.trim();
+                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                            String::new() 
+                        } else { 
+                            trimmed.to_string() 
+                        })
+                    },
+                    Err(_) => Ok(String::new()) // Return empty if both fail
+                }
+            }
+        }
+    }
+
     async fn call_gemini_api(&self, prompt: &str, model: &str) -> Result<String> {
         let url = format!("https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}", model, self.api_key);
         
