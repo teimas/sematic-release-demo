@@ -20,7 +20,7 @@ use crate::{
     gemini::GeminiClient,
     git::{GitRepo, get_next_version},
     monday::MondayClient,
-    types::{AppConfig, AppScreen, AppState, CommitForm, CommitType, MondayTask, GeminiAnalysisState},
+    types::{AppConfig, AppScreen, AppState, CommitForm, CommitType, MondayTask, GeminiAnalysisState, ReleaseNotesAnalysisState},
     ui::{self, UIState},
 };
 
@@ -36,6 +36,7 @@ pub struct App {
     should_quit: bool,
     preview_commit_message: String,
     gemini_analysis_state: Option<GeminiAnalysisState>,
+    release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
 }
 
 impl App {
@@ -54,6 +55,7 @@ impl App {
             should_quit: false,
             preview_commit_message: String::new(),
             gemini_analysis_state: None,
+            release_notes_analysis_state: None,
         })
     }
 
@@ -113,6 +115,33 @@ impl App {
                     }
                     
                     self.gemini_analysis_state = None;
+                } else {
+                    // Update status message if it changed
+                    if let Ok(status) = analysis_state.status.lock() {
+                        let current_message = self.message.as_deref().unwrap_or("");
+                        if *status != current_message {
+                            self.message = Some(status.clone());
+                        }
+                    }
+                }
+            }
+            
+            // Check for completed Release Notes analysis
+            if let Some(analysis_state) = &self.release_notes_analysis_state {
+                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
+                
+                if is_finished {
+                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
+                    if success {
+                        self.current_state = AppState::Normal;
+                        self.message = Some("✅ Notas de versión generadas internamente exitosamente".to_string());
+                        self.current_screen = AppScreen::Main;
+                    } else {
+                        let status = analysis_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
+                        self.current_state = AppState::Error(format!("Error en generación: {}", status));
+                    }
+                    
+                    self.release_notes_analysis_state = None;
                 } else {
                     // Update status message if it changed
                     if let Ok(status) = analysis_state.status.lock() {
@@ -529,6 +558,30 @@ impl App {
                     self.message = Some("✅ Notas de versión generadas internamente exitosamente".to_string());
                     self.current_screen = AppScreen::Main;
                 }
+            }
+            KeyCode::Char('o') => {
+                // Generate release notes internally with modal overlay (non-blocking)
+                // Check if already processing to avoid multiple concurrent generations
+                if matches!(self.current_state, AppState::Loading) || self.release_notes_analysis_state.is_some() {
+                    return Ok(());
+                }
+                
+                // IMMEDIATELY set loading state and create analysis state
+                self.current_state = AppState::Loading;
+                self.message = Some("🚀 Iniciando generación de notas de versión...".to_string());
+                
+                // Create shared state for the analysis
+                let analysis_state = ReleaseNotesAnalysisState {
+                    status: Arc::new(Mutex::new("📋 Preparando generación de notas de versión...".to_string())),
+                    finished: Arc::new(Mutex::new(false)),
+                    success: Arc::new(Mutex::new(true)),
+                };
+                
+                // Start the analysis in a background thread
+                self.start_release_notes_analysis(analysis_state.clone());
+                
+                // Store the analysis state so the main loop can poll it
+                self.release_notes_analysis_state = Some(analysis_state);
             }
             _ => {}
         }
@@ -2461,5 +2514,674 @@ impl App {
                 *finished = true;
             }
         });
+    }
+
+    fn start_release_notes_analysis(&self, analysis_state: ReleaseNotesAnalysisState) {
+        use crate::git::GitRepo;
+        use crate::monday::MondayClient;
+        use crate::gemini::GeminiClient;
+        use std::thread;
+        use std::fs;
+        use std::collections::HashSet;
+        use chrono::Utc;
+
+        // Clone data needed for the thread
+        let config_clone = self.config.clone();
+        
+        // Clone analysis state components
+        let status_clone = analysis_state.status.clone();
+        let finished_clone = analysis_state.finished.clone();
+        let success_clone = analysis_state.success.clone();
+
+        // Spawn the analysis in a background thread
+        thread::spawn(move || {
+            // Update status: getting commits
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📋 Obteniendo commits desde la última versión...".to_string();
+            }
+            
+            // Get git repository
+            let git_repo = match GitRepo::new() {
+                Ok(repo) => repo,
+                Err(e) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error accediendo al repositorio: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                    if let Ok(mut finished) = finished_clone.lock() {
+                        *finished = true;
+                    }
+                    return;
+                }
+            };
+            
+            // Get last tag and commits since then
+            let last_tag = match git_repo.get_last_tag() {
+                Ok(tag) => tag,
+                Err(e) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error obteniendo última etiqueta: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                    if let Ok(mut finished) = finished_clone.lock() {
+                        *finished = true;
+                    }
+                    return;
+                }
+            };
+            
+            let commits = match git_repo.get_commits_since_tag(last_tag.as_deref()) {
+                Ok(commits) => commits,
+                Err(e) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error obteniendo commits: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                    if let Ok(mut finished) = finished_clone.lock() {
+                        *finished = true;
+                    }
+                    return;
+                }
+            };
+            
+            if commits.is_empty() {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "⚠️ No se encontraron commits desde la última versión".to_string();
+                }
+                if let Ok(mut finished) = finished_clone.lock() {
+                    *finished = true;
+                }
+                return;
+            }
+            
+            // Update status: analyzing commits
+            if let Ok(mut status) = status_clone.lock() {
+                *status = format!("📊 Se encontraron {} commits para analizar", commits.len());
+            }
+            
+            // Extract Monday.com task IDs from commits
+            let mut monday_task_ids = HashSet::new();
+            for commit in &commits {
+                // Check scope for task IDs
+                if let Some(scope) = &commit.scope {
+                    for id in scope.split('|') {
+                        if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
+                            monday_task_ids.insert(id.to_string());
+                        }
+                    }
+                }
+                
+                // Check monday task mentions
+                for mention in &commit.monday_task_mentions {
+                    monday_task_ids.insert(mention.id.clone());
+                }
+                
+                // Check monday_tasks field
+                for task_id in &commit.monday_tasks {
+                    monday_task_ids.insert(task_id.clone());
+                }
+            }
+            
+            // Update status: getting Monday tasks
+            if let Ok(mut status) = status_clone.lock() {
+                *status = format!("🔍 Obteniendo detalles de {} tareas de Monday.com...", monday_task_ids.len());
+            }
+            
+            // Extract responsible person from most recent commit author
+            let responsible_person = if !commits.is_empty() {
+                commits[0].author_name.clone()
+            } else {
+                "".to_string()
+            };
+            
+            // Get Monday.com task details using a blocking runtime
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error creando runtime: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                    if let Ok(mut finished) = finished_clone.lock() {
+                        *finished = true;
+                    }
+                    return;
+                }
+            };
+            
+            let mut monday_tasks = if !monday_task_ids.is_empty() {
+                match MondayClient::new(&config_clone) {
+                    Ok(client) => {
+                        let task_ids: Vec<String> = monday_task_ids.iter().cloned().collect();
+                        match rt.block_on(client.get_task_details(&task_ids)) {
+                            Ok(tasks) => tasks,
+                            Err(_) => Vec::new()
+                        }
+                    }
+                    Err(_) => Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            
+            // Create placeholder tasks for missing IDs (same logic as original)
+            let found_task_ids: HashSet<String> = monday_tasks.iter().map(|task| task.id.clone()).collect();
+            for task_id in &monday_task_ids {
+                if !found_task_ids.contains(task_id) {
+                    let mut title = "Task not found in Monday API".to_string();
+                    
+                    // Try to extract title from commits that mention this task
+                    for commit in &commits {
+                        for mention in &commit.monday_task_mentions {
+                            if &mention.id == task_id {
+                                title = mention.title.clone();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Create placeholder Monday task
+                    use crate::types::MondayTask;
+                    let placeholder_task = MondayTask {
+                        id: task_id.clone(),
+                        title,
+                        board_id: Some("".to_string()),
+                        board_name: Some("".to_string()),
+                        url: "".to_string(),
+                        state: "active".to_string(),
+                        updates: Vec::new(),
+                        group_title: Some("".to_string()),
+                        column_values: Vec::new(),
+                    };
+                    
+                    monday_tasks.push(placeholder_task);
+                }
+            }
+            
+            // Update status: generating version
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "🏷️ Generando versión y estructura...".to_string();
+            }
+            
+            // Get version and create tag format (same logic as original)
+            let version = match crate::git::get_next_version() {
+                Ok(v) => {
+                    if v != "next version" && v != "próxima versión" && !v.is_empty() {
+                        let date_str = Utc::now().format("%Y%m%d").to_string();
+                        format!("tag-teixo-{}-{}", date_str, v)
+                    } else {
+                        let date_str = Utc::now().format("%Y%m%d").to_string();
+                        match git_repo.get_last_tag() {
+                            Ok(Some(tag)) => {
+                                if let Some(version_part) = tag.split('-').next_back() {
+                                    if let Ok(mut version_num) = version_part.parse::<f32>() {
+                                        version_num += 0.001;
+                                        format!("tag-teixo-{}-{:.3}", date_str, version_num)
+                                    } else {
+                                        format!("tag-teixo-{}-1.112.0", date_str)
+                                    }
+                                } else {
+                                    format!("tag-teixo-{}-1.112.0", date_str)
+                                }
+                            },
+                            _ => format!("tag-teixo-{}-1.112.0", date_str),
+                        }
+                    }
+                },
+                Err(_) => {
+                    let date_str = Utc::now().format("%Y%m%d").to_string();
+                    format!("tag-teixo-{}-1.112.0", date_str)
+                },
+            };
+            
+            // Update status: generating document
+            if let Ok(mut status) = status_clone.lock() {
+                *status = format!("📄 Generando documento estructurado para versión {}...", version);
+            }
+            
+            // Generate the structured document (using embedded function logic)
+            let structured_document = Self::generate_raw_release_notes_static(&version, &commits, &monday_tasks, &responsible_person);
+            
+            // Create output directory and save files
+            if let Err(_) = fs::create_dir_all("release-notes") {
+                // Continue even if directory creation fails
+            }
+            
+            let date_str = Utc::now().format("%Y-%m-%d").to_string();
+            let structured_filename = format!("release-notes/release-notes-{}_SCRIPT_WITH_LETTER_O.md", date_str);
+            let gemini_filename = format!("release-notes/release-notes-{}_GEMINI_WITH_LETTER_O.md", date_str);
+            
+            // Save the structured document
+            if let Err(e) = fs::write(&structured_filename, &structured_document) {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("❌ Error guardando documento estructurado: {}", e);
+                }
+                if let Ok(mut success) = success_clone.lock() {
+                    *success = false;
+                }
+                if let Ok(mut finished) = finished_clone.lock() {
+                    *finished = true;
+                }
+                return;
+            }
+            
+            // Update status: processing with Gemini
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "🤖 Enviando documento a Google Gemini API...".to_string();
+            }
+            
+            // Try to process with Gemini
+            match GeminiClient::new(&config_clone) {
+                Ok(gemini_client) => {
+                    match rt.block_on(gemini_client.process_release_notes_document(&structured_document)) {
+                        Ok(gemini_response) => {
+                            // Save the Gemini-processed version
+                            if let Err(_) = fs::write(&gemini_filename, &gemini_response) {
+                                // Continue even if saving Gemini version fails
+                            }
+                            
+                            if let Ok(mut status) = status_clone.lock() {
+                                *status = format!(
+                                    "✅ Notas de versión generadas exitosamente:\n📄 Documento estructurado: {}\n🤖 Versión procesada por Gemini: {}",
+                                    structured_filename, gemini_filename
+                                );
+                            }
+                        }
+                        Err(_) => {
+                            if let Ok(mut status) = status_clone.lock() {
+                                *status = format!(
+                                    "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}",
+                                    structured_filename
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!(
+                            "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}",
+                            structured_filename
+                        );
+                    }
+                }
+            }
+            
+            // Mark as finished
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
+        });
+    }
+    
+    // Static version of generate_raw_release_notes for use in background thread
+    fn generate_raw_release_notes_static(version: &str, commits: &[crate::types::GitCommit], monday_tasks: &[crate::types::MondayTask], responsible_person: &str) -> String {
+        use chrono::Utc;
+        use std::collections::HashMap;
+        use std::fs;
+        
+        // Create a mapping of task ID to task details for quick lookup
+        let task_details_map: HashMap<String, &crate::types::MondayTask> = monday_tasks.iter()
+            .map(|task| (task.id.clone(), task))
+            .collect();
+        
+        // Group commits by type
+        let mut commits_by_type: HashMap<String, Vec<&crate::types::GitCommit>> = HashMap::new();
+        for commit in commits {
+            let commit_type = commit.commit_type.as_deref().unwrap_or("other").to_string();
+            commits_by_type.entry(commit_type).or_insert_with(Vec::new).push(commit);
+        }
+        
+        let mut document = String::new();
+        
+        // Header
+        document.push_str(&format!("# Datos para Generación de Notas de Versión {}\n\n", version));
+        
+        // General Information
+        document.push_str("## Información General\n\n");
+        document.push_str(&format!("- **Versión**: {}\n", version));
+        document.push_str(&format!("- **Fecha**: {}\n", 
+            Utc::now().format("%d/%m/%Y")));
+        document.push_str(&format!("- **Total de Commits**: {}\n", commits.len()));
+        document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
+        
+        // Instructions for Gemini
+        document.push_str("## Instrucciones CRÍTICAS\n\n");
+        document.push_str("DEBES seguir EXACTAMENTE la plantilla que se proporciona al final de este documento. ");
+        document.push_str("NO crees un resumen o documento libre. COPIA la estructura de la plantilla y RELLENA cada sección. ");
+        document.push_str("OBLIGATORIO: \n");
+        document.push_str(&format!("1. El responsable del despliegue es: {} - úsalo en la sección 'Responsable despliegue'.\n", responsible_person));
+        document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
+        document.push_str("3. En la tabla 'Información para N1', incluye TODAS las tareas BUG con SupportBee links.\n");
+        document.push_str("4. Para las secciones Correcciones y Proyectos especiales, usa solo las tareas con labels BUG y PE.\n");
+        document.push_str("5. En las tablas de validación, incluye descripciones específicas basadas en el título de cada tarea.\n");
+        document.push_str("6. Incluye TODOS los commits en 'Referencia commits' con el formato exacto mostrado.\n");
+        document.push_str(&format!("7. Usa el título: '# Actualización Teixo versión {}'.\n", version));
+        document.push_str("8. Si una tabla está vacía en la plantilla, déjala vacía pero manténla.\n");
+        document.push_str("CRÍTICO: No inventes información, usa solo los datos proporcionados.\n\n");
+        
+        // Summary of changes by type
+        document.push_str("## Resumen de Cambios\n\n");
+        
+        // New Features (feat)
+        if let Some(feat_commits) = commits_by_type.get("feat") {
+            if !feat_commits.is_empty() {
+                document.push_str(&format!("### Nuevas Funcionalidades ({})\n\n", feat_commits.len()));
+                for commit in feat_commits {
+                    document.push_str(&format!("- **{}** [{}] - {} <{}> ({})\n", 
+                        commit.description,
+                        commit.hash.chars().take(7).collect::<String>(),
+                        &commit.author_name,
+                        &commit.author_email,
+                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
+                    ));
+                    if !commit.body.trim().is_empty() {
+                        document.push_str(&format!("  - Detalles: {}\n", Self::format_multiline_text_static(&commit.body)));
+                    }
+                }
+                document.push('\n');
+            }
+        }
+        
+        // Bug Fixes (fix)
+        if let Some(fix_commits) = commits_by_type.get("fix") {
+            if !fix_commits.is_empty() {
+                document.push_str(&format!("### Correcciones ({})\n\n", fix_commits.len()));
+                for commit in fix_commits {
+                    document.push_str(&format!("- **{}** [{}] - {} <{}> ({})\n", 
+                        commit.description,
+                        commit.hash.chars().take(7).collect::<String>(),
+                        &commit.author_name,
+                        &commit.author_email,
+                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
+                    ));
+                    if !commit.body.trim().is_empty() {
+                        document.push_str(&format!("  - Detalles: {}\n", Self::format_multiline_text_static(&commit.body)));
+                    }
+                }
+                document.push('\n');
+            }
+        }
+        
+        // Other types of commits
+        let other_types: Vec<&String> = commits_by_type.keys()
+            .filter(|&type_name| !["feat", "fix"].contains(&type_name.as_str()))
+            .collect();
+        
+        for type_name in other_types {
+            if let Some(type_commits) = commits_by_type.get(type_name) {
+                if !type_commits.is_empty() {
+                    document.push_str(&format!("### {} ({})\n\n", Self::get_type_title_static(type_name), type_commits.len()));
+                    for commit in type_commits {
+                        document.push_str(&format!("- **{}** [{}] - {} <{}> ({})\n", 
+                            commit.description,
+                            commit.hash.chars().take(7).collect::<String>(),
+                            &commit.author_name,
+                            &commit.author_email,
+                            commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
+                        ));
+                        if !commit.body.trim().is_empty() {
+                            document.push_str(&format!("  - Detalles: {}\n", Self::format_multiline_text_static(&commit.body)));
+                        }
+                    }
+                    document.push('\n');
+                }
+            }
+        }
+        
+        // Breaking changes
+        let breaking_commits: Vec<&crate::types::GitCommit> = commits.iter()
+            .filter(|commit| !commit.breaking_changes.is_empty())
+            .collect();
+        
+        if !breaking_commits.is_empty() {
+            document.push_str("## Cambios que Rompen Compatibilidad\n\n");
+            for commit in breaking_commits {
+                document.push_str(&format!("- **{}** [{}] - {} <{}> ({})\n", 
+                    commit.description,
+                    commit.hash.chars().take(7).collect::<String>(),
+                    &commit.author_name,
+                    &commit.author_email,
+                    commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
+                ));
+                document.push_str(&format!("  - Detalles: {}\n", 
+                    commit.breaking_changes.join(" | ")));
+            }
+            document.push('\n');
+        }
+        
+        // Monday.com task details
+        if !monday_tasks.is_empty() {
+            document.push_str("## Detalles de Tareas de Monday\n\n");
+            
+            for task in monday_tasks {
+                document.push_str(&format!("### {} (ID: {})\n\n", task.title, task.id));
+                document.push_str(&format!("- **Estado**: {}\n", task.state));
+                document.push_str(&format!("- **Tablero**: {} (ID: {})\n", 
+                    task.board_name.as_deref().unwrap_or("N/A"), 
+                    task.board_id.as_deref().unwrap_or("N/A")));
+                document.push_str(&format!("- **Grupo**: {}\n", 
+                    task.group_title.as_deref().unwrap_or("N/A")));
+                
+                // Column values
+                if !task.column_values.is_empty() {
+                    document.push_str("- **Detalles**:\n");
+                    let relevant_columns: Vec<&crate::types::MondayColumnValue> = task.column_values.iter()
+                        .filter(|col| col.text.is_some() && !col.text.as_ref().unwrap().trim().is_empty())
+                        .collect();
+                    
+                    if !relevant_columns.is_empty() {
+                        for col in relevant_columns {
+                            document.push_str(&format!("  - {}: {}\n", 
+                                col.id, 
+                                col.text.as_deref().unwrap_or("")));
+                        }
+                    } else {
+                        document.push_str("  - No hay detalles adicionales disponibles\n");
+                    }
+                }
+                
+                // SupportBee links extracted from Monday task column values (texto field)
+                let mut supportbee_links = Vec::new();
+                for col in &task.column_values {
+                    if col.id == "texto" {
+                        if let Some(text) = &col.text {
+                            let supportbee_regex = regex::Regex::new(r"https?://[^\s,]*teimas\.supportbee[^\s,]*").unwrap();
+                            for mat in supportbee_regex.find_iter(text) {
+                                let link = mat.as_str().to_string();
+                                if !supportbee_links.contains(&link) {
+                                    supportbee_links.push(link);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if !supportbee_links.is_empty() {
+                    document.push_str("- **Enlaces SupportBee**:\n");
+                    for link in supportbee_links {
+                        document.push_str(&format!("  - {}\n", link));
+                    }
+                }
+                
+                // Recent updates (Actualizaciones Recientes)
+                if !task.updates.is_empty() {
+                    document.push_str("- **Actualizaciones Recientes**:\n");
+                    
+                    // Show the 3 most recent updates
+                    for update in task.updates.iter().take(3) {
+                        // Format the date from ISO string to DD/MM/YYYY format
+                        let date = if let Ok(parsed_date) = update.created_at.parse::<chrono::DateTime<chrono::Utc>>() {
+                            parsed_date.format("%d/%m/%Y").to_string()
+                        } else if let Some(date_part) = update.created_at.split('T').next() {
+                            // If we can't parse the full datetime, try to extract just the date part
+                            if let Ok(parsed_date) = chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d") {
+                                parsed_date.format("%d/%m/%Y").to_string()
+                            } else {
+                                update.created_at.clone()
+                            }
+                        } else {
+                            update.created_at.clone()
+                        };
+                        
+                        let creator_name = update.creator.as_ref()
+                            .map(|c| c.name.as_str())
+                            .unwrap_or("Usuario");
+                        
+                        // Truncate the body to 100 characters max
+                        let body_preview = if update.body.len() > 100 {
+                            format!("{}...", &update.body[..100])
+                        } else {
+                            update.body.clone()
+                        };
+                        
+                        document.push_str(&format!("  - {} por {}: {}\n", date, creator_name, body_preview));
+                    }
+                }
+                
+                // Related commits
+                let related_commits: Vec<&crate::types::GitCommit> = commits.iter()
+                    .filter(|commit| {
+                        // Check scope
+                        if let Some(scope) = &commit.scope {
+                            if scope.split('|').any(|id| id == task.id) {
+                                return true;
+                            }
+                        }
+                        
+                        // Check monday_task_mentions
+                        commit.monday_task_mentions.iter().any(|mention| mention.id == task.id)
+                    })
+                    .collect();
+                
+                if !related_commits.is_empty() {
+                    document.push_str("- **Commits Relacionados**:\n");
+                    for commit in related_commits {
+                        document.push_str(&format!("  - {}: {} [{}]\n", 
+                            commit.commit_type.as_deref().unwrap_or("other"),
+                            commit.description,
+                            commit.hash.chars().take(7).collect::<String>()));
+                    }
+                }
+                
+                document.push('\n');
+            }
+        }
+        
+        // Complete commit details
+        document.push_str("## Detalles Completos de Commits\n\n");
+        
+        for commit in commits {
+            let scope_part = if let Some(scope) = &commit.scope {
+                format!("({})", scope)
+            } else {
+                String::new()
+            };
+            
+            document.push_str(&format!("### {}{}: {} [{}]\n\n", 
+                commit.commit_type.as_deref().unwrap_or("other"),
+                scope_part,
+                commit.description,
+                commit.hash.chars().take(7).collect::<String>()));
+            
+            document.push_str(&format!("**Autor**: {} <{}>\n", 
+                &commit.author_name,
+                &commit.author_email));
+            document.push_str(&format!("**Fecha**: {}\n\n", 
+                commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")));
+            
+            if !commit.body.trim().is_empty() {
+                document.push_str(&format!("{}\n\n", Self::format_multiline_text_static(&commit.body)));
+            }
+            
+            if !commit.test_details.is_empty() {
+                document.push_str("**Pruebas**:\n");
+                for test in &commit.test_details {
+                    document.push_str(&format!("- {}\n", test));
+                }
+                document.push('\n');
+            }
+            
+            if let Some(security) = &commit.security {
+                if security != "NA" {
+                    document.push_str(&format!("**Seguridad**: {}\n\n", security));
+                }
+            }
+            
+            if !commit.monday_task_mentions.is_empty() {
+                document.push_str("**Tareas relacionadas**:\n");
+                
+                for mention in &commit.monday_task_mentions {
+                    let task_details = task_details_map.get(&mention.id);
+                    let task_name = task_details.map(|t| t.title.as_str()).unwrap_or(&mention.title);
+                    let task_state = task_details.map(|t| t.state.as_str()).unwrap_or("Desconocido");
+                    
+                    document.push_str(&format!("- {} (ID: {}, Estado: {})\n", 
+                        task_name, mention.id, task_state));
+                }
+                
+                document.push('\n');
+            }
+            
+            document.push_str("---\n\n");
+        }
+
+        document.push_str("La plantilla a utilizar para generar el documento tiene que ser la siguiente. Fijate en todo lo que hay y emúlalo por completo.");
+        
+        // Read and include the template content (like Node.js does)
+        match fs::read_to_string("scripts/plantilla.md") {
+            Ok(plantilla_content) => {
+                document.push_str(&format!("\n\n{}", plantilla_content));
+                println!("✅ Plantilla cargada exitosamente: scripts/plantilla.md");
+            }
+            Err(e) => {
+                println!("⚠️ No se pudo cargar la plantilla scripts/plantilla.md: {}", e);
+                // If we can't load the template, at least add the instruction to use the original template format
+                document.push_str("\n\nPor favor, utiliza el formato estándar de notas de versión de Teixo que incluye las secciones de Información para N1, Información técnica, Correcciones, Novedades (por categorías), Validación en Sandbox, Pruebas y Referencia commits.");
+            }
+        }
+        
+        document
+    }
+    
+    // Static helper methods for the static function
+    fn format_multiline_text_static(text: &str) -> String {
+        if text.trim().is_empty() {
+            return String::new();
+        }
+        
+        text.split('\n')
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<&str>>()
+            .join(" | ")
+    }
+    
+    fn get_type_title_static(commit_type: &str) -> String {
+        match commit_type {
+            "feat" => "Nuevas Funcionalidades".to_string(),
+            "fix" => "Correcciones".to_string(),
+            "docs" => "Documentación".to_string(),
+            "style" => "Estilo".to_string(),
+            "refactor" => "Refactorizaciones".to_string(),
+            "perf" => "Mejoras de Rendimiento".to_string(),
+            "test" => "Pruebas".to_string(),
+            "build" => "Construcción".to_string(),
+            "ci" => "Integración Continua".to_string(),
+            "chore" => "Tareas".to_string(),
+            "revert" => "Reversiones".to_string(),
+            _ => {
+                let first_char = commit_type.chars().next().unwrap().to_uppercase().collect::<String>();
+                format!("{}{}", first_char, &commit_type[1..])
+            }
+        }
     }
 } 

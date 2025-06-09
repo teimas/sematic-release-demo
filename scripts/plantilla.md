@@ -6,10 +6,8 @@ Tickets que se solucionan en esta actualización
 
 | Desarrollo | IDTarea | Support Bee |
 | ----- | ----- | ----- |
-|  | m8840639326 | https://teimas.supportbee.com/tickets/51272047 |
-|  | m8805697272 | https://teimas.supportbee.com/tickets/51289664 |
-|  | m8819524238 | https://teimas.supportbee.com/tickets/51316560 |
-|  | m8817923813 | https://teimas.supportbee.com/tickets/49751920 |
+Aquí añadirás todos los tickets de supportbee que se hayan resuelto en esta actualización. Son todos los que veas en el documento de entrada.
+
 
 # **Información técnica**
 

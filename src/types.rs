@@ -177,4 +177,11 @@ pub struct GeminiAnalysisState {
     pub result: Arc<Mutex<String>>,
     pub security: Arc<Mutex<String>>,
     pub breaking: Arc<Mutex<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReleaseNotesAnalysisState {
+    pub status: Arc<Mutex<String>>,
+    pub finished: Arc<Mutex<bool>>,
+    pub success: Arc<Mutex<bool>>,
 } 
