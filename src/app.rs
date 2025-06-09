@@ -537,29 +537,6 @@ impl App {
                 self.current_screen = AppScreen::Main;
             }
             KeyCode::Enter => {
-                self.current_state = AppState::Loading;
-                
-                if let Err(e) = self.generate_release_notes_with_npm().await {
-                    self.current_state = AppState::Error(e.to_string());
-                } else {
-                    self.current_state = AppState::Normal;
-                    self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
-                    self.current_screen = AppScreen::Main;
-                }
-            }
-            KeyCode::Char('i') => {
-                // Generate release notes internally (using Rust code instead of npm script)
-                self.current_state = AppState::Loading;
-                
-                if let Err(e) = self.generate_release_notes_internal().await {
-                    self.current_state = AppState::Error(e.to_string());
-                } else {
-                    self.current_state = AppState::Normal;
-                    self.message = Some("✅ Notas de versión generadas internamente exitosamente".to_string());
-                    self.current_screen = AppScreen::Main;
-                }
-            }
-            KeyCode::Char('o') => {
                 // Generate release notes internally with modal overlay (non-blocking)
                 // Check if already processing to avoid multiple concurrent generations
                 if matches!(self.current_state, AppState::Loading) || self.release_notes_analysis_state.is_some() {
@@ -582,6 +559,29 @@ impl App {
                 
                 // Store the analysis state so the main loop can poll it
                 self.release_notes_analysis_state = Some(analysis_state);
+            }
+            KeyCode::Char('i') => {
+                // Generate release notes internally (using Rust code instead of npm script)
+                self.current_state = AppState::Loading;
+                
+                if let Err(e) = self.generate_release_notes_internal().await {
+                    self.current_state = AppState::Error(e.to_string());
+                } else {
+                    self.current_state = AppState::Normal;
+                    self.message = Some("✅ Notas de versión generadas internamente exitosamente".to_string());
+                    self.current_screen = AppScreen::Main;
+                }
+            }
+            KeyCode::Char('o') => {
+                self.current_state = AppState::Loading;
+                
+                if let Err(e) = self.generate_release_notes_with_npm().await {
+                    self.current_state = AppState::Error(e.to_string());
+                } else {
+                    self.current_state = AppState::Normal;
+                    self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
+                    self.current_screen = AppScreen::Main;
+                }
             }
             _ => {}
         }
