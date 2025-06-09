@@ -29,4 +29,18 @@ Thumbs.db
 .env.local
 .env.development.local
 .env.test.local
-.env.production.local 
+.env.production.local
+
+# Rust build artifacts
+target/
+
+# Rust debugging and temporary files
+**/*.rs.bk
+*.pdb
+*.orig
+
+# Generated release notes
+release-notes/
+
+# Temporary test files
+test_keys.rs 
