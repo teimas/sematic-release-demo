@@ -144,6 +144,8 @@ pub struct CommitForm {
     pub breaking_change: String,
     pub test_details: String,
     pub security: String,
+    pub migraciones_lentas: String,
+    pub partes_a_ejecutar: String,
     pub selected_tasks: Vec<MondayTask>,
 }
 

@@ -347,7 +347,9 @@ impl App {
                     CommitField::Description => CommitField::BreakingChange,
                     CommitField::BreakingChange => CommitField::TestDetails,
                     CommitField::TestDetails => CommitField::Security,
-                    CommitField::Security => CommitField::SelectedTasks,
+                    CommitField::Security => CommitField::MigracionesLentas,
+                    CommitField::MigracionesLentas => CommitField::PartesAEjecutar,
+                    CommitField::PartesAEjecutar => CommitField::SelectedTasks,
                     CommitField::SelectedTasks => CommitField::Type,
                 };
                 
@@ -361,6 +363,8 @@ impl App {
                         crate::ui::CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
                         crate::ui::CommitField::TestDetails => self.commit_form.test_details.clone(),
                         crate::ui::CommitField::Security => self.commit_form.security.clone(),
+                        crate::ui::CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
+                        crate::ui::CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
                         _ => String::new(),
                     };
                     // Set cursor position to end of text
@@ -387,7 +391,9 @@ impl App {
                     CommitField::BreakingChange => CommitField::Description,
                     CommitField::TestDetails => CommitField::BreakingChange,
                     CommitField::Security => CommitField::TestDetails,
-                    CommitField::SelectedTasks => CommitField::Security,
+                    CommitField::MigracionesLentas => CommitField::Security,
+                    CommitField::PartesAEjecutar => CommitField::MigracionesLentas,
+                    CommitField::SelectedTasks => CommitField::PartesAEjecutar,
                 };
                 
                 // Auto-enter edit mode for text fields
@@ -400,6 +406,8 @@ impl App {
                         crate::ui::CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
                         crate::ui::CommitField::TestDetails => self.commit_form.test_details.clone(),
                         crate::ui::CommitField::Security => self.commit_form.security.clone(),
+                        crate::ui::CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
+                        crate::ui::CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
                         _ => String::new(),
                     };
                     // Set cursor position to end of text
@@ -486,6 +494,8 @@ impl App {
                             crate::ui::CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
                             crate::ui::CommitField::TestDetails => self.commit_form.test_details.clone(),
                             crate::ui::CommitField::Security => self.commit_form.security.clone(),
+                            crate::ui::CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
+                            crate::ui::CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
                             _ => String::new(),
                         };
                         // Set cursor position to end of text
@@ -882,7 +892,9 @@ impl App {
                     CommitField::Description => CommitField::BreakingChange,
                     CommitField::BreakingChange => CommitField::TestDetails,
                     CommitField::TestDetails => CommitField::Security,
-                    CommitField::Security => CommitField::SelectedTasks,
+                    CommitField::Security => CommitField::MigracionesLentas,
+                    CommitField::MigracionesLentas => CommitField::PartesAEjecutar,
+                    CommitField::PartesAEjecutar => CommitField::SelectedTasks,
                     CommitField::SelectedTasks => CommitField::Type,
                 };
                 
@@ -895,6 +907,8 @@ impl App {
                         crate::ui::CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
                         crate::ui::CommitField::TestDetails => self.commit_form.test_details.clone(),
                         crate::ui::CommitField::Security => self.commit_form.security.clone(),
+                        crate::ui::CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
+                        crate::ui::CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
                         _ => String::new(),
                     };
                     // Set cursor position to end of text
@@ -920,7 +934,9 @@ impl App {
                     CommitField::BreakingChange => CommitField::Description,
                     CommitField::TestDetails => CommitField::BreakingChange,
                     CommitField::Security => CommitField::TestDetails,
-                    CommitField::SelectedTasks => CommitField::Security,
+                    CommitField::MigracionesLentas => CommitField::Security,
+                    CommitField::PartesAEjecutar => CommitField::MigracionesLentas,
+                    CommitField::SelectedTasks => CommitField::PartesAEjecutar,
                 };
                 
                 // Auto-enter edit mode for text fields, exit for commit type and selected tasks
@@ -932,6 +948,8 @@ impl App {
                         crate::ui::CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
                         crate::ui::CommitField::TestDetails => self.commit_form.test_details.clone(),
                         crate::ui::CommitField::Security => self.commit_form.security.clone(),
+                        crate::ui::CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
+                        crate::ui::CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
                         _ => String::new(),
                     };
                     // Set cursor position to end of text
@@ -1143,7 +1161,7 @@ impl App {
         use crate::ui::CommitField;
         matches!(
             self.ui_state.current_field,
-            CommitField::Description | CommitField::TestDetails | CommitField::Security
+            CommitField::Description | CommitField::TestDetails | CommitField::Security | CommitField::MigracionesLentas | CommitField::PartesAEjecutar
         )
     }
 
@@ -1180,6 +1198,12 @@ impl App {
             }
             crate::ui::CommitField::Security => {
                 self.commit_form.security = self.ui_state.current_input.clone();
+            }
+            crate::ui::CommitField::MigracionesLentas => {
+                self.commit_form.migraciones_lentas = self.ui_state.current_input.clone();
+            }
+            crate::ui::CommitField::PartesAEjecutar => {
+                self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone();
             }
             _ => {}
         }
@@ -1332,6 +1356,18 @@ impl App {
         if !self.commit_form.security.is_empty() {
             message.push_str("\n\nSecurity: ");
             message.push_str(&self.commit_form.security);
+        }
+        
+        // Migraciones Lentas
+        if !self.commit_form.migraciones_lentas.is_empty() {
+            message.push_str("\n\nMigraciones Lentas: ");
+            message.push_str(&self.commit_form.migraciones_lentas);
+        }
+        
+        // Partes a Ejecutar
+        if !self.commit_form.partes_a_ejecutar.is_empty() {
+            message.push_str("\n\nPartes a Ejecutar: ");
+            message.push_str(&self.commit_form.partes_a_ejecutar);
         }
         
         // Monday.com tasks

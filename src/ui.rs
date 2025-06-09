@@ -44,6 +44,8 @@ pub enum CommitField {
     BreakingChange,
     TestDetails,
     Security,
+    MigracionesLentas,
+    PartesAEjecutar,
     SelectedTasks,
 }
 
@@ -247,6 +249,8 @@ fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form
             Constraint::Length(3),  // Breaking change
             Constraint::Length(5),  // Test details (multiline)
             Constraint::Length(5),  // Security (multiline)
+            Constraint::Length(5),  // Migraciones lentas (multiline)
+            Constraint::Length(5),  // Partes a ejecutar (multiline)
             Constraint::Length(3),  // Instructions
             Constraint::Min(0),     // Selected tasks
         ])
@@ -402,9 +406,43 @@ fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form
         .wrap(Wrap { trim: true });
     f.render_widget(security, chunks[6]);
 
+    // Migraciones Lentas (multiline)
+    let migraciones_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::MigracionesLentas {
+        &ui_state.current_input
+    } else if commit_form.migraciones_lentas.is_empty() {
+        "Enter slow migrations details... (Enter for new line)"
+    } else {
+        &commit_form.migraciones_lentas
+    };
+    let migraciones_lentas = Paragraph::new(migraciones_text)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Migraciones Lentas (multiline)")
+            .border_style(get_field_border_style(&CommitField::MigracionesLentas)))
+        .style(get_field_style(&CommitField::MigracionesLentas))
+        .wrap(Wrap { trim: true });
+    f.render_widget(migraciones_lentas, chunks[7]);
+
+    // Partes a Ejecutar (multiline)
+    let partes_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::PartesAEjecutar {
+        &ui_state.current_input
+    } else if commit_form.partes_a_ejecutar.is_empty() {
+        "Enter parts to execute... (Enter for new line)"
+    } else {
+        &commit_form.partes_a_ejecutar
+    };
+    let partes_a_ejecutar = Paragraph::new(partes_text)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Partes a Ejecutar (multiline)")
+            .border_style(get_field_border_style(&CommitField::PartesAEjecutar)))
+        .style(get_field_style(&CommitField::PartesAEjecutar))
+        .wrap(Wrap { trim: true });
+    f.render_widget(partes_a_ejecutar, chunks[8]);
+
     // Instructions
     let instructions = if ui_state.input_mode == InputMode::Editing {
-        if matches!(ui_state.current_field, CommitField::Description | CommitField::TestDetails | CommitField::Security) {
+        if matches!(ui_state.current_field, CommitField::Description | CommitField::TestDetails | CommitField::Security | CommitField::MigracionesLentas | CommitField::PartesAEjecutar) {
             "🔤 EDITING MULTILINE - Type text, Enter for new line, Tab/arrows to save & move, Esc to cancel"
         } else {
             "🔤 EDITING SINGLE LINE - Type text, Tab/arrows to save & move, Esc to cancel"
@@ -416,7 +454,7 @@ fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form
         .block(Block::default().borders(Borders::ALL).title("Instructions"))
         .style(Style::default().fg(Color::Cyan))
         .wrap(Wrap { trim: true });
-    f.render_widget(instructions_widget, chunks[7]);
+    f.render_widget(instructions_widget, chunks[9]);
 
     // Selected Tasks
     let task_items: Vec<ListItem> = commit_form
@@ -447,7 +485,7 @@ fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form
             .title(tasks_title)
             .border_style(get_field_border_style(&CommitField::SelectedTasks)))
         .style(get_field_style(&CommitField::SelectedTasks));
-    f.render_widget(tasks_list, chunks[8]);
+    f.render_widget(tasks_list, chunks[10]);
 }
 
 fn draw_commit_preview_screen(f: &mut Frame, area: Rect, ui_state: &UIState) {
@@ -990,6 +1028,8 @@ fn set_cursor_position(f: &mut Frame, area: Rect, ui_state: &UIState) {
             Constraint::Length(3),  // Breaking change
             Constraint::Length(5),  // Test details (multiline)
             Constraint::Length(5),  // Security (multiline)
+            Constraint::Length(5),  // Migraciones lentas (multiline)
+            Constraint::Length(5),  // Partes a ejecutar (multiline)
             Constraint::Length(3),  // Instructions
             Constraint::Min(0),     // Selected tasks
         ])
@@ -1004,6 +1044,8 @@ fn set_cursor_position(f: &mut Frame, area: Rect, ui_state: &UIState) {
         CommitField::BreakingChange => chunks[4],
         CommitField::TestDetails => chunks[5],
         CommitField::Security => chunks[6],
+        CommitField::MigracionesLentas => chunks[7],
+        CommitField::PartesAEjecutar => chunks[8],
         CommitField::SelectedTasks => return, // Selected tasks field doesn't need cursor (it's a list)
     };
 
