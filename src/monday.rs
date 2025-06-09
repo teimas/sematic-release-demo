@@ -262,7 +262,7 @@ impl MondayClient {
 
         let group_title = item["group"]["title"].as_str().map(|s| s.to_string());
 
-        let url = self.generate_task_url(&board_id.as_deref().unwrap_or(""), &id);
+        let url = self.generate_task_url(board_id.as_deref().unwrap_or(""), &id);
 
         let updates = if let Some(updates_array) = item["updates"].as_array() {
             updates_array
@@ -300,14 +300,10 @@ impl MondayClient {
         let body = update["body"].as_str().unwrap_or("").to_string();
         let created_at = update["created_at"].as_str().unwrap_or("").to_string();
 
-        let creator = if let Some(creator_obj) = update["creator"].as_object() {
-            Some(MondayUser {
+        let creator = update["creator"].as_object().map(|creator_obj| MondayUser {
                 id: creator_obj["id"].as_str().unwrap_or("").to_string(),
                 name: creator_obj["name"].as_str().unwrap_or("").to_string(),
-            })
-        } else {
-            None
-        };
+            });
 
         Some(MondayUpdate {
             id,

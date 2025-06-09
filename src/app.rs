@@ -405,18 +405,16 @@ impl App {
             }
             KeyCode::Delete | KeyCode::Char(' ') => {
                 // Handle task deletion in task management mode OR when on SelectedTasks field
-                if self.ui_state.task_management_mode || self.ui_state.current_field == crate::ui::CommitField::SelectedTasks {
-                    if !self.selected_tasks.is_empty() && self.ui_state.selected_tab < self.selected_tasks.len() {
-                        self.selected_tasks.remove(self.ui_state.selected_tab);
-                        
-                        // Adjust selected_tab if we're now past the end
-                        if self.ui_state.selected_tab >= self.selected_tasks.len() && !self.selected_tasks.is_empty() {
-                            self.ui_state.selected_tab = self.selected_tasks.len() - 1;
-                        }
-                        
-                        self.update_task_selection();
-                        self.message = Some("Task removed from selection".to_string());
+                if (self.ui_state.task_management_mode || self.ui_state.current_field == crate::ui::CommitField::SelectedTasks) && !self.selected_tasks.is_empty() && self.ui_state.selected_tab < self.selected_tasks.len() {
+                    self.selected_tasks.remove(self.ui_state.selected_tab);
+                    
+                    // Adjust selected_tab if we're now past the end
+                    if self.ui_state.selected_tab >= self.selected_tasks.len() && !self.selected_tasks.is_empty() {
+                        self.ui_state.selected_tab = self.selected_tasks.len() - 1;
                     }
+                    
+                    self.update_task_selection();
+                    self.message = Some("Task removed from selection".to_string());
                 }
             }
  
@@ -1105,6 +1103,7 @@ impl App {
         result
     }
 
+    #[allow(dead_code)]
     async fn create_commit(&self) -> Result<()> {
         info!("Creating commit...");
         
@@ -1359,7 +1358,7 @@ impl App {
                 use crate::types::MondayTask;
                 let placeholder_task = MondayTask {
                     id: task_id.clone(),
-                    title: title,
+                    title,
                     board_id: Some("".to_string()),
                     board_name: Some("".to_string()),
                     url: "".to_string(),
@@ -1386,7 +1385,7 @@ impl App {
                     match git_repo.get_last_tag() {
                         Ok(Some(tag)) => {
                             // Try to extract version number from last tag and increment
-                            if let Some(version_part) = tag.split('-').last() {
+                            if let Some(version_part) = tag.split('-').next_back() {
                                 if let Ok(mut version_num) = version_part.parse::<f32>() {
                                     version_num += 0.001;
                                     format!("tag-teixo-{}-{:.3}", date_str, version_num)
@@ -1503,7 +1502,7 @@ impl App {
             }
             
             let output = Command::new("npm")
-                .args(&["run", "release-notes"])
+                .args(["run", "release-notes"])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output();
@@ -1593,7 +1592,7 @@ impl App {
         document.push_str("## Información General\n\n");
         document.push_str(&format!("- **Versión**: {}\n", version));
         document.push_str(&format!("- **Fecha**: {}\n", 
-            Utc::now().format("%d/%m/%Y").to_string()));
+            Utc::now().format("%d/%m/%Y")));
         document.push_str(&format!("- **Total de Commits**: {}\n", commits.len()));
         document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
         
@@ -1625,7 +1624,7 @@ impl App {
                         commit.hash.chars().take(7).collect::<String>(),
                         &commit.author_name,
                         &commit.author_email,
-                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z").to_string()
+                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
                     ));
                     if !commit.body.trim().is_empty() {
                         document.push_str(&format!("  - Detalles: {}\n", self.format_multiline_text(&commit.body)));
@@ -1645,7 +1644,7 @@ impl App {
                         commit.hash.chars().take(7).collect::<String>(),
                         &commit.author_name,
                         &commit.author_email,
-                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z").to_string()
+                        commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
                     ));
                     if !commit.body.trim().is_empty() {
                         document.push_str(&format!("  - Detalles: {}\n", self.format_multiline_text(&commit.body)));
@@ -1670,7 +1669,7 @@ impl App {
                             commit.hash.chars().take(7).collect::<String>(),
                             &commit.author_name,
                             &commit.author_email,
-                            commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z").to_string()
+                            commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
                         ));
                         if !commit.body.trim().is_empty() {
                             document.push_str(&format!("  - Detalles: {}\n", self.format_multiline_text(&commit.body)));
@@ -1694,7 +1693,7 @@ impl App {
                     commit.hash.chars().take(7).collect::<String>(),
                     &commit.author_name,
                     &commit.author_email,
-                    commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z").to_string()
+                    commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")
                 ));
                 document.push_str(&format!("  - Detalles: {}\n", 
                     commit.breaking_changes.join(" | ")));
@@ -1840,7 +1839,7 @@ impl App {
                 &commit.author_name,
                 &commit.author_email));
             document.push_str(&format!("**Fecha**: {}\n\n", 
-                commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z").to_string()));
+                commit.commit_date.with_timezone(&Local).format("%a %b %d %H:%M:%S %Y %z")));
             
             if !commit.body.trim().is_empty() {
                 document.push_str(&format!("{}\n\n", self.format_multiline_text(&commit.body)));

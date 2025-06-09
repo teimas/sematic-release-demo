@@ -52,6 +52,7 @@ pub struct GitCommit {
     pub security: Option<String>,
     pub monday_tasks: Vec<String>,
     pub monday_task_mentions: Vec<MondayTaskMention>,
+    #[allow(dead_code)]
     pub refs: Vec<String>,
     pub change_id: Option<String>,
 }
@@ -60,6 +61,7 @@ pub struct GitCommit {
 pub struct MondayTaskMention {
     pub id: String,
     pub title: String,
+    #[allow(dead_code)]
     pub url: String,
 }
 
@@ -121,6 +123,7 @@ impl CommitType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct AppConfig {
     pub monday_api_key: Option<String>,
     pub monday_account_slug: Option<String>,
@@ -129,19 +132,9 @@ pub struct AppConfig {
     pub gemini_token: Option<String>,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            monday_api_key: None,
-            monday_account_slug: None,
-            monday_board_id: None,
-            monday_url_template: None,
-            gemini_token: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct CommitForm {
     pub commit_type: Option<CommitType>,
     pub scope: String,
@@ -153,20 +146,6 @@ pub struct CommitForm {
     pub selected_tasks: Vec<MondayTask>,
 }
 
-impl Default for CommitForm {
-    fn default() -> Self {
-        Self {
-            commit_type: None,
-            scope: String::new(),
-            title: String::new(),
-            description: String::new(),
-            breaking_change: String::new(),
-            test_details: String::new(),
-            security: String::new(),
-            selected_tasks: Vec::new(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppScreen {
@@ -176,6 +155,7 @@ pub enum AppScreen {
     CommitPreview,
     ReleaseNotes,
     TaskSearch,
+    #[allow(dead_code)]
     TaskSelection,
 }
 
@@ -184,5 +164,6 @@ pub enum AppState {
     Normal,
     Loading,
     Error(String),
+    #[allow(dead_code)]
     Input,
 } 

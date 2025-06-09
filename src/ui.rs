@@ -13,11 +13,13 @@ use crate::git::GitStatus;
 
 pub struct UIState {
     pub selected_tab: usize,
+    #[allow(dead_code)]
     pub list_state: ListState,
     pub selected_commit_type: usize,
     pub input_mode: InputMode,
     pub current_input: String,
     pub current_field: CommitField,
+    #[allow(dead_code)]
     pub scroll_offset: u16,
     pub cursor_position: usize,
     pub focused_search_index: usize,
@@ -29,6 +31,7 @@ pub struct UIState {
 pub enum InputMode {
     Normal,
     Editing,
+    #[allow(dead_code)]
     Selecting,
 }
 
@@ -610,8 +613,7 @@ fn draw_task_search_screen(f: &mut Frame, area: Rect, ui_state: &UIState, tasks:
     } else {
         commit_form.selected_tasks
             .iter()
-            .enumerate()
-            .map(|(_i, task)| {
+            .map(|task| {
                 ListItem::new(vec![
                     Line::from(vec![
                         Span::styled("✅ ", Style::default().fg(Color::Green)),
@@ -700,7 +702,7 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message: Opt
     let status_style = match app_state {
         AppState::Error(_) => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
         AppState::Loading => {
-            if message.map_or(false, |m| m.contains("Gemini")) {
+            if message.is_some_and(|m| m.contains("Gemini")) {
                 Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Yellow)

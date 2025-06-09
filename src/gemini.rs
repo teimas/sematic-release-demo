@@ -422,7 +422,7 @@ FORMATO DE RESPUESTA:
                 if !task.column_values.is_empty() {
                     document.push_str("- **Detalles**:\n");
                     let relevant_columns: Vec<_> = task.column_values.iter()
-                        .filter(|col| col.text.as_ref().map_or(false, |t| !t.trim().is_empty()))
+                        .filter(|col| col.text.as_ref().is_some_and(|t| !t.trim().is_empty()))
                         .collect();
                     
                     if !relevant_columns.is_empty() {
@@ -564,7 +564,7 @@ FORMATO DE RESPUESTA:
         // Add detailed commit information
         document.push_str("## 📝 Información Detallada de Commits\n\n");
         for commit in commits {
-            document.push_str(&format!("### Commit: {}\n", commit.hash[..8].to_string()));
+            document.push_str(&format!("### Commit: {}\n", &commit.hash[..8]));
             document.push_str(&format!("- **Autor**: {} <{}>\n", commit.author_name, commit.author_email));
             document.push_str(&format!("- **Fecha**: {}\n", commit.commit_date.format("%Y-%m-%d %H:%M:%S UTC")));
             document.push_str(&format!("- **Tipo**: {}\n", commit.commit_type.as_deref().unwrap_or("unknown")));

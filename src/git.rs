@@ -92,7 +92,7 @@ impl GitRepo {
     pub fn get_last_tag(&self) -> Result<Option<String>> {
         // Use git command to get the last tag, as git2 doesn't have a simple way
         let output = Command::new("git")
-            .args(&["describe", "--tags", "--abbrev=0"])
+            .args(["describe", "--tags", "--abbrev=0"])
             .output();
 
         match output {
@@ -111,7 +111,7 @@ impl GitRepo {
     pub fn create_commit(&self, message: &str) -> Result<String> {
         // Use git command for committing
         let output = Command::new("git")
-            .args(&["commit", "-m", message])
+            .args(["commit", "-m", message])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()?;
@@ -124,9 +124,10 @@ impl GitRepo {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_staged_changes(&self) -> Result<Vec<String>> {
         let output = Command::new("git")
-            .args(&["diff", "--cached", "--name-only"])
+            .args(["diff", "--cached", "--name-only"])
             .output()?;
 
         if output.status.success() {
@@ -141,9 +142,10 @@ impl GitRepo {
         }
     }
 
+    #[allow(dead_code)]
     pub fn stage_all(&self) -> Result<()> {
         let output = Command::new("git")
-            .args(&["add", "."])
+            .args(["add", "."])
             .output()?;
 
         if output.status.success() {
@@ -156,7 +158,7 @@ impl GitRepo {
 
     pub fn get_current_branch(&self) -> Result<String> {
         let output = Command::new("git")
-            .args(&["branch", "--show-current"])
+            .args(["branch", "--show-current"])
             .output()?;
 
         if output.status.success() {
@@ -181,7 +183,7 @@ impl GitRepo {
 
         // Get staged files
         let staged_output = Command::new("git")
-            .args(&["diff", "--cached", "--name-only"])
+            .args(["diff", "--cached", "--name-only"])
             .output()?;
 
         if staged_output.status.success() {
@@ -194,7 +196,7 @@ impl GitRepo {
 
         // Get modified files
         let modified_output = Command::new("git")
-            .args(&["diff", "--name-only"])
+            .args(["diff", "--name-only"])
             .output()?;
 
         if modified_output.status.success() {
@@ -207,7 +209,7 @@ impl GitRepo {
 
         // Get untracked files
         let untracked_output = Command::new("git")
-            .args(&["ls-files", "--others", "--exclude-standard"])
+            .args(["ls-files", "--others", "--exclude-standard"])
             .output()?;
 
         if untracked_output.status.success() {
@@ -226,7 +228,7 @@ impl GitRepo {
 
         // Get staged changes with diff
         let staged_output = Command::new("git")
-            .args(&["diff", "--cached"])
+            .args(["diff", "--cached"])
             .output()?;
 
         if staged_output.status.success() {
@@ -240,7 +242,7 @@ impl GitRepo {
 
         // Get unstaged changes with diff
         let unstaged_output = Command::new("git")
-            .args(&["diff"])
+            .args(["diff"])
             .output()?;
 
         if unstaged_output.status.success() {
@@ -254,7 +256,7 @@ impl GitRepo {
 
         // Get untracked files
         let untracked_output = Command::new("git")
-            .args(&["ls-files", "--others", "--exclude-standard"])
+            .args(["ls-files", "--others", "--exclude-standard"])
             .output()?;
 
         if untracked_output.status.success() {
@@ -266,7 +268,7 @@ impl GitRepo {
                         changes.push_str(&format!("Nuevo archivo: {}\n", file));
                     }
                 }
-                changes.push_str("\n");
+                changes.push('\n');
             }
         }
 
@@ -472,7 +474,7 @@ impl GitRepo {
 
 pub fn get_next_version() -> Result<String> {
     let output = Command::new("npx")
-        .args(&["semantic-release", "--dry-run"])
+        .args(["semantic-release", "--dry-run"])
         .output();
 
     match output {
