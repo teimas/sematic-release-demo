@@ -973,15 +973,27 @@ impl App {
                 }
             }
             KeyCode::Left => {
-                // Move cursor left within text
+                // Move cursor left within text (handle UTF-8 properly)
+                let text = &self.ui_state.current_input;
                 if self.ui_state.cursor_position > 0 {
-                    self.ui_state.cursor_position -= 1;
+                    // Find the previous character boundary
+                    let mut new_pos = self.ui_state.cursor_position.saturating_sub(1);
+                    while new_pos > 0 && !text.is_char_boundary(new_pos) {
+                        new_pos -= 1;
+                    }
+                    self.ui_state.cursor_position = new_pos;
                 }
             }
             KeyCode::Right => {
-                // Move cursor right within text
-                if self.ui_state.cursor_position < self.ui_state.current_input.len() {
-                    self.ui_state.cursor_position += 1;
+                // Move cursor right within text (handle UTF-8 properly)
+                let text = &self.ui_state.current_input;
+                if self.ui_state.cursor_position < text.len() {
+                    // Find the next character boundary
+                    let mut new_pos = self.ui_state.cursor_position + 1;
+                    while new_pos < text.len() && !text.is_char_boundary(new_pos) {
+                        new_pos += 1;
+                    }
+                    self.ui_state.cursor_position = new_pos.min(text.len());
                 }
             }
             KeyCode::Home => {
@@ -993,21 +1005,46 @@ impl App {
                 self.move_cursor_to_line_end();
             }
             KeyCode::Char(c) => {
-                // Insert character at cursor position
-                self.ui_state.current_input.insert(self.ui_state.cursor_position, c);
-                self.ui_state.cursor_position += 1;
+                // Insert character at cursor position (UTF-8 safe)
+                let text = &self.ui_state.current_input;
+                let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                
+                // Ensure we're at a valid character boundary
+                if text.is_char_boundary(cursor_pos) {
+                    self.ui_state.current_input.insert(cursor_pos, c);
+                    self.ui_state.cursor_position = cursor_pos + c.len_utf8();
+                } else {
+                    // Move to the end if we're not at a valid boundary
+                    self.ui_state.current_input.push(c);
+                    self.ui_state.cursor_position = self.ui_state.current_input.len();
+                }
             }
             KeyCode::Backspace => {
-                // Delete character before cursor
+                // Delete character before cursor (UTF-8 safe)
+                let text = &self.ui_state.current_input;
                 if self.ui_state.cursor_position > 0 {
-                    self.ui_state.current_input.remove(self.ui_state.cursor_position - 1);
-                    self.ui_state.cursor_position -= 1;
+                    let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                    
+                    // Find the previous character boundary
+                    let mut prev_pos = cursor_pos.saturating_sub(1);
+                    while prev_pos > 0 && !text.is_char_boundary(prev_pos) {
+                        prev_pos -= 1;
+                    }
+                    
+                    if text.is_char_boundary(prev_pos) {
+                        self.ui_state.current_input.remove(prev_pos);
+                        self.ui_state.cursor_position = prev_pos;
+                    }
                 }
             }
             KeyCode::Delete => {
-                // Delete character at cursor
-                if self.ui_state.cursor_position < self.ui_state.current_input.len() {
-                    self.ui_state.current_input.remove(self.ui_state.cursor_position);
+                // Delete character at cursor (UTF-8 safe)
+                let text = &self.ui_state.current_input;
+                let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                
+                if cursor_pos < text.len() && text.is_char_boundary(cursor_pos) {
+                    self.ui_state.current_input.remove(cursor_pos);
+                    // cursor_position stays the same since we deleted the character at the cursor
                 }
             }
             _ => {}
@@ -1045,15 +1082,27 @@ impl App {
                 self.ui_state.cursor_position = self.ui_state.current_input.len();
             }
             KeyCode::Left => {
-                // Move cursor left
+                // Move cursor left (UTF-8 safe)
+                let text = &self.ui_state.current_input;
                 if self.ui_state.cursor_position > 0 {
-                    self.ui_state.cursor_position -= 1;
+                    // Find the previous character boundary
+                    let mut new_pos = self.ui_state.cursor_position.saturating_sub(1);
+                    while new_pos > 0 && !text.is_char_boundary(new_pos) {
+                        new_pos -= 1;
+                    }
+                    self.ui_state.cursor_position = new_pos;
                 }
             }
             KeyCode::Right => {
-                // Move cursor right
-                if self.ui_state.cursor_position < self.ui_state.current_input.len() {
-                    self.ui_state.cursor_position += 1;
+                // Move cursor right (UTF-8 safe)
+                let text = &self.ui_state.current_input;
+                if self.ui_state.cursor_position < text.len() {
+                    // Find the next character boundary
+                    let mut new_pos = self.ui_state.cursor_position + 1;
+                    while new_pos < text.len() && !text.is_char_boundary(new_pos) {
+                        new_pos += 1;
+                    }
+                    self.ui_state.cursor_position = new_pos.min(text.len());
                 }
             }
             KeyCode::Up => {
@@ -1073,21 +1122,46 @@ impl App {
                 self.move_cursor_to_line_end();
             }
             KeyCode::Char(c) => {
-                // Insert character at cursor position
-                self.ui_state.current_input.insert(self.ui_state.cursor_position, c);
-                self.ui_state.cursor_position += 1;
+                // Insert character at cursor position (UTF-8 safe)
+                let text = &self.ui_state.current_input;
+                let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                
+                // Ensure we're at a valid character boundary
+                if text.is_char_boundary(cursor_pos) {
+                    self.ui_state.current_input.insert(cursor_pos, c);
+                    self.ui_state.cursor_position = cursor_pos + c.len_utf8();
+                } else {
+                    // Move to the end if we're not at a valid boundary
+                    self.ui_state.current_input.push(c);
+                    self.ui_state.cursor_position = self.ui_state.current_input.len();
+                }
             }
             KeyCode::Backspace => {
-                // Delete character before cursor
+                // Delete character before cursor (UTF-8 safe)
+                let text = &self.ui_state.current_input;
                 if self.ui_state.cursor_position > 0 {
-                    self.ui_state.current_input.remove(self.ui_state.cursor_position - 1);
-                    self.ui_state.cursor_position -= 1;
+                    let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                    
+                    // Find the previous character boundary
+                    let mut prev_pos = cursor_pos.saturating_sub(1);
+                    while prev_pos > 0 && !text.is_char_boundary(prev_pos) {
+                        prev_pos -= 1;
+                    }
+                    
+                    if text.is_char_boundary(prev_pos) {
+                        self.ui_state.current_input.remove(prev_pos);
+                        self.ui_state.cursor_position = prev_pos;
+                    }
                 }
             }
             KeyCode::Delete => {
-                // Delete character at cursor
-                if self.ui_state.cursor_position < self.ui_state.current_input.len() {
-                    self.ui_state.current_input.remove(self.ui_state.cursor_position);
+                // Delete character at cursor (UTF-8 safe)
+                let text = &self.ui_state.current_input;
+                let cursor_pos = self.ui_state.cursor_position.min(text.len());
+                
+                if cursor_pos < text.len() && text.is_char_boundary(cursor_pos) {
+                    self.ui_state.current_input.remove(cursor_pos);
+                    // cursor_position stays the same since we deleted the character at the cursor
                 }
             }
             _ => {}
@@ -1097,16 +1171,24 @@ impl App {
 
     fn move_cursor_up(&mut self) {
         let text = &self.ui_state.current_input;
-        let cursor_pos = self.ui_state.cursor_position;
+        let cursor_pos = self.ui_state.cursor_position.min(text.len());
+        
+        // Ensure we're at a valid character boundary
+        if !text.is_char_boundary(cursor_pos) {
+            self.ui_state.cursor_position = text.len();
+            return;
+        }
         
         // Find the current line start
-        let current_line_start = text[..cursor_pos].rfind('\n').map_or(0, |pos| pos + 1);
+        let text_before_cursor = &text[..cursor_pos];
+        let current_line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         let current_column = cursor_pos - current_line_start;
         
         if current_line_start > 0 {
             // Find the previous line start
             let prev_line_end = current_line_start - 1; // Position of the '\n' before current line
-            let prev_line_start = text[..prev_line_end].rfind('\n').map_or(0, |pos| pos + 1);
+            let text_before_prev_line = &text[..prev_line_end];
+            let prev_line_start = text_before_prev_line.rfind('\n').map_or(0, |pos| pos + 1);
             let prev_line_length = prev_line_end - prev_line_start;
             
             // Move to the same column in the previous line, or end of line if shorter
@@ -1117,19 +1199,28 @@ impl App {
 
     fn move_cursor_down(&mut self) {
         let text = &self.ui_state.current_input;
-        let cursor_pos = self.ui_state.cursor_position;
+        let cursor_pos = self.ui_state.cursor_position.min(text.len());
+        
+        // Ensure we're at a valid character boundary
+        if !text.is_char_boundary(cursor_pos) {
+            self.ui_state.cursor_position = text.len();
+            return;
+        }
         
         // Find the current line start and end
-        let current_line_start = text[..cursor_pos].rfind('\n').map_or(0, |pos| pos + 1);
+        let text_before_cursor = &text[..cursor_pos];
+        let current_line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         let current_column = cursor_pos - current_line_start;
         
-        if let Some(current_line_end) = text[cursor_pos..].find('\n') {
-            let current_line_end = cursor_pos + current_line_end;
+        let text_after_cursor = &text[cursor_pos..];
+        if let Some(current_line_end_offset) = text_after_cursor.find('\n') {
+            let current_line_end = cursor_pos + current_line_end_offset;
             let next_line_start = current_line_end + 1;
             
             if next_line_start < text.len() {
                 // Find the next line end
-                let next_line_end = text[next_line_start..].find('\n')
+                let text_after_next_line = &text[next_line_start..];
+                let next_line_end = text_after_next_line.find('\n')
                     .map_or(text.len(), |pos| next_line_start + pos);
                 let next_line_length = next_line_end - next_line_start;
                 
@@ -1142,17 +1233,31 @@ impl App {
 
     fn move_cursor_to_line_start(&mut self) {
         let text = &self.ui_state.current_input;
-        let cursor_pos = self.ui_state.cursor_position;
+        let cursor_pos = self.ui_state.cursor_position.min(text.len());
         
-        let line_start = text[..cursor_pos].rfind('\n').map_or(0, |pos| pos + 1);
+        // Ensure we're at a valid character boundary
+        if !text.is_char_boundary(cursor_pos) {
+            self.ui_state.cursor_position = text.len();
+            return;
+        }
+        
+        let text_before_cursor = &text[..cursor_pos];
+        let line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         self.ui_state.cursor_position = line_start;
     }
 
     fn move_cursor_to_line_end(&mut self) {
         let text = &self.ui_state.current_input;
-        let cursor_pos = self.ui_state.cursor_position;
+        let cursor_pos = self.ui_state.cursor_position.min(text.len());
         
-        let line_end = text[cursor_pos..].find('\n')
+        // Ensure we're at a valid character boundary
+        if !text.is_char_boundary(cursor_pos) {
+            self.ui_state.cursor_position = text.len();
+            return;
+        }
+        
+        let text_after_cursor = &text[cursor_pos..];
+        let line_end = text_after_cursor.find('\n')
             .map_or(text.len(), |pos| cursor_pos + pos);
         self.ui_state.cursor_position = line_end;
     }
