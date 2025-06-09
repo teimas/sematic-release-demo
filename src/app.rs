@@ -11,6 +11,7 @@ use ratatui::{
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use chrono::{Utc, Local};
 use log::{debug, info, error};
 
@@ -19,7 +20,7 @@ use crate::{
     gemini::GeminiClient,
     git::{GitRepo, get_next_version},
     monday::MondayClient,
-    types::{AppConfig, AppScreen, AppState, CommitForm, CommitType, MondayTask},
+    types::{AppConfig, AppScreen, AppState, CommitForm, CommitType, MondayTask, GeminiAnalysisState},
     ui::{self, UIState},
 };
 
@@ -34,6 +35,7 @@ pub struct App {
     message: Option<String>,
     should_quit: bool,
     preview_commit_message: String,
+    gemini_analysis_state: Option<GeminiAnalysisState>,
 }
 
 impl App {
@@ -51,6 +53,7 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
+            gemini_analysis_state: None,
         })
     }
 
@@ -78,6 +81,49 @@ impl App {
 
     async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
         loop {
+            // Check for completed Gemini analysis
+            if let Some(analysis_state) = &self.gemini_analysis_state {
+                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
+                
+                if is_finished {
+                    // Analysis completed - update form and reset state
+                    if let Ok(result) = analysis_state.result.lock() {
+                        self.commit_form.description = result.clone();
+                    }
+                    
+                    if let Ok(security) = analysis_state.security.lock() {
+                        if !security.is_empty() {
+                            self.commit_form.security = security.clone();
+                        }
+                    }
+                    
+                    if let Ok(breaking) = analysis_state.breaking.lock() {
+                        if !breaking.is_empty() {
+                            self.commit_form.breaking_change = breaking.clone();
+                        }
+                    }
+                    
+                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
+                    if success {
+                        self.current_state = AppState::Normal;
+                        self.message = Some("✅ Análisis completado - Campos actualizados automáticamente".to_string());
+                    } else {
+                        let status = analysis_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
+                        self.current_state = AppState::Error(format!("Error en análisis: {}", status));
+                    }
+                    
+                    self.gemini_analysis_state = None;
+                } else {
+                    // Update status message if it changed
+                    if let Ok(status) = analysis_state.status.lock() {
+                        let current_message = self.message.as_deref().unwrap_or("");
+                        if *status != current_message {
+                            self.message = Some(status.clone());
+                        }
+                    }
+                }
+            }
+            
             // Get git status for help screen
             let git_status = if self.current_screen == AppScreen::Main {
                 GitRepo::new().ok().and_then(|repo| repo.get_status().ok())
@@ -231,16 +277,31 @@ impl App {
             }
 
             KeyCode::Char('r') => {
-                // Generate/regenerate commit description
-                self.current_state = AppState::Loading;
-                self.message = Some("🧠 Analizando cambios y generando descripción con Gemini IA...".to_string());
-                
-                if let Err(e) = self.generate_commit_description().await {
-                    self.current_state = AppState::Error(format!("Error generando descripción: {}", e));
-                } else {
-                    self.current_state = AppState::Normal;
-                    self.message = Some("✅ Descripción generada exitosamente".to_string());
+                // Generate/regenerate commit description with security and breaking changes analysis
+                // Check if already processing to avoid multiple concurrent analyses
+                if matches!(self.current_state, AppState::Loading) || self.gemini_analysis_state.is_some() {
+                    return Ok(());
                 }
+                
+                // IMMEDIATELY set loading state and create analysis state
+                self.current_state = AppState::Loading;
+                self.message = Some("🚀 Iniciando análisis inteligente con Gemini AI...".to_string());
+                
+                // Create shared state for the analysis
+                let analysis_state = GeminiAnalysisState {
+                    status: Arc::new(Mutex::new("🔍 Analizando cambios en el repositorio...".to_string())),
+                    finished: Arc::new(Mutex::new(false)),
+                    success: Arc::new(Mutex::new(true)),
+                    result: Arc::new(Mutex::new(String::new())),
+                    security: Arc::new(Mutex::new(String::new())),
+                    breaking: Arc::new(Mutex::new(String::new())),
+                };
+                
+                // Start the analysis in a background thread
+                self.start_gemini_analysis(analysis_state.clone());
+                
+                // Store the analysis state so the main loop can poll it
+                self.gemini_analysis_state = Some(analysis_state);
             }
             KeyCode::Tab => {
                 // If we're editing, save the current field first
@@ -2225,39 +2286,26 @@ impl App {
         Ok(())
     }
 
-    async fn generate_commit_description(&mut self) -> Result<()> {
+    fn start_gemini_analysis(&self, analysis_state: GeminiAnalysisState) {
         use crate::git::GitRepo;
         use crate::gemini::GeminiClient;
-        use std::sync::{Arc, Mutex};
         use std::thread;
 
-        // Shared state for communication between thread and UI
-        let gemini_status = Arc::new(Mutex::new(String::from("🔍 Analizando cambios en el repositorio...")));
-        let gemini_finished = Arc::new(Mutex::new(false));
-        let gemini_success = Arc::new(Mutex::new(true));
-        let gemini_result = Arc::new(Mutex::new(String::new()));
-        let gemini_security = Arc::new(Mutex::new(String::new()));
-        let gemini_breaking = Arc::new(Mutex::new(String::new()));
-        
-        // Clone for the thread
-        let status_clone = gemini_status.clone();
-        let finished_clone = gemini_finished.clone();
-        let success_clone = gemini_success.clone();
-        let result_clone = gemini_result.clone();
-        let security_clone = gemini_security.clone();
-        let breaking_clone = gemini_breaking.clone();
-        
-        // Get current form data for the thread
+        // Clone data needed for the thread
         let config_clone = self.config.clone();
         let commit_type = self.commit_form.commit_type.as_ref().map(|ct| ct.as_str().to_string());
         let scope = if self.commit_form.scope.is_empty() { None } else { Some(self.commit_form.scope.clone()) };
         let title = self.commit_form.title.clone();
+        
+        // Clone analysis state components
+        let status_clone = analysis_state.status.clone();
+        let finished_clone = analysis_state.finished.clone();
+        let success_clone = analysis_state.success.clone();
+        let result_clone = analysis_state.result.clone();
+        let security_clone = analysis_state.security.clone();
+        let breaking_clone = analysis_state.breaking.clone();
 
-        // Update initial status
-        self.message = Some("🔍 Analizando cambios en el repositorio...".to_string());
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        // Spawn Gemini generation in background thread
+        // Spawn the analysis in a background thread
         thread::spawn(move || {
             // Update status: analyzing changes
             if let Ok(mut status) = status_clone.lock() {
@@ -2313,7 +2361,7 @@ impl App {
 
             // Update status: connecting to Gemini
             if let Ok(mut status) = status_clone.lock() {
-                *status = "🌐 Conectando con Gemini IA...".to_string();
+                *status = "🌐 Conectando con Gemini AI...".to_string();
             }
 
             // Create Gemini client
@@ -2333,7 +2381,7 @@ impl App {
                 }
             };
 
-            // Update status: generating description
+            // Update status: generating description and analyzing security
             if let Ok(mut status) = status_clone.lock() {
                 *status = "📝 Generando descripción y analizando seguridad...".to_string();
             }
@@ -2413,54 +2461,5 @@ impl App {
                 *finished = true;
             }
         });
-
-        // Poll for updates and keep UI responsive
-        let mut current_status = String::new();
-        loop {
-            // Check if Gemini is finished
-            let is_finished = {
-                gemini_finished.lock().map(|f| *f).unwrap_or(false)
-            };
-            
-            // Update status message if it changed
-            if let Ok(status) = gemini_status.lock() {
-                if *status != current_status {
-                    current_status = status.clone();
-                    self.message = Some(current_status.clone());
-                }
-            }
-            
-            if is_finished {
-                break;
-            }
-            
-            // Yield control to UI with short sleep
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        
-        // Get the results and update the form
-        if let Ok(result) = gemini_result.lock() {
-            self.commit_form.description = result.clone();
-        }
-        
-        if let Ok(security) = gemini_security.lock() {
-            if !security.is_empty() {
-                self.commit_form.security = security.clone();
-            }
-        }
-        
-        if let Ok(breaking) = gemini_breaking.lock() {
-            if !breaking.is_empty() {
-                self.commit_form.breaking_change = breaking.clone();
-            }
-        }
-        
-        // Check if there was an error
-        let success = gemini_success.lock().map(|s| *s).unwrap_or(false);
-        if !success {
-            return Err(anyhow::anyhow!("{}", current_status));
-        }
-
-        Ok(())
     }
 } 

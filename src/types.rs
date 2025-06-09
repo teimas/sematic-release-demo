@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTask {
@@ -166,4 +167,14 @@ pub enum AppState {
     Error(String),
     #[allow(dead_code)]
     Input,
+}
+
+#[derive(Debug, Clone)]
+pub struct GeminiAnalysisState {
+    pub status: Arc<Mutex<String>>,
+    pub finished: Arc<Mutex<bool>>,
+    pub success: Arc<Mutex<bool>>,
+    pub result: Arc<Mutex<String>>,
+    pub security: Arc<Mutex<String>>,
+    pub breaking: Arc<Mutex<String>>,
 } 
