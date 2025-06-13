@@ -6,6 +6,10 @@ use std::process::{Command, Stdio};
 
 use crate::types::{GitCommit, MondayTaskMention};
 
+// =============================================================================
+// CORE GIT REPOSITORY STRUCTURE
+// =============================================================================
+
 pub struct GitRepo {
     repo: Repository,
 }
@@ -22,7 +26,13 @@ impl GitRepo {
         let repo = Repository::open(".")?;
         Ok(Self { repo })
     }
+}
 
+// =============================================================================
+// COMMIT HISTORY AND RETRIEVAL
+// =============================================================================
+
+impl GitRepo {
     pub fn get_commits_since_tag(&self, tag: Option<&str>) -> Result<Vec<GitCommit>> {
         let mut commits = Vec::new();
 
@@ -44,51 +54,60 @@ impl GitRepo {
                 continue;
             }
 
-            let message = commit.message().unwrap_or("");
-            let lines: Vec<&str> = message.lines().collect();
-            let subject = lines.first().unwrap_or(&"").to_string();
-            let body = if lines.len() > 1 {
-                lines[1..].join("\n")
-            } else {
-                String::new()
-            };
-
-            let author = commit.author();
-            let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
-            let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
-
-            let commit_time = author.when();
-            let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0)
-                .unwrap_or(Utc::now());
-
-            let monday_task_mentions = Self::extract_monday_task_mentions(&body);
-            let monday_tasks = Self::extract_monday_tasks(&body);
-
-            let git_commit = GitCommit {
-                hash: oid.to_string(),
-                subject: subject.clone(),
-                body: body.clone(),
-                author_name,
-                author_email,
-                commit_date,
-                commit_type: Self::extract_commit_type(&subject),
-                scope: Self::extract_commit_scope(&subject),
-                description: Self::extract_commit_description(&subject),
-                breaking_changes: Self::extract_breaking_changes(&body),
-                test_details: Self::extract_test_details(&body),
-                security: Self::extract_security(&body),
-                monday_tasks,
-                monday_task_mentions,
-                refs: Self::extract_refs(&body),
-                change_id: Self::extract_change_id(&body),
-            };
-
+            let git_commit = self.build_git_commit_from_raw(oid, &commit)?;
             commits.push(git_commit);
         }
 
         Ok(commits)
     }
 
+    fn build_git_commit_from_raw(&self, oid: git2::Oid, commit: &git2::Commit) -> Result<GitCommit> {
+        let message = commit.message().unwrap_or("");
+        let lines: Vec<&str> = message.lines().collect();
+        let subject = lines.first().unwrap_or(&"").to_string();
+        let body = if lines.len() > 1 {
+            lines[1..].join("\n")
+        } else {
+            String::new()
+        };
+
+        let author = commit.author();
+        let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
+        let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
+
+        let commit_time = author.when();
+        let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0)
+            .unwrap_or(Utc::now());
+
+        let monday_task_mentions = CommitParser::extract_monday_task_mentions(&body);
+        let monday_tasks = CommitParser::extract_monday_tasks(&body);
+
+        Ok(GitCommit {
+            hash: oid.to_string(),
+            subject: subject.clone(),
+            body: body.clone(),
+            author_name,
+            author_email,
+            commit_date,
+            commit_type: CommitParser::extract_commit_type(&subject),
+            scope: CommitParser::extract_commit_scope(&subject),
+            description: CommitParser::extract_commit_description(&subject),
+            breaking_changes: CommitParser::extract_breaking_changes(&body),
+            test_details: CommitParser::extract_test_details(&body),
+            security: CommitParser::extract_security(&body),
+            monday_tasks,
+            monday_task_mentions,
+            refs: CommitParser::extract_refs(&body),
+            change_id: CommitParser::extract_change_id(&body),
+        })
+    }
+}
+
+// =============================================================================
+// TAG AND VERSION MANAGEMENT
+// =============================================================================
+
+impl GitRepo {
     pub fn get_last_tag(&self) -> Result<Option<String>> {
         // Use git command to get the last tag, as git2 doesn't have a simple way
         let output = Command::new("git")
@@ -107,7 +126,13 @@ impl GitRepo {
             _ => Ok(None),
         }
     }
+}
 
+// =============================================================================
+// COMMIT CREATION AND STAGING
+// =============================================================================
+
+impl GitRepo {
     pub fn create_commit(&self, message: &str) -> Result<String> {
         // Use git command for committing
         let output = Command::new("git")
@@ -155,7 +180,13 @@ impl GitRepo {
             Err(anyhow::anyhow!("Git add failed: {}", error))
         }
     }
+}
 
+// =============================================================================
+// REPOSITORY STATUS AND INFORMATION
+// =============================================================================
+
+impl GitRepo {
     pub fn get_current_branch(&self) -> Result<String> {
         let output = Command::new("git")
             .args(["branch", "--show-current"])
@@ -222,7 +253,13 @@ impl GitRepo {
 
         Ok(status)
     }
+}
 
+// =============================================================================
+// DIFF AND CHANGE ANALYSIS
+// =============================================================================
+
+impl GitRepo {
     pub fn get_detailed_changes(&self) -> Result<String> {
         let mut changes = String::new();
 
@@ -278,8 +315,15 @@ impl GitRepo {
 
         Ok(changes)
     }
+}
 
-    // Parsing functions
+// =============================================================================
+// COMMIT MESSAGE PARSING ENGINE
+// =============================================================================
+
+struct CommitParser;
+
+impl CommitParser {
     fn extract_commit_type(subject: &str) -> Option<String> {
         let re = Regex::new(r"^(feat|fix|docs|style|refactor|perf|test|chore|revert)(\(.+\))?:").unwrap();
         if let Some(captures) = re.captures(subject) {
@@ -306,7 +350,13 @@ impl GitRepo {
             subject.to_string()
         }
     }
+}
 
+// =============================================================================
+// COMMIT BODY CONTENT EXTRACTION
+// =============================================================================
+
+impl CommitParser {
     fn extract_breaking_changes(body: &str) -> Vec<String> {
         let mut changes = Vec::new();
         let lines: Vec<&str> = body.lines().collect();
@@ -363,35 +413,6 @@ impl GitRepo {
         None
     }
 
-    fn extract_monday_tasks(body: &str) -> Vec<String> {
-        let mut tasks = Vec::new();
-        
-        // Look for Monday task references in various formats
-        let re = Regex::new(r"(?i)(?:monday|task|item)[:\s]*([0-9]+)").unwrap();
-        
-        for line in body.lines() {
-            for captures in re.captures_iter(line) {
-                if let Some(task_id) = captures.get(1) {
-                    tasks.push(task_id.as_str().to_string());
-                }
-            }
-        }
-
-        // Also look for refs format: refs mXXXXXXXXXX
-        let refs_re = Regex::new(r"refs\s+m(\d+)").unwrap();
-        for line in body.lines() {
-            if let Some(captures) = refs_re.captures(line) {
-                if let Some(task_id) = captures.get(1) {
-                    tasks.push(task_id.as_str().to_string());
-                }
-            }
-        }
-
-        tasks.sort();
-        tasks.dedup();
-        tasks
-    }
-
     fn extract_refs(body: &str) -> Vec<String> {
         let mut refs = Vec::new();
         let re = Regex::new(r"refs\s+([^\s]+)").unwrap();
@@ -419,6 +440,41 @@ impl GitRepo {
         }
 
         None
+    }
+}
+
+// =============================================================================
+// MONDAY.COM TASK INTEGRATION
+// =============================================================================
+
+impl CommitParser {
+    fn extract_monday_tasks(body: &str) -> Vec<String> {
+        let mut tasks = Vec::new();
+        
+        // Look for Monday task references in various formats
+        let re = Regex::new(r"(?i)(?:monday|task|item)[:\s]*([0-9]+)").unwrap();
+        
+        for line in body.lines() {
+            for captures in re.captures_iter(line) {
+                if let Some(task_id) = captures.get(1) {
+                    tasks.push(task_id.as_str().to_string());
+                }
+            }
+        }
+
+        // Also look for refs format: refs mXXXXXXXXXX
+        let refs_re = Regex::new(r"refs\s+m(\d+)").unwrap();
+        for line in body.lines() {
+            if let Some(captures) = refs_re.captures(line) {
+                if let Some(task_id) = captures.get(1) {
+                    tasks.push(task_id.as_str().to_string());
+                }
+            }
+        }
+
+        tasks.sort();
+        tasks.dedup();
+        tasks
     }
 
     fn extract_monday_task_mentions(body: &str) -> Vec<MondayTaskMention> {
@@ -471,6 +527,10 @@ impl GitRepo {
         mentions
     }
 }
+
+// =============================================================================
+// SEMANTIC VERSIONING UTILITIES
+// =============================================================================
 
 pub fn get_next_version() -> Result<String> {
     let output = Command::new("npx")
