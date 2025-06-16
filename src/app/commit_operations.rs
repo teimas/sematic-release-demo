@@ -21,56 +21,77 @@ impl CommitOperations for App {
             
             if !self.commit_form.scope.is_empty() {
                 message.push_str(&format!("({})", self.commit_form.scope));
+            } else {
+                message.push_str("(N/A)");
             }
             
             message.push_str(": ");
         }
         
         // Title
-        message.push_str(&self.commit_form.title);
+        if !self.commit_form.title.is_empty() {
+            message.push_str(&self.commit_form.title);
+        } else {
+            message.push_str("N/A");
+        }
         
-        // Body
+        // Body/Description
+        message.push_str("\n\n");
         if !self.commit_form.description.is_empty() {
-            message.push_str("\n\n");
             message.push_str(&self.commit_form.description);
+        } else {
+            message.push_str("N/A");
         }
         
         // Breaking changes
+        message.push_str("\n\nBREAKING CHANGE: ");
         if !self.commit_form.breaking_change.is_empty() {
-            message.push_str("\n\nBREAKING CHANGE: ");
             message.push_str(&self.commit_form.breaking_change);
+        } else {
+            message.push_str("N/A");
         }
         
         // Test details
+        message.push_str("\n\nTest Details: ");
         if !self.commit_form.test_details.is_empty() {
-            message.push_str("\n\nTest Details: ");
             message.push_str(&self.commit_form.test_details);
+        } else {
+            message.push_str("N/A");
         }
         
         // Security
+        message.push_str("\n\nSecurity: ");
         if !self.commit_form.security.is_empty() {
-            message.push_str("\n\nSecurity: ");
             message.push_str(&self.commit_form.security);
+        } else {
+            message.push_str("N/A");
         }
         
         // Migraciones Lentas
+        message.push_str("\n\nMigraciones Lentas: ");
         if !self.commit_form.migraciones_lentas.is_empty() {
-            message.push_str("\n\nMigraciones Lentas: ");
             message.push_str(&self.commit_form.migraciones_lentas);
+        } else {
+            message.push_str("N/A");
         }
         
         // Partes a Ejecutar
+        message.push_str("\n\nPartes a Ejecutar: ");
         if !self.commit_form.partes_a_ejecutar.is_empty() {
-            message.push_str("\n\nPartes a Ejecutar: ");
             message.push_str(&self.commit_form.partes_a_ejecutar);
+        } else {
+            message.push_str("N/A");
         }
         
         // Monday.com tasks
+        message.push_str("\n\nMONDAY TASKS: ");
         if !self.commit_form.selected_tasks.is_empty() {
-            message.push_str("\n\nMONDAY TASKS:\n");
+            message.push('\n');
             for task in &self.commit_form.selected_tasks {
                 message.push_str(&format!("- {} (ID: {}) - {}\n", task.title, task.id, task.state));
             }
+        } else {
+            message.push_str("N/A");
         }
         
         message
