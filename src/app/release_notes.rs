@@ -62,12 +62,12 @@ impl App {
         use std::fs;
         
         // Create a mapping of task ID to task details for quick lookup
-        let _task_details_map: HashMap<String, &crate::types::MondayTask> = monday_tasks.iter()
+        let task_details_map: HashMap<String, &crate::types::MondayTask> = monday_tasks.iter()
             .map(|task| (task.id.clone(), task))
             .collect();
         
         // Group commits by type
-        let _commits_by_type = self.group_commits_by_type(commits);
+        let commits_by_type = self.group_commits_by_type(commits);
         
         let mut document = String::new();
         
@@ -97,6 +97,18 @@ impl App {
         document.push_str("8. Si una tabla está vacía en la plantilla, déjala vacía pero manténla.\n");
         document.push_str("CRÍTICO: No inventes información, usa solo los datos proporcionados.\n\n");
         
+        // Add changes summary section
+        self.add_changes_summary_to_document(&mut document, &commits_by_type, commits);
+        
+        // Add breaking changes section
+        self.add_breaking_changes_to_document(&mut document, commits);
+        
+        // Add Monday tasks section
+        self.add_monday_tasks_to_document(&mut document, monday_tasks, commits, &task_details_map);
+        
+        // Add detailed commits section
+        self.add_detailed_commits_to_document(&mut document, commits, &task_details_map);
+        
         // Read and include template
         document.push_str("La plantilla a utilizar para generar el documento tiene que ser la siguiente. Fijate en todo lo que hay y emúlalo por completo.");
         
@@ -125,6 +137,282 @@ impl App {
         }
         
         groups
+    }
+
+    fn add_changes_summary_to_document(&self, document: &mut String, commits_by_type: &std::collections::HashMap<String, Vec<&crate::types::GitCommit>>, commits: &[crate::types::GitCommit]) {
+        document.push_str("## Resumen de Cambios\n\n");
+        
+        // Add feat commits
+        self.add_commits_section_to_document(document, commits_by_type, "feat", "Nuevas Funcionalidades");
+        
+        // Add fix commits  
+        self.add_commits_section_to_document(document, commits_by_type, "fix", "Correcciones");
+        
+        // Add other commit types
+        for (commit_type, commits_list) in commits_by_type {
+            if commit_type != "feat" && commit_type != "fix" && !commits_list.is_empty() {
+                let section_title = self.get_type_title(commit_type);
+                self.add_commits_section_to_document(document, commits_by_type, commit_type, section_title);
+            }
+        }
+    }
+
+    fn add_commits_section_to_document(&self, document: &mut String, commits_by_type: &std::collections::HashMap<String, Vec<&crate::types::GitCommit>>, commit_type: &str, section_title: &str) {
+        if let Some(commits_list) = commits_by_type.get(commit_type) {
+            if !commits_list.is_empty() {
+                document.push_str(&format!("### {} ({})\n\n", section_title, commits_list.len()));
+                for commit in commits_list {
+                    let description = &commit.description;
+                    
+                    document.push_str(&format!("- **{}** [{:.7}] - {} <{}> ({})\n", 
+                        description,
+                        commit.hash, 
+                        commit.author_name, 
+                        commit.author_email, 
+                        commit.commit_date.format("%a %b %d %H:%M:%S %Y %z")));
+                    
+                    if !commit.body.is_empty() {
+                        document.push_str(&format!("  - Detalles: {}\n", self.format_multiline_text(&commit.body)));
+                    }
+                }
+                document.push('\n');
+            }
+        }
+    }
+
+    fn add_breaking_changes_to_document(&self, document: &mut String, commits: &[crate::types::GitCommit]) {
+        let breaking_changes: Vec<&crate::types::GitCommit> = commits.iter()
+            .filter(|c| !c.breaking_changes.is_empty())
+            .collect();
+            
+        if !breaking_changes.is_empty() {
+            document.push_str("## Cambios que Rompen Compatibilidad\n\n");
+            for commit in breaking_changes {
+                let description = &commit.description;
+                
+                document.push_str(&format!("- **{}** [{:.7}] - {} <{}> ({})\n", 
+                    description,
+                    commit.hash, 
+                    commit.author_name, 
+                    commit.author_email, 
+                    commit.commit_date.format("%a %b %d %H:%M:%S %Y %z")));
+                    
+                for breaking_change in &commit.breaking_changes {
+                    document.push_str(&format!("  - Detalles: {}\n", breaking_change));
+                }
+            }
+            document.push('\n');
+        }
+    }
+
+    fn add_monday_tasks_to_document(&self, document: &mut String, monday_tasks: &[crate::types::MondayTask], commits: &[crate::types::GitCommit], _task_details_map: &std::collections::HashMap<String, &crate::types::MondayTask>) {
+        if !monday_tasks.is_empty() {
+            document.push_str("## Detalles de Tareas de Monday\n\n");
+            
+            for task in monday_tasks {
+                document.push_str(&format!("### {} (ID: {})\n\n", task.title, task.id));
+                document.push_str(&format!("- **Estado**: {}\n", task.state));
+                
+                if let Some(board_name) = &task.board_name {
+                    if !board_name.is_empty() {
+                        document.push_str(&format!("- **Tablero**: {} (ID: {})\n", 
+                            board_name, 
+                            task.board_id.as_deref().unwrap_or("")));
+                    }
+                }
+                
+                if let Some(group_title) = &task.group_title {
+                    if !group_title.is_empty() {
+                        document.push_str(&format!("- **Grupo**: {}\n", group_title));
+                    }
+                }
+                
+                // Add column values
+                self.add_task_column_values_to_document(document, task);
+                
+                // Add updates
+                self.add_task_updates_to_document(document, task);
+                
+                // Add related commits
+                self.add_related_commits_to_document(document, task, commits);
+                
+                document.push('\n');
+            }
+        }
+    }
+
+    fn add_task_column_values_to_document(&self, document: &mut String, task: &crate::types::MondayTask) {
+        if !task.column_values.is_empty() {
+            document.push_str("- **Detalles**:\n");
+            for column in &task.column_values {
+                if let Some(text) = &column.text {
+                    if !text.is_empty() && text != "-" {
+                        document.push_str(&format!("  - {}: {}\n", column.column_type, text));
+                    }
+                }
+            }
+        }
+    }
+
+    fn add_task_updates_to_document(&self, document: &mut String, task: &crate::types::MondayTask) {
+        if !task.updates.is_empty() {
+            document.push_str("- **Actualizaciones Recientes**:\n");
+            for update in task.updates.iter().take(3) {
+                let date = &update.created_at;
+                let author = if let Some(creator) = &update.creator {
+                    &creator.name
+                } else {
+                    "Unknown"
+                };
+                let body_preview = if update.body.len() > 100 {
+                    format!("{}...", &update.body[..100])
+                } else {
+                    update.body.clone()
+                };
+                document.push_str(&format!("  - {} por {}: {}\n", date, author, body_preview));
+            }
+        }
+    }
+
+    fn add_related_commits_to_document(&self, document: &mut String, task: &crate::types::MondayTask, commits: &[crate::types::GitCommit]) {
+        let related_commits: Vec<&crate::types::GitCommit> = commits
+            .iter()
+            .filter(|commit| {
+                // Check if task ID is in commit scope
+                if let Some(scope) = &commit.scope {
+                    if scope.split('|').any(|id| id == task.id) {
+                        return true;
+                    }
+                }
+                
+                // Check if task ID is in monday_tasks
+                if commit.monday_tasks.contains(&task.id) {
+                    return true;
+                }
+                
+                // Check monday_task_mentions
+                commit.monday_task_mentions.iter().any(|mention| mention.id == task.id)
+            })
+            .collect();
+
+        if !related_commits.is_empty() {
+            document.push_str("- **Commits Relacionados**:\n");
+            for commit in related_commits {
+                let commit_type = commit.commit_type.as_deref().unwrap_or("other");
+                let description = &commit.description;
+                
+                document.push_str(&format!("  - {}: {} [{:.7}]\n", 
+                    commit_type, description, commit.hash));
+            }
+        }
+    }
+
+    fn add_detailed_commits_to_document(&self, document: &mut String, commits: &[crate::types::GitCommit], task_details_map: &std::collections::HashMap<String, &crate::types::MondayTask>) {
+        document.push_str("## Detalles Completos de Commits\n\n");
+        
+        for commit in commits {
+            let commit_type = commit.commit_type.as_deref().unwrap_or("other");
+            let scope = commit.scope.as_deref().unwrap_or("");
+            let description = &commit.description;
+            
+            // Header
+            document.push_str(&format!("### {}", 
+                if scope.is_empty() {
+                    format!("{}: {} [{:.7}]", commit_type, description, commit.hash)
+                } else {
+                    format!("{}({}): {} [{:.7}]", commit_type, scope, description, commit.hash)
+                }
+            ));
+            document.push('\n');
+            document.push('\n');
+            
+            // Author and date
+            document.push_str(&format!("**Autor**: {} <{}>\n", commit.author_name, commit.author_email));
+            document.push_str(&format!("**Fecha**: {}\n\n", commit.commit_date.format("%a %b %d %H:%M:%S %Y %z")));
+            
+            // Body/Description
+            if !commit.body.is_empty() {
+                document.push_str(&format!("{}\n\n", commit.body));
+            }
+            
+            // Test details
+            if !commit.test_details.is_empty() {
+                document.push_str("**Pruebas**:\n");
+                for test in &commit.test_details {
+                    document.push_str(&format!("- {}\n", test));
+                }
+                document.push('\n');
+            }
+            
+            // Security information
+            if let Some(security) = &commit.security {
+                document.push_str(&format!("**Seguridad**: {}\n\n", security));
+            }
+            
+            // Monday tasks
+            self.add_commit_monday_tasks_to_document(document, commit, task_details_map);
+            
+            document.push_str("---\n\n");
+        }
+    }
+
+    fn add_commit_monday_tasks_to_document(&self, document: &mut String, commit: &crate::types::GitCommit, task_details_map: &std::collections::HashMap<String, &crate::types::MondayTask>) {
+        let mut all_task_ids = std::collections::HashSet::new();
+        
+        // Collect task IDs from various sources
+        if let Some(scope) = &commit.scope {
+            for id in scope.split('|') {
+                if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
+                    all_task_ids.insert(id.to_string());
+                }
+            }
+        }
+        
+        for task_id in &commit.monday_tasks {
+            all_task_ids.insert(task_id.clone());
+        }
+        
+        for mention in &commit.monday_task_mentions {
+            all_task_ids.insert(mention.id.clone());
+        }
+        
+        if !all_task_ids.is_empty() {
+            document.push_str("**Tareas relacionadas**:\n");
+            for task_id in &all_task_ids {
+                if let Some(task) = task_details_map.get(task_id) {
+                    document.push_str(&format!("- {} (ID: {}, Estado: {})\n", 
+                        task.title, task.id, task.state));
+                } else {
+                    document.push_str(&format!("- Task ID: {} (Detalles no disponibles)\n", task_id));
+                }
+            }
+            document.push('\n');
+        }
+    }
+
+    fn format_multiline_text(&self, text: &str) -> String {
+        text.lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
+
+    fn get_type_title(&self, commit_type: &str) -> &str {
+        match commit_type {
+            "feat" => "Nuevas Funcionalidades",
+            "fix" => "Correcciones", 
+            "docs" => "Documentación",
+            "style" => "Estilos",
+            "refactor" => "Refactorizaciones",
+            "perf" => "Mejoras de Rendimiento",
+            "test" => "Pruebas",
+            "chore" => "Tareas de Mantenimiento",
+            "ci" => "Integración Continua",
+            "build" => "Compilación",
+            "revert" => "Reversiones",
+            _ => "Otros Cambios",
+        }
     }
 
     pub async fn generate_release_notes_internal(&mut self) -> Result<()> {
