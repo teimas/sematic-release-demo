@@ -12,7 +12,7 @@ use crate::{
     git::{GitRepo, get_next_version},
     services::MondayClient,
     services::GeminiClient,
-    types::{AppState, ReleaseNotesAnalysisState, MondayTask},
+    types::{AppState, ReleaseNotesAnalysisState, MondayTask, AppConfig},
 };
 
 pub trait ReleaseNotesOperations {
@@ -23,8 +23,29 @@ pub trait ReleaseNotesOperations {
 
 impl ReleaseNotesOperations for App {
     async fn handle_release_notes_generation(&mut self) -> Result<()> {
-        // Default behavior: generate internal release notes
-        self.generate_release_notes_internal().await
+        // Check if already processing to avoid multiple concurrent analyses
+        if matches!(self.current_state, AppState::Loading) || self.release_notes_analysis_state.is_some() {
+            return Ok(());
+        }
+        
+        // IMMEDIATELY set loading state and create analysis state
+        self.current_state = AppState::Loading;
+        self.message = Some("🚀 Iniciando generación de notas de versión...".to_string());
+        
+        // Create shared state for the analysis
+        let analysis_state = ReleaseNotesAnalysisState {
+            status: Arc::new(Mutex::new("📋 Obteniendo commits desde la última versión...".to_string())),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(true)),
+        };
+        
+        // Start the analysis in a background thread
+        self.start_release_notes_analysis(analysis_state.clone());
+        
+        // Store the analysis state so the main loop can poll it
+        self.release_notes_analysis_state = Some(analysis_state);
+        
+        Ok(())
     }
 
     async fn generate_release_notes_internal_wrapper(&mut self) -> Result<()> {
@@ -57,6 +78,45 @@ impl ReleaseNotesOperations for App {
 }
 
 impl App {
+    pub fn start_release_notes_analysis(&self, analysis_state: ReleaseNotesAnalysisState) {
+        // Clone data needed for the thread
+        let config_clone = self.config.clone();
+        
+        // Clone analysis state components
+        let status_clone = analysis_state.status.clone();
+        let finished_clone = analysis_state.finished.clone();
+        let success_clone = analysis_state.success.clone();
+
+        // Spawn the analysis in a background thread
+        thread::spawn(move || {
+            // Create a temporary App-like structure for the background thread
+            let temp_app = TempAppForBackground {
+                config: config_clone,
+            };
+            
+            // Run the release notes generation
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error creando runtime: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                    if let Ok(mut finished) = finished_clone.lock() {
+                        *finished = true;
+                    }
+                    return;
+                }
+            };
+            
+            rt.block_on(async {
+                temp_app.run_release_notes_generation(status_clone, finished_clone, success_clone).await;
+            });
+        });
+    }
+
     pub fn generate_raw_release_notes(&self, version: &str, commits: &[crate::types::GitCommit], monday_tasks: &[crate::types::MondayTask], responsible_person: &str) -> String {
         use std::collections::HashMap;
         use std::fs;
@@ -722,4 +782,332 @@ impl App {
         Ok(())
     }
 
+}
+
+// Helper struct for background processing
+struct TempAppForBackground {
+    config: AppConfig,
+}
+
+impl TempAppForBackground {
+    async fn run_release_notes_generation(
+        &self,
+        status_clone: Arc<Mutex<String>>,
+        finished_clone: Arc<Mutex<bool>>,
+        success_clone: Arc<Mutex<bool>>,
+    ) {
+        // Update status: getting git repository
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "📋 Obteniendo commits desde la última versión...".to_string();
+        }
+        
+        // Get git repository
+        let git_repo = match GitRepo::new() {
+            Ok(repo) => repo,
+            Err(e) => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("❌ Error accediendo al repositorio: {}", e);
+                }
+                if let Ok(mut success) = success_clone.lock() {
+                    *success = false;
+                }
+                if let Ok(mut finished) = finished_clone.lock() {
+                    *finished = true;
+                }
+                return;
+            }
+        };
+        
+        // Get last tag and commits since then
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "🏷️ Obteniendo última etiqueta del repositorio...".to_string();
+        }
+        
+        let last_tag = match git_repo.get_last_tag() {
+            Ok(tag) => tag,
+            Err(e) => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("❌ Error obteniendo última etiqueta: {}", e);
+                }
+                if let Ok(mut success) = success_clone.lock() {
+                    *success = false;
+                }
+                if let Ok(mut finished) = finished_clone.lock() {
+                    *finished = true;
+                }
+                return;
+            }
+        };
+        
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "📊 Analizando commits desde la última versión...".to_string();
+        }
+        
+        let commits = match git_repo.get_commits_since_tag(last_tag.as_deref()) {
+            Ok(commits) => commits,
+            Err(e) => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("❌ Error obteniendo commits: {}", e);
+                }
+                if let Ok(mut success) = success_clone.lock() {
+                    *success = false;
+                }
+                if let Ok(mut finished) = finished_clone.lock() {
+                    *finished = true;
+                }
+                return;
+            }
+        };
+        
+        if commits.is_empty() {
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "⚠️ No se encontraron commits desde la última versión".to_string();
+            }
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
+            return;
+        }
+        
+        if let Ok(mut status) = status_clone.lock() {
+            *status = format!("📊 Se encontraron {} commits para analizar", commits.len());
+        }
+        
+        // Extract Monday.com task IDs from commits
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "🔍 Extrayendo IDs de tareas de Monday.com...".to_string();
+        }
+        
+        let mut monday_task_ids = HashSet::new();
+        for commit in &commits {
+            // Check scope for task IDs
+            if let Some(scope) = &commit.scope {
+                for id in scope.split('|') {
+                    if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
+                        monday_task_ids.insert(id.to_string());
+                    }
+                }
+            }
+            
+            // Check monday task mentions
+            for mention in &commit.monday_task_mentions {
+                monday_task_ids.insert(mention.id.clone());
+            }
+            
+            // Check monday_tasks field
+            for task_id in &commit.monday_tasks {
+                monday_task_ids.insert(task_id.clone());
+            }
+        }
+        
+        if let Ok(mut status) = status_clone.lock() {
+            *status = format!("🔍 Obteniendo detalles de {} tareas de Monday.com...", monday_task_ids.len());
+        }
+        
+        // Extract responsible person from most recent commit author
+        let responsible_person = if !commits.is_empty() {
+            commits[0].author_name.clone()
+        } else {
+            "".to_string()
+        };
+        
+        // Get Monday.com task details
+        let mut monday_tasks = if !monday_task_ids.is_empty() {
+            match MondayClient::new(&self.config) {
+                Ok(client) => {
+                    let task_ids: Vec<String> = monday_task_ids.iter().cloned().collect();
+                    match client.get_task_details(&task_ids).await {
+                        Ok(tasks) => {
+                            if let Ok(mut status) = status_clone.lock() {
+                                *status = format!("✅ Obtenidos detalles de {} tareas de Monday.com", tasks.len());
+                            }
+                            tasks
+                        },
+                        Err(e) => {
+                            eprintln!("⚠️ Error obteniendo detalles de Monday.com: {}", e);
+                            Vec::new()
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Error conectando con Monday.com: {}", e);
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        
+        // Create placeholder tasks for IDs that couldn't be fetched from Monday API
+        let found_task_ids: HashSet<String> = monday_tasks.iter().map(|task| task.id.clone()).collect();
+        for task_id in &monday_task_ids {
+            if !found_task_ids.contains(task_id) {
+                let mut title = "Task not found in Monday API".to_string();
+                
+                // Try to extract title from commits that mention this task
+                for commit in &commits {
+                    let task_mentioned = if let Some(scope) = &commit.scope {
+                        scope.split('|').any(|id| id == task_id)
+                    } else {
+                        false
+                    } || commit.monday_task_mentions.iter().any(|mention| &mention.id == task_id)
+                      || commit.monday_tasks.contains(task_id);
+                    
+                    if task_mentioned {
+                        for mention in &commit.monday_task_mentions {
+                            if &mention.id == task_id {
+                                title = mention.title.clone();
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Create placeholder Monday task
+                let placeholder_task = MondayTask {
+                    id: task_id.clone(),
+                    title,
+                    board_id: Some("".to_string()),
+                    board_name: Some("".to_string()),
+                    url: "".to_string(),
+                    state: "active".to_string(),
+                    updates: Vec::new(),
+                    group_title: Some("".to_string()),
+                    column_values: Vec::new(),
+                };
+                
+                monday_tasks.push(placeholder_task);
+            }
+        }
+        
+        // Get version and create tag format
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "🏷️ Generando información de versión...".to_string();
+        }
+        
+        let version = match get_next_version() {
+            Ok(v) => {
+                if v != "next version" && v != "próxima versión" && !v.is_empty() {
+                    let date_str = Utc::now().format("%Y%m%d").to_string();
+                    format!("tag-teixo-{}-{}", date_str, v)
+                } else {
+                    let date_str = Utc::now().format("%Y%m%d").to_string();
+                    match git_repo.get_last_tag() {
+                        Ok(Some(tag)) => {
+                            if let Some(version_part) = tag.split('-').next_back() {
+                                if let Ok(mut version_num) = version_part.parse::<f32>() {
+                                    version_num += 0.001;
+                                    format!("tag-teixo-{}-{:.3}", date_str, version_num)
+                                } else {
+                                    format!("tag-teixo-{}-1.112.0", date_str)
+                                }
+                            } else {
+                                format!("tag-teixo-{}-1.112.0", date_str)
+                            }
+                        },
+                        Ok(None) => format!("tag-teixo-{}-1.112.0", date_str),
+                        Err(_) => format!("tag-teixo-{}-1.112.0", date_str),
+                    }
+                }
+            },
+            Err(_) => {
+                let date_str = Utc::now().format("%Y%m%d").to_string();
+                format!("tag-teixo-{}-1.112.0", date_str)
+            },
+        };
+        
+        if let Ok(mut status) = status_clone.lock() {
+            *status = format!("📄 Generando documento estructurado para versión {}...", version);
+        }
+        
+        // Generate the structured document
+        let temp_app_helper = App::new_for_background(&self.config);
+        let structured_document = temp_app_helper.generate_raw_release_notes(&version, &commits, &monday_tasks, &responsible_person);
+        
+        // Create output directory
+        if let Err(e) = fs::create_dir_all("release-notes") {
+            eprintln!("Warning: Could not create release-notes directory: {}", e);
+        }
+        
+        // Generate filenames
+        let date_str = Utc::now().format("%Y-%m-%d").to_string();
+        let structured_filename = format!("release-notes/release-notes-{}_SCRIPT_WITH_ENTER_KEY.md", date_str);
+        let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
+        
+        // Save the structured document first
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "💾 Guardando documento estructurado...".to_string();
+        }
+        
+        if let Err(e) = fs::write(&structured_filename, &structured_document) {
+            if let Ok(mut status) = status_clone.lock() {
+                *status = format!("❌ Error guardando documento estructurado: {}", e);
+            }
+            if let Ok(mut success) = success_clone.lock() {
+                *success = false;
+            }
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
+            return;
+        }
+        
+        if let Ok(mut status) = status_clone.lock() {
+            *status = "🤖 Enviando documento a Google Gemini API...".to_string();
+        }
+        
+        // Try to process with Gemini
+        match GeminiClient::new(&self.config) {
+            Ok(gemini_client) => {
+                match gemini_client.process_release_notes_document(&structured_document).await {
+                    Ok(gemini_response) => {
+                        if let Ok(mut status) = status_clone.lock() {
+                            *status = "💾 Guardando respuesta de Gemini...".to_string();
+                        }
+                        
+                        // Save the Gemini-processed version
+                        if let Err(e) = fs::write(&gemini_filename, &gemini_response) {
+                            eprintln!("⚠️ Error guardando respuesta de Gemini: {}", e);
+                            if let Ok(mut status) = status_clone.lock() {
+                                *status = format!(
+                                    "✅ Documento estructurado generado: {}\n⚠️ Error guardando versión de Gemini",
+                                    structured_filename
+                                );
+                            }
+                        } else {
+                            if let Ok(mut status) = status_clone.lock() {
+                                *status = format!(
+                                    "✅ Notas de versión generadas exitosamente:\n📄 Documento estructurado: {}\n🤖 Versión procesada por Gemini: {}",
+                                    structured_filename, gemini_filename
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ Error procesando con Gemini: {}", e);
+                        if let Ok(mut status) = status_clone.lock() {
+                            *status = format!(
+                                "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Ejecuta el script de Node.js para procesamiento con Gemini",
+                                structured_filename
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("⚠️ Error configurando Gemini: {}", e);
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!(
+                        "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Configura el token de Gemini para procesamiento IA",
+                        structured_filename
+                    );
+                }
+            }
+        }
+        
+        // Mark as finished
+        if let Ok(mut finished) = finished_clone.lock() {
+            *finished = true;
+        }
+    }
 } 

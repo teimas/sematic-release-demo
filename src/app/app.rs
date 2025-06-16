@@ -53,6 +53,23 @@ impl App {
         })
     }
 
+    pub fn new_for_background(config: &AppConfig) -> Self {
+        Self {
+            config: config.clone(),
+            current_screen: AppScreen::Main,
+            current_state: AppState::Normal,
+            ui_state: UIState::default(),
+            commit_form: CommitForm::default(),
+            tasks: Vec::new(),
+            selected_tasks: Vec::new(),
+            message: None,
+            should_quit: false,
+            preview_commit_message: String::new(),
+            gemini_analysis_state: None,
+            release_notes_analysis_state: None,
+        }
+    }
+
     pub async fn run(mut self) -> Result<()> {
         // Setup terminal
         enable_raw_mode()?;
