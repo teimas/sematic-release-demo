@@ -1,236 +1,516 @@
-# Demo de Semantic Release
+# Semantic Release Tool
 
-Este repositorio está configurado con semantic-release y commitizen para mensajes de commit estandarizados, versionado automático y generación de notas de versión enriquecidas con IA.
+Este repositorio proporciona **dos implementaciones** de una herramienta de semantic release con integración de Monday.com y generación de notas de versión con IA:
 
-Hi TEIMAS!
+1. **🟨 Versión Node.js** - Script original con interfaz de línea de comandos
+2. **🦀 Versión Rust TUI** - Interfaz de usuario de terminal interactiva y moderna
+
+Ambas versiones están configuradas con semantic-release y commitizen para mensajes de commit estandarizados, versionado automático y generación de notas de versión enriquecidas con IA.
+
+## Tabla de Contenidos
+
+- [Formato de Mensaje de Commit](#formato-de-mensaje-de-commit)
+  - [Plantilla Git de Commit](#-plantilla-git-de-commit)
+- [Node.js Version](#-nodejs-version)
+- [Rust TUI Version](#-rust-tui-version)
+- [Configuración](#️-configuración)
+- [Integración con APIs](#-integración-con-apis)
+- [Scripts Disponibles](#-scripts-disponibles)
 
 ## Formato de Mensaje de Commit
 
-El formato del mensaje de commit sigue esta plantilla:
+Ambas versiones siguen el mismo formato de mensaje de commit estándar:
 
 ```
-refs mXXXXXXXXXX [PE.XX.XXX] TITLE
+type(scope): título descriptivo
 
-Detailed description of the changes if necessary
+Descripción detallada de los cambios si es necesario
 
-Test 1: Description of test 1
-Test 2: Description of test 2
+BREAKING CHANGE: Detalles de cambios que rompen compatibilidad (si aplica)
 
-Security: NA
-Change-Id: IaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Test Details: 
+- Descripción de prueba 1
+- Descripción de prueba 2
+
+Security: Análisis de seguridad o NA
+
+MONDAY TASKS:
+- Título de tarea (ID: 123456789) - Estado
 ```
 
-Ejemplo:
+**Ejemplo:**
 ```
-refs m8816791718 [PE.25.002] VERIFACTU. Creación de registros de facturación (Interfaz)
+feat(8816791718): VERIFACTU - Creación de registros de facturación
 
-Descripción libre de lo que hace 
-este commit si fuese necesario o interesante
+Implementación completa de la interfaz para la creación automática 
+de registros de facturación en el sistema VERIFACTU
 
-Test 1: Crear registros de facturación para facturas finalizadas.
-Test 2: Comprobar que si se modifica algún dato que cambia el importe, en la factura, la huella del registro de facturación se marca en rojo.
+BREAKING CHANGE: El endpoint `/api/facturas` ahora requiere el parámetro `verifactu_enabled`
 
-Security: NA
-Change-Id: Ia32043bb5d86dacf73fa6a96190473501b4a9ccb
+Test Details:
+- Crear registros de facturación para facturas finalizadas
+- Verificar que cambios en importes marcan la huella en rojo
+
+Security: Validación de tokens VERIFACTU implementada
+
+MONDAY TASKS:
+- [PE.25.002] VERIFACTU - Registros de facturación (ID: 8816791718) - Done
 ```
 
-## Cómo Usar
+### 📝 Plantilla Git de Commit
 
-### Realizar Commits
+Para garantizar consistencia en los mensajes de commit, se incluye una **plantilla de git** que aplica el mismo formato en todos los entornos.
 
-En lugar de usar `git commit` directamente, utiliza uno de estos comandos:
+#### Configuración Automática
+
+**Opción 1: Script bash**
+```bash
+./scripts/setup-commit-template.sh
+```
+
+**Opción 2: Comando TUI**
+```bash
+cargo run -- setup-template
+```
+
+**Opciones disponibles en ambos métodos:**
+- **Global**: Aplica a todos los repositorios del sistema
+- **Local**: Solo para el repositorio actual  
+- **Ambos**: Configuración completa
+
+#### Configuración Manual
 
 ```bash
-npm run commit        # Versión integrada con Monday
-npm run commit:simple # Versión básica sin integración con Monday
+# Configurar globalmente
+git config --global commit.template ~/.gitmessage
+
+# Configurar solo para el repositorio actual
+git config commit.template ~/.gitmessage
 ```
 
-Este comando proporciona la mejor experiencia:
-1. Te permite buscar tareas en Monday.com relacionadas con tu commit
-2. Puedes seleccionar múltiples tareas usando la barra espaciadora
-3. Automáticamente extrae los IDs de las tareas como scope del commit
-4. Incluye los detalles completos de las tareas (título, ID y URL) en el mensaje
+#### Uso de la Plantilla
 
-#### Flujo de Trabajo con Monday.com
+**Con plantilla activada:**
+```bash
+git commit  # Abre editor con plantilla pre-rellenada
+```
 
-El flujo de trabajo recomendado es:
+**Sin plantilla (commits rápidos):**
+```bash
+git commit -m "mensaje rápido"  # Omite la plantilla
+```
 
+#### Beneficios
+
+- ✅ **Consistencia total** entre TUI, CLI y git directo
+- ✅ **Documentación integrada** en cada commit
+- ✅ **Campos estructurados** garantizados
+- ✅ **Adopción gradual** del equipo
+- ✅ **Compatible** con cualquier cliente Git
+
+#### Desactivar Plantilla
+
+```bash
+# Desactivar globalmente
+git config --global --unset commit.template
+
+# Desactivar localmente
+git config --unset commit.template
+```
+
+---
+
+## 🟨 Node.js Version
+
+La versión original basada en Node.js proporciona scripts de línea de comandos para integración con flujos de trabajo existentes.
+
+### Instalación
+
+```bash
+npm install
+```
+
+### Uso - Node.js
+
+#### Realizar Commits
+
+```bash
+npm run commit        # Versión integrada con Monday.com
+npm run commit:simple # Versión básica sin integración
+```
+
+**Flujo de trabajo recomendado:**
 1. Hacer cambios en el código
 2. Ejecutar `npm run commit`
-3. Buscar y seleccionar las tareas de Monday relacionadas con tus cambios
-4. Completar el resto de la información del commit
-5. Revisar el mensaje generado y confirmar
+3. Buscar y seleccionar tareas de Monday relacionadas
+4. Completar información del commit
+5. Revisar y confirmar
 
-El mensaje final incluirá:
-- Tipo de cambio (feat, fix, etc.)
-- Scope con los IDs de las tareas seleccionadas (ej: `(8851673176|8872179232)`)
-- Título descriptivo
-- Información detallada del commit
-- Sección "MONDAY TASKS" con los detalles y URLs de las tareas
-
-### Publicación de Versiones
-
-Para crear una versión:
+#### Publicación de Versiones
 
 ```bash
 npm run semantic-release
 ```
 
-Esto hará:
-1. Analizar tus commits
-2. Determinar la próxima versión basada en versionado semántico
-3. Generar un registro de cambios
-4. Crear una nueva etiqueta Git
-5. Actualizar package.json con la nueva versión
+Esto realizará:
+- Análisis de commits
+- Determinación automática de versión
+- Generación de changelog
+- Creación de etiquetas Git
+- Actualización de package.json
 
-### Generación de Notas de Versión con IA
-
-Este repositorio incluye una potente funcionalidad para generar notas de versión detalladas utilizando Google Gemini:
+#### Generación de Notas de Versión con IA
 
 ```bash
 npm run release-notes
 ```
 
-Este comando:
-1. Ejecuta semantic-release en modo dry-run para determinar la próxima versión
-2. Obtiene todos los commits desde la última versión etiquetada
-3. Analiza cada commit para extraer:
-   - Tipo de cambio (feat, fix, etc.)
-   - Scope y descripción
-   - Breaking changes
-   - Detalles de pruebas
-   - Información de seguridad
-   - Referencias a tareas de Monday.com
-4. Consulta la API de Monday.com para obtener detalles completos de las tareas mencionadas
-5. Genera un documento estructurado con toda esta información
-6. Envía este documento a Google Gemini para crear notas de versión profesionales
-7. Guarda tanto el documento original como la respuesta de Gemini
+**Proceso automatizado:**
+1. Ejecuta semantic-release en modo dry-run
+2. Obtiene commits desde la última versión
+3. Analiza commits para extraer metadatos
+4. Consulta Monday.com para detalles de tareas
+5. Genera documento estructurado
+6. Procesa con Google Gemini
+7. Guarda archivos finales
 
-#### Configuración de Google Gemini
-
-Para configurar el acceso a Google Gemini:
-
-```bash
-npm run config
-```
-
-Durante la configuración, además de los datos de Monday.com, se te solicitará:
-- Tu token de API de Google Gemini
-
-El token se guardará en el archivo `.env`.
-
-#### Archivos Generados
-
-El proceso genera dos archivos en la carpeta `release-notes/`:
-
-1. `release-notes-YYYY-MM-DD.md`: Documento estructurado con todos los datos extraídos
-2. `release-notes-YYYY-MM-DD_GEMINI.md`: Notas de versión generadas por Gemini en español
-
-Las notas generadas por Gemini incluyen:
-- Resumen ejecutivo de la versión
-- Lista organizada de nuevas funcionalidades
-- Lista de correcciones y mejoras
-- Cambios que rompen compatibilidad
-- Detalles de las tareas de Monday.com relacionadas
-- Información completa de los commits
-
-#### Personalización
-
-El formato y contenido de las notas de versión se puede personalizar modificando el script `scripts/prepare-release-notes.js`. Puedes ajustar:
-- El idioma de las notas generadas
-- La estructura del documento enviado a Gemini
-- Los parámetros de generación (temperatura, longitud, etc.)
-- El formato de los archivos de salida
-
-### Integración con Monday.com
-
-Este repositorio incluye integración con la API de Monday.com para búsqueda y gestión de tareas.
-
-#### Configuración de Monday.com
-
-Para configurar el acceso a Monday.com:
-
-```bash
-npm run config
-```
-
-Esto te solicitará:
-- Tu token de API de Monday.com
-- Tu subdominio de Monday.com (ej: "miempresa" para miempresa.monday.com)
-- El ID del tablero principal (opcional)
-- Tu token de API de Google Gemini (opcional)
-
-La configuración se guardará en un archivo `.env` que no se incluirá en el control de versiones por seguridad.
+**Archivos generados:**
+- `release-notes-YYYY-MM-DD.md` - Documento estructurado
+- `release-notes-YYYY-MM-DD_GEMINI.md` - Versión procesada por IA
 
 #### Búsqueda de Tareas
-
-Para buscar tareas en Monday.com de forma independiente:
 
 ```bash
 npm run monday-selector
 ```
 
-Este script te permitirá buscar tareas por nombre en el tablero configurado o, si no se ha especificado un tablero, en todos los tableros accesibles. Además, muestra la URL directa para cada tarea.
+---
 
-#### Commits Vinculados a Tareas de Monday
+## 🦀 Rust TUI Version
 
-El script `commit` ofrece una integración completa entre tus commits y las tareas de Monday.com:
+La versión Rust proporciona una **interfaz de usuario de terminal interactiva** moderna y eficiente con características avanzadas.
+
+### 🔧 Compilación y Build
+
+#### Prerrequisitos
+
+1. **Instalar Rust** (si no está instalado):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source ~/.cargo/env
+   ```
+
+2. **Verificar instalación**:
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+#### Compilación para Desarrollo
 
 ```bash
-npm run commit
+# Compilación debug (más rápida, con símbolos de debug)
+cargo build
+
+# Ejecutar directamente desde código fuente
+cargo run
 ```
 
-**Características:**
+#### Compilación para Producción
 
-- **Búsqueda integrada**: Busca tareas de Monday directamente durante el proceso de commit
-- **Selección múltiple**: Selecciona varias tareas relacionadas con tus cambios
-- **Auto-extracción de scope**: Los IDs de las tareas se utilizan automáticamente como scope
-- **Enlaces completos**: Incluye título, ID y URL directa de cada tarea
-- **Preguntas estándar**: Mantiene todas las preguntas del formato de commit requerido (Test Details, Security, etc.)
+```bash
+# Compilación optimizada para distribución
+cargo build --release
 
-**Formato de Mensaje Generado:**
-
-```
-feat(8851673176|8872179232): Título descriptivo
-
-Descripción detallada del cambio
-
-BREAKING CHANGE: Detalles de cambios que rompen compatibilidad (si aplica)
-
-Test Details: 
-- Detalle de prueba 1
-- Detalle de prueba 2
-
-Security: NA
-
-Refs: mXXXXXXXXXX
-
-Change-Id: IaXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-MONDAY TASKS:
-- [PE.25.002] Tarea 1 (ID: 8851673176, URL: teimas.monday.com/boards/1013914950/pulses/8851673176)
-- [PE.25.002] Tarea 2 (ID: 8872179232, URL: teimas.monday.com/boards/1013914950/pulses/8872179232)
+# El binario estará en: target/release/semantic-release-tui
+./target/release/semantic-release-tui
 ```
 
-Este formato facilita:
-- Referencia directa a las tareas de Monday por su ID
-- Enlaces clickeables para acceder rápidamente a cada tarea
-- Búsqueda posterior de commits por ID de tarea
-- Generación de notas de versión enriquecidas
+#### Compilación Cross-Platform
 
-## Archivos de Configuración
+```bash
+# Para diferentes arquitecturas (ejemplos)
+rustup target add x86_64-pc-windows-gnu
+rustup target add aarch64-apple-darwin
+rustup target add x86_64-unknown-linux-gnu
 
-- `.cz-config.js`: Configuración de Commitizen
-- `.releaserc.json`: Configuración de Semantic-release
-- `.env`: Configuración de acceso a Monday.com y Google Gemini (creado automáticamente, no versionado)
+cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release --target aarch64-apple-darwin
+cargo build --release --target x86_64-unknown-linux-gnu
+```
 
-## Scripts Disponibles
+#### Optimización de Tamaño
+
+Para un binario más pequeño, modifica `Cargo.toml`:
+
+```toml
+[profile.release]
+opt-level = 'z'     # Optimizar para tamaño
+lto = true          # Link Time Optimization
+codegen-units = 1   # Mejor optimización
+panic = 'abort'     # Reducir tamaño del binario
+strip = true        # Eliminar símbolos de debug
+```
+
+Luego compila:
+```bash
+cargo build --release
+```
+
+### Instalación Global
+
+```bash
+# Instalar desde el directorio del proyecto
+cargo install --path .
+
+# Ahora puedes usar desde cualquier lugar
+semantic-release-tui
+```
+
+### Uso - Rust TUI
+
+#### Modo Interactivo TUI
+
+```bash
+# Ejecutar desde código fuente
+cargo run
+
+# O con binario compilado
+./target/release/semantic-release-tui
+```
+
+**Navegación TUI:**
+- `Tab`/`Shift+Tab`: Navegar entre campos
+- `↑`/`↓`: Navegar tipos de commit y tareas
+- `Enter`: Confirmar selección
+- `q`: Salir de la aplicación
+- `Esc`: Volver/cancelar
+
+**Teclas especiales en pantalla de commit:**
+- `t`: **Análisis Comprensivo IA** - Una llamada API que retorna análisis completo en JSON
+- `s`: Buscar tareas de Monday.com
+- `c`: Previsualizar mensaje de commit
+- `m`: Modo gestión de tareas
+- `Space`/`Delete`: Eliminar tareas seleccionadas
+
+#### Comandos de Línea de Comandos
+
+```bash
+# Crear commit (abre TUI directamente en pantalla de commit)
+cargo run -- commit
+
+# Auto-commit con análisis IA automático
+cargo run -- --autocommit
+
+# Generar notas de versión
+cargo run -- release-notes
+
+# Buscar tareas de Monday.com
+cargo run -- search "nombre de tarea"
+```
+
+#### Comandos de Debug
+
+```bash
+# Probar conexión Monday.com
+cargo run -- debug monday
+
+# Probar conexión Gemini AI
+cargo run -- debug gemini
+
+# Probar repositorio Git
+cargo run -- debug git
+
+# Probar creación de commits con logs detallados
+cargo run -- debug commit
+```
+
+### 🎯 Características Avanzadas - TUI
+
+#### Análisis IA Comprensivo
+- **Una sola llamada API** con prompt detallado
+- **Respuesta JSON estructurada**:
+  ```json
+  {
+    "title": "título conciso en español (≤50 chars)",
+    "commitType": "tipo de semantic release",
+    "description": "descripción técnica exhaustiva (≥150 palabras)",
+    "scope": "área del código afectada",
+    "securityAnalysis": "vulnerabilidades de seguridad o vacío",
+    "breakingChanges": "cambios que rompen compatibilidad o vacío"
+  }
+  ```
+- **Auto-población** de todos los campos simultáneamente
+- **Manejo de errores** con fallbacks inteligentes
+
+#### Gestión de Tareas Avanzada
+- **Búsqueda en tiempo real** mientras escribes
+- **Interfaz multi-selección** con checkboxes visuales
+- **Detalles de tareas** (estado, tablero, metadatos)
+- **Modo gestión** dedicado con tecla `m`
+- **Navegación intuitiva** con indicadores visuales
+
+#### Procesamiento en Background
+- **Operaciones no bloqueantes** con threads
+- **Actualizaciones de progreso en tiempo real**
+- **Mensajes de estado informativos**
+- **Manejo seguro de estados** con `Arc<Mutex>`
+
+#### Arquitectura Técnica
+
+**Tecnologías Core:**
+- **Ratatui**: Framework de UI terminal con componentes personalizados
+- **Tokio**: Runtime async para llamadas concurrentes de API
+- **Git2**: Operaciones y análisis de repositorio Git
+- **Reqwest**: Cliente HTTP para comunicaciones API
+- **Serde**: Serialización/deserialización JSON
+- **Crossterm**: Control de terminal cross-platform
+- **Clap**: Parsing de argumentos de línea de comandos
+
+**Componentes Clave:**
+- **Operaciones Background**: Gestión de estado thread-safe
+- **Gestión de Estado UI**: Seguimiento comprensivo de interacciones
+- **Manejo de Errores**: Fallbacks elegantes y mensajes amigables
+- **Integración Git**: Análisis avanzado de commits y operaciones
+
+---
+
+## ⚙️ Configuración
+
+Ambas versiones comparten la misma configuración almacenada en `.env`.
+
+### Configuración Inicial
+
+**Node.js:**
+```bash
+npm run config
+```
+
+**Rust TUI:**
+```bash
+cargo run -- config
+```
+
+**Variables configuradas:**
+- `MONDAY_API_KEY` - Token de API de Monday.com
+- `MONDAY_ACCOUNT_SLUG` - Subdominio de Monday.com
+- `MONDAY_BOARD_ID` - ID del tablero principal (opcional)
+- `GEMINI_TOKEN` - Token de API de Google Gemini
+
+### Obtener Claves API
+
+#### Monday.com API Key
+1. Ve a https://youraccount.monday.com/admin/integrations/api
+2. Genera un nuevo token
+3. Copia el token generado
+
+#### Google Gemini API Key
+1. Ve a https://makersuite.google.com/app/apikey
+2. Crea un nuevo proyecto o selecciona uno existente
+3. Genera una API key
+4. Copia la clave generada
+
+---
+
+## 🔗 Integración con APIs
+
+### Monday.com API
+- **Búsqueda global**: Busca en todos los tableros accesibles
+- **Búsqueda específica**: Busca en tablero específico si está configurado
+- **Detalles de tareas**: Información completa incluyendo:
+  - Título, estado y metadatos
+  - Información de tableros y URLs
+  - Actualizaciones y actividad
+  - Valores de columnas personalizadas
+
+### Google Gemini API
+- **Soporte dual de modelos**:
+  - Primario: `gemini-2.5-pro-preview-06-05`
+  - Fallback: `gemini-2.0-flash`
+- **Ingeniería de prompts avanzada** para análisis precisos
+- **Parsing robusto de respuestas JSON**
+- **Recuperación de errores** con fallbacks automáticos
+- **Análisis de seguridad** comprensivo
+
+---
+
+## 📋 Scripts Disponibles
+
+### Node.js Scripts
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm run commit` | Crea un commit con integración con Monday.com |
-| `npm run commit:simple` | Crea un commit básico sin integración con Monday |
-| `npm run semantic-release` | Ejecuta semantic-release para crear una nueva versión |
-| `npm run config` | Configura la integración con Monday.com y Google Gemini |
-| `npm run monday-selector` | Busca tareas en Monday.com |
-| `npm run release-notes` | Genera notas de versión detalladas con Google Gemini | 
+| `npm run commit` | Commit con integración Monday.com |
+| `npm run commit:simple` | Commit básico sin integración |
+| `npm run semantic-release` | Crear nueva versión |
+| `npm run config` | Configurar APIs |
+| `npm run monday-selector` | Buscar tareas Monday.com |
+| `npm run release-notes` | Generar notas con IA |
+
+### Setup Scripts
+
+| Comando | Descripción |
+|---------|-------------|
+| `./scripts/setup-commit-template.sh` | Configurar plantilla git de commits (script bash) |
+| `cargo run -- setup-template` | Configurar plantilla git de commits (comando TUI) |
+
+### Rust TUI Commands
+
+| Comando | Descripción |
+|---------|-------------|
+| `cargo run` | Modo TUI interactivo |
+| `cargo run -- commit` | Commit directo |
+| `cargo run -- --autocommit` | Auto-commit con IA |
+| `cargo run -- release-notes` | Generar notas de versión |
+| `cargo run -- search "query"` | Buscar tareas |
+| `cargo run -- setup-template` | Configurar plantilla git de commits |
+| `cargo run -- debug [monday\|gemini\|git\|commit]` | Debug específico |
+| `cargo run -- config` | Configurar APIs |
+
+---
+
+## 🆚 Comparación de Versiones
+
+| Característica | Node.js | Rust TUI |
+|----------------|---------|----------|
+| **Interfaz** | CLI Scripts | TUI Interactiva |
+| **Rendimiento** | Bueno | Excelente |
+| **Experiencia de Usuario** | Funcional | Rica e intuitiva |
+| **Análisis IA** | Básico | Avanzado con JSON |
+| **Gestión de Tareas** | Secuencial | Visual con multi-selección |
+| **Background Processing** | No | Sí, con progress |
+| **Configuración** | Compartida | Compartida |
+| **Mantenimiento** | JavaScript | Rust (type-safe) |
+| **Distribución** | npm | Binario independiente |
+
+---
+
+## 🗂️ Archivos de Configuración
+
+- `.cz-config.js` - Configuración de Commitizen
+- `.releaserc.json` - Configuración de Semantic-release  
+- `.env` - Variables de entorno (APIs)
+- `Cargo.toml` - Configuración del proyecto Rust
+- `package.json` - Configuración del proyecto Node.js
+
+---
+
+## 🚀 Recomendaciones de Uso
+
+### Para Desarrollo Diario
+**Rust TUI** - Interfaz más rica y experiencia superior
+
+### Para CI/CD y Automatización  
+**Node.js** - Mejor integración con pipelines existentes
+
+### Para Equipos Nuevos
+**Rust TUI** - Curva de aprendizaje más suave
+
+### Para Integración Legacy
+**Node.js** - Compatibilidad con scripts existentes 
+
+  ████████ ███████ ██ ███    ███  █████  ███████
+     ██    ██      ██ ████  ████ ██   ██ ██     
+     ██    █████   ██ ██ ████ ██ ███████ ███████
+     ██    ██      ██ ██  ██  ██ ██   ██      ██
+     ██    ███████ ██ ██      ██ ██   ██ ███████ 
