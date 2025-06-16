@@ -83,25 +83,19 @@ impl GitRepo {
         let monday_tasks = CommitParser::extract_monday_tasks(&body);
 
         Ok(GitCommit {
-                hash: oid.to_string(),
-                subject: subject.clone(),
-                body: body.clone(),
-                author_name,
-                author_email,
-                commit_date: commit_date.into(),
+            hash: oid.to_string(),
+            body: body.clone(),
+            author_name,
+            author_email,
+            commit_date: commit_date.into(),
             commit_type: CommitParser::extract_commit_type(&subject),
             scope: CommitParser::extract_commit_scope(&subject),
             description: CommitParser::extract_commit_description(&subject),
             breaking_changes: CommitParser::extract_breaking_changes(&body),
-            issues_closed: Vec::new(), // Add this field
             test_details: CommitParser::extract_test_details(&body),
             security: CommitParser::extract_security(&body),
-            migraciones_lentas: String::new(), // Add this field
-            partes_a_ejecutar: String::new(), // Add this field
-                monday_tasks,
-                monday_task_mentions,
-            refs: CommitParser::extract_refs(&body),
-            change_id: CommitParser::extract_change_id(&body),
+            monday_tasks,
+            monday_task_mentions,
         })
     }
 }
@@ -152,37 +146,7 @@ impl GitRepo {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn get_staged_changes(&self) -> Result<Vec<String>> {
-        let output = Command::new("git")
-            .args(["diff", "--cached", "--name-only"])
-            .output()?;
 
-        if output.status.success() {
-            let files: Vec<String> = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(|s| s.to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            Ok(files)
-        } else {
-            Ok(Vec::new())
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn stage_all(&self) -> Result<()> {
-        let output = Command::new("git")
-            .args(["add", "."])
-            .output()?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(anyhow::anyhow!("Git add failed: {}", error))
-        }
-    }
 }
 
 // =============================================================================
@@ -416,34 +380,7 @@ impl CommitParser {
         None
     }
 
-    fn extract_refs(body: &str) -> Vec<String> {
-        let mut refs = Vec::new();
-        let re = Regex::new(r"refs\s+([^\s]+)").unwrap();
 
-        for line in body.lines() {
-            if let Some(captures) = re.captures(line) {
-                if let Some(ref_match) = captures.get(1) {
-                    refs.push(ref_match.as_str().to_string());
-                }
-            }
-        }
-
-        refs
-    }
-
-    fn extract_change_id(body: &str) -> Option<String> {
-        let re = Regex::new(r"Change-Id:\s*([A-Za-z0-9]+)").unwrap();
-
-        for line in body.lines() {
-            if let Some(captures) = re.captures(line) {
-                if let Some(change_id) = captures.get(1) {
-                    return Some(change_id.as_str().to_string());
-                }
-            }
-        }
-
-        None
-    }
 }
 
 // =============================================================================
@@ -506,21 +443,9 @@ impl CommitParser {
                         // Extract title (everything before the (ID: part)
                         let title = clean_line[..id_start].trim();
                         
-                        // Extract URL if present
-                        let url = if let Some(url_start) = clean_line.find("URL: ") {
-                            if let Some(url_end) = clean_line[url_start + 5..].find(')') {
-                                &clean_line[url_start + 5..url_start + 5 + url_end]
-                            } else {
-                                ""
-                            }
-                        } else {
-                            ""
-                        };
-                        
                         mentions.push(MondayTaskMention {
                             id: id.to_string(),
                             title: title.to_string(),
-                            url: url.to_string(),
                         });
                     }
                 }

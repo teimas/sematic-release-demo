@@ -11,8 +11,6 @@ use crate::{
 pub trait TaskOperations {
     async fn search_monday_tasks(&self, query: &str) -> Result<Vec<MondayTask>>;
     fn update_task_selection(&mut self);
-    fn toggle_task_selection(&mut self);
-    fn confirm_task_selection(&mut self);
 }
 
 impl TaskOperations for App {
@@ -58,27 +56,5 @@ impl TaskOperations for App {
         };
     }
 
-    fn toggle_task_selection(&mut self) {
-        // Toggle task selection
-        if let Some(task) = self.tasks.get(self.ui_state.selected_tab) {
-            if let Some(pos) = self.selected_tasks.iter().position(|t| t.id == task.id) {
-                self.selected_tasks.remove(pos);
-            } else {
-                self.selected_tasks.push(task.clone());
-            }
-        }
-    }
 
-    fn confirm_task_selection(&mut self) {
-        // Confirm selection and return to commit screen
-        self.commit_form.selected_tasks = self.selected_tasks.clone();
-        
-        // Generate scope from selected task IDs
-        let task_ids: Vec<String> = self.selected_tasks.iter().map(|t| t.id.clone()).collect();
-        if !task_ids.is_empty() {
-            self.commit_form.scope = task_ids.join("|");
-        }
-        
-        self.current_screen = crate::types::AppScreen::Commit;
-    }
 } 

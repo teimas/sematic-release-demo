@@ -11,7 +11,7 @@ pub use components::{draw_title_bar, draw_status_bar};
 pub use screens::{
     draw_main_screen, draw_config_screen, draw_commit_screen, 
     draw_commit_preview_screen, draw_release_notes_screen,
-    draw_task_search_screen, draw_task_selection_screen
+    draw_task_search_screen
 };
 pub use loading::draw_loading_overlay;
 pub use cursor::{
@@ -54,7 +54,7 @@ pub fn draw(
         AppScreen::CommitPreview => draw_commit_preview_screen(f, chunks[1], ui_state),
         AppScreen::ReleaseNotes => draw_release_notes_screen(f, chunks[1]),
         AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, tasks, commit_form),
-        AppScreen::TaskSelection => draw_task_selection_screen(f, chunks[1], ui_state, tasks, commit_form),
+
     }
 
     // Status bar

@@ -1,13 +1,10 @@
 use anyhow::Result;
-use std::path::Path;
-use std::fs;
-use chrono::Utc;
+
 
 use crate::{
     app::App,
-    git::{GitRepo, get_next_version},
+    git::GitRepo,
     services::MondayClient,
-    services::GeminiClient,
 };
 
 impl App {
@@ -144,97 +141,7 @@ impl App {
         Ok(result)
     }
 
-    #[allow(dead_code)]
-    pub async fn generate_release_notes(&self) -> Result<()> {
-        println!("📝 Generating release notes...");
-        
-        // Get version
-        let version = get_next_version().unwrap_or_else(|_| "next".to_string());
-        println!("📦 Version: {}", version);
-        
-        // Get git repository and commits
-        let git_repo = GitRepo::new()?;
-        let last_tag = git_repo.get_last_tag()?;
-        let commits = git_repo.get_commits_since_tag(last_tag.as_deref())?;
-        
-        println!("📋 Found {} commits since last tag", commits.len());
-        
-        // Extract Monday task IDs from commits
-        let mut task_ids = Vec::new();
-        for commit in &commits {
-            // Add task IDs from monday_tasks field
-            task_ids.extend(commit.monday_tasks.clone());
-            
-            // Add task IDs from monday_task_mentions
-            for mention in &commit.monday_task_mentions {
-                task_ids.push(mention.id.clone());
-            }
-            
-            // Also check the scope for task IDs (pipe-separated)
-            if let Some(scope) = &commit.scope {
-                let scope_ids: Vec<String> = scope.split('|')
-                    .filter(|id| id.chars().all(|c| c.is_ascii_digit()))
-                    .map(|id| id.to_string())
-                    .collect();
-                task_ids.extend(scope_ids);
-            }
-        }
-        task_ids.sort();
-        task_ids.dedup();
-        
-        // Get Monday task details
-        let monday_tasks = if !task_ids.is_empty() && self.config.monday_api_key.is_some() {
-            println!("🔍 Fetching Monday.com task details...");
-            let client = MondayClient::new(&self.config)?;
-            client.get_task_details(&task_ids).await.unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-        
-        println!("📋 Found {} related Monday.com tasks", monday_tasks.len());
-        
-        // Extract responsible person from most recent commit author
-        let responsible_person = if !commits.is_empty() {
-            commits[0].author_name.clone()
-        } else {
-            "".to_string()
-        };
-        
-        // Create release notes directory
-        let release_notes_dir = Path::new("release-notes");
-        if !release_notes_dir.exists() {
-            fs::create_dir_all(release_notes_dir)?;
-        }
-        
-        // Generate structured document
-        let date = Utc::now().format("%Y-%m-%d").to_string();
-        let script_file = release_notes_dir.join(format!("release-notes-{}_SCRIPT.md", date));
-        let ai_file = release_notes_dir.join(format!("release-notes-{}_GEMINI.md", date));
-        
 
-        let script_content = self.generate_raw_release_notes(&version, &commits, &monday_tasks, &responsible_person);
-        fs::write(&script_file, &script_content)?;
-        println!("✅ Script release notes saved to: {}", script_file.display());
-        
-        // Generate AI release notes if Gemini is configured
-        if self.config.gemini_token.is_some() {
-            println!("🤖 Generating AI-powered release notes...");
-            let gemini_client = GeminiClient::new(&self.config)?;
-            match gemini_client.generate_release_notes(&version, &commits, &monday_tasks).await {
-                Ok(ai_content) => {
-                    fs::write(&ai_file, &ai_content)?;
-                    println!("✅ AI release notes saved to: {}", ai_file.display());
-                }
-                Err(e) => {
-                    eprintln!("❌ Failed to generate AI release notes: {}", e);
-                }
-            }
-        } else {
-            println!("⚠️  Google Gemini not configured. Skipping AI generation.");
-        }
-        
-        Ok(())
-    }
 
     pub async fn search_tasks(&self, query: &str) -> Result<()> {
         println!("🔍 Searching Monday.com tasks for: {}", query);
@@ -245,7 +152,7 @@ impl App {
         println!("📋 Found {} tasks:", tasks.len());
         for task in tasks {
             println!("  • {} [{}] (ID: {})", task.title, task.state.to_uppercase(), task.id);
-            println!("    URL: {}", task.url);
+            println!("    State: {}", task.state);
             if let Some(board_name) = task.board_name {
                 println!("    Board: {}", board_name);
             }

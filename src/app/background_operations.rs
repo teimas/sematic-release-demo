@@ -3,24 +3,16 @@ use std::thread;
 
 use crate::{
     app::App,
-    types::{ReleaseNotesAnalysisState, ComprehensiveAnalysisState, AppState},
+    types::{ComprehensiveAnalysisState, AppState},
     git::GitRepo,
     services::GeminiClient,
 };
 
 pub trait BackgroundOperations {
-    #[allow(dead_code)]
-    fn start_release_notes_analysis_wrapper(&self, _analysis_state: ReleaseNotesAnalysisState);
     async fn start_comprehensive_analysis_wrapper(&mut self);
 }
 
 impl BackgroundOperations for App {
-
-    fn start_release_notes_analysis_wrapper(&self, _analysis_state: ReleaseNotesAnalysisState) {
-        // Implementation moved from original app.rs
-        // This method will start the release notes analysis in a background thread
-    }
-
     async fn start_comprehensive_analysis_wrapper(&mut self) {
         // Check if already processing to avoid multiple concurrent analyses
         if matches!(self.current_state, AppState::Loading) || self.comprehensive_analysis_state.is_some() {

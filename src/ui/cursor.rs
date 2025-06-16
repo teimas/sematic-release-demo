@@ -94,8 +94,8 @@ pub fn set_commit_preview_cursor_position(f: &mut Frame, area: Rect, ui_state: &
     // Calculate cursor position within the multiline editor
     let (cursor_x, cursor_y) = calculate_cursor_position(&ui_state.current_input, ui_state.cursor_position, editor_area.width.saturating_sub(2));
     
-    // Account for scroll offset (commit preview always scrolls)
-    let scroll_offset = ui_state.scroll_offset;
+    // Account for scroll offset (commit preview scrolls like a description field)
+    let scroll_offset = ui_state.get_field_scroll_offset(&CommitField::Description);
     
     // Position cursor within the editor field (accounting for border and scroll)
     let cursor_x = editor_area.x + 1 + cursor_x;

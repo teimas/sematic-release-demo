@@ -42,9 +42,7 @@ impl EventHandlers for App {
             (AppScreen::TaskSearch, _) => {
                 self.handle_task_search_screen(key.code).await?;
             }
-            (AppScreen::TaskSelection, _) => {
-                self.handle_task_selection_screen(key.code).await?;
-            }
+
         }
 
         Ok(())
@@ -187,34 +185,7 @@ impl App {
         Ok(())
     }
 
-    async fn handle_task_selection_screen(&mut self, key: KeyCode) -> Result<()> {
 
-        match key {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                self.current_screen = AppScreen::TaskSearch;
-            }
-            KeyCode::Up => {
-                if self.ui_state.selected_tab > 0 {
-                    self.ui_state.selected_tab -= 1;
-                }
-            }
-            KeyCode::Down => {
-                if self.ui_state.selected_tab < self.tasks.len().saturating_sub(1) {
-                    self.ui_state.selected_tab += 1;
-                }
-            }
-            KeyCode::Char(' ') => {
-                use crate::app::task_operations::TaskOperations;
-                self.toggle_task_selection();
-            }
-            KeyCode::Enter => {
-                use crate::app::task_operations::TaskOperations;
-                self.confirm_task_selection();
-            }
-            _ => {}
-        }
-        Ok(())
-    }
 
     // Helper methods for commit screen handling
     fn handle_task_search(&mut self) {

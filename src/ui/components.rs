@@ -27,7 +27,7 @@ pub fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message:
             }
         },
         AppState::Error(err) => (err.as_str(), "⚠️ ERROR - Presiona cualquier tecla para continuar"),
-        AppState::Input => ("Modo entrada - Presiona Esc para cancelar", "Entrada"),
+
     };
 
     let status_style = match app_state {

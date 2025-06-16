@@ -1,19 +1,12 @@
-use ratatui::{
-    style::{Color, Modifier, Style},
-    widgets::ListState,
-};
+use ratatui::style::{Color, Modifier, Style};
 use std::collections::HashMap;
 
 pub struct UIState {
     pub selected_tab: usize,
-    #[allow(dead_code)]
-    pub list_state: ListState,
     pub selected_commit_type: usize,
     pub input_mode: InputMode,
     pub current_input: String,
     pub current_field: CommitField,
-    #[allow(dead_code)]
-    pub scroll_offset: u16,
     pub cursor_position: usize,
     pub focused_search_index: usize,
     pub task_management_mode: bool,
@@ -26,8 +19,6 @@ pub struct UIState {
 pub enum InputMode {
     Normal,
     Editing,
-    #[allow(dead_code)]
-    Selecting,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -48,12 +39,10 @@ impl Default for UIState {
     fn default() -> Self {
         Self {
             selected_tab: 0,
-            list_state: ListState::default(),
             selected_commit_type: 0,
             input_mode: InputMode::Normal,
             current_input: String::new(),
             current_field: CommitField::Type,
-            scroll_offset: 0,
             cursor_position: 0,
             focused_search_index: 0,
             task_management_mode: false,

@@ -9,8 +9,6 @@ use crate::{
 pub trait CommitOperations {
     fn build_commit_message(&self) -> String;
     async fn create_commit_with_message(&self, message: &str) -> Result<()>;
-    #[allow(dead_code)]
-    async fn create_commit(&self) -> Result<()>;
 }
 
 impl CommitOperations for App {
@@ -71,7 +69,7 @@ impl CommitOperations for App {
         if !self.commit_form.selected_tasks.is_empty() {
             message.push_str("\n\nMONDAY TASKS:\n");
             for task in &self.commit_form.selected_tasks {
-                message.push_str(&format!("- {} (ID: {}) - {}\n", task.title, task.id, task.url));
+                message.push_str(&format!("- {} (ID: {}) - {}\n", task.title, task.id, task.state));
             }
         }
         
@@ -109,48 +107,5 @@ impl CommitOperations for App {
         }
     }
 
-    #[allow(dead_code)]
-    async fn create_commit(&self) -> Result<()> {
-        info!("Creating commit...");
-        
-        // Validate commit form
-        if self.commit_form.commit_type.is_none() {
-            error!("No commit type selected");
-            return Err(anyhow::anyhow!("Please select a commit type"));
-        }
-        
-        if self.commit_form.title.trim().is_empty() {
-            error!("No commit title provided");
-            return Err(anyhow::anyhow!("Please enter a commit title"));
-        }
-        
-        debug!("Initializing git repository...");
-        let git_repo = match GitRepo::new() {
-            Ok(repo) => {
-                info!("Git repository initialized successfully");
-                repo
-            }
-            Err(e) => {
-                error!("Failed to initialize git repository: {}", e);
-                return Err(anyhow::anyhow!("Git repository error: {}. Make sure you're in a git repository.", e));
-            }
-        };
-        
-        // Build commit message
-        let commit_message = self.build_commit_message();
-        info!("Built commit message:\n{}", commit_message);
-        
-        // Create the commit
-        debug!("Creating git commit...");
-        match git_repo.create_commit(&commit_message) {
-            Ok(_) => {
-                info!("Commit created successfully");
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to create commit: {}", e);
-                Err(anyhow::anyhow!("Failed to create commit: {}. Make sure you have staged changes or there are changes to commit.", e))
-            }
-        }
-    }
+
 } 

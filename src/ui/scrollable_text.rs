@@ -95,32 +95,4 @@ fn get_cursor_line(text: &str, cursor_pos: usize, field_width: u16) -> usize {
     line
 }
 
-#[allow(dead_code)]
-pub fn get_text_line_count(text: &str, field_width: u16) -> usize {
-    if text.is_empty() {
-        return 1;
-    }
-    
-    let mut line_count = 0;
-    let mut x = 0;
-    
-    for ch in text.chars() {
-        if ch == '\n' {
-            line_count += 1;
-            x = 0;
-        } else {
-            x += 1;
-            if x >= field_width {
-                line_count += 1;
-                x = 0;
-            }
-        }
-    }
-    
-    // Add 1 for the last line if it doesn't end with newline
-    if x > 0 || text.is_empty() {
-        line_count += 1;
-    }
-    
-    line_count
-} 
+ 

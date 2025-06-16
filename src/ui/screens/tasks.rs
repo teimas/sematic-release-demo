@@ -97,9 +97,10 @@ pub fn draw_task_search_screen(f: &mut Frame, area: Rect, ui_state: &UIState, ta
                          Span::styled(checkbox, checkbox_style),
                          Span::styled(&task.title, title_style),
                      ]),
-                     Line::from(format!("     ID: {} | Board: {}", 
+                     Line::from(format!("     ID: {} | Board: {} | State: {}", 
                          task.id, 
-                         task.board_name.as_deref().unwrap_or("Unknown"))),
+                         task.board_name.as_deref().unwrap_or("Unknown"),
+                         task.state)),
                  ])
              })
              .collect();
@@ -148,47 +149,4 @@ pub fn draw_task_search_screen(f: &mut Frame, area: Rect, ui_state: &UIState, ta
     f.render_stateful_widget(selected_list, chunks[2], &mut selected_list_state);
 }
 
-pub fn draw_task_selection_screen(f: &mut Frame, area: Rect, ui_state: &UIState, tasks: &[MondayTask], commit_form: &CommitForm) {
-    let task_items: Vec<ListItem> = tasks
-        .iter()
-        .enumerate()
-        .map(|(i, task)| {
-            // Check if this task is selected
-            let is_selected = commit_form.selected_tasks.iter().any(|selected| selected.id == task.id);
-            
-            // Style for the currently highlighted item (yellow highlight)
-            let _is_highlighted = i == ui_state.selected_tab;
-            
-            // Checkbox symbol based on selection
-            let checkbox = if is_selected { "☑ " } else { "☐ " };
-            let checkbox_style = if is_selected {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::Blue)
-            };
-            
-            // Task title style - green if selected, normal otherwise
-            let title_style = if is_selected {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            
-            ListItem::new(vec![
-                Line::from(vec![
-                    Span::styled(checkbox, checkbox_style),
-                    Span::styled(&task.title, title_style),
-                ]),
-                Line::from(format!("   ID: {} | URL: {}", task.id, task.url)),
-            ])
-        })
-        .collect();
-
-    let mut list_state = ListState::default();
-    list_state.select(Some(ui_state.selected_tab));
-
-    let tasks_list = List::new(task_items)
-        .block(Block::default().borders(Borders::ALL).title("Select Tasks (Space to toggle, Enter to confirm)"))
-        .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
-    f.render_stateful_widget(tasks_list, area, &mut list_state);
-} 
+ 

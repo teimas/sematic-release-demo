@@ -39,8 +39,6 @@ pub struct MondayUser {
 #[derive(Debug, Clone)]
 pub struct GitCommit {
     pub hash: String,
-    #[allow(dead_code)]
-    pub subject: String,
     pub description: String,
     pub author_name: String,
     pub author_email: String,
@@ -49,28 +47,16 @@ pub struct GitCommit {
     pub scope: Option<String>,
     pub body: String,
     pub breaking_changes: Vec<String>,
-    #[allow(dead_code)]
-    pub issues_closed: Vec<String>,
     pub test_details: Vec<String>,
     pub security: Option<String>,
-    #[allow(dead_code)]
-    pub migraciones_lentas: String,
-    #[allow(dead_code)]
-    pub partes_a_ejecutar: String,
     pub monday_tasks: Vec<String>,
     pub monday_task_mentions: Vec<MondayTaskMention>,
-    #[allow(dead_code)]
-    pub refs: Vec<String>,
-    #[allow(dead_code)]
-    pub change_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MondayTaskMention {
     pub id: String,
     pub title: String,
-    #[allow(dead_code)]
-    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,8 +151,6 @@ pub enum AppScreen {
     CommitPreview,
     ReleaseNotes,
     TaskSearch,
-    #[allow(dead_code)]
-    TaskSelection,
 }
 
 #[derive(Debug, Clone)]
@@ -174,8 +158,6 @@ pub enum AppState {
     Normal,
     Loading,
     Error(String),
-    #[allow(dead_code)]
-    Input,
 }
 
 
