@@ -62,41 +62,41 @@ impl GitRepo {
     }
 
     fn build_git_commit_from_raw(&self, oid: git2::Oid, commit: &git2::Commit) -> Result<GitCommit> {
-        let message = commit.message().unwrap_or("");
-        let lines: Vec<&str> = message.lines().collect();
-        let subject = lines.first().unwrap_or(&"").to_string();
-        let body = if lines.len() > 1 {
-            lines[1..].join("\n")
-        } else {
-            String::new()
-        };
+            let message = commit.message().unwrap_or("");
+            let lines: Vec<&str> = message.lines().collect();
+            let subject = lines.first().unwrap_or(&"").to_string();
+            let body = if lines.len() > 1 {
+                lines[1..].join("\n")
+            } else {
+                String::new()
+            };
 
-        let author = commit.author();
-        let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
-        let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
+            let author = commit.author();
+            let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
+            let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
 
-        let commit_time = author.when();
-        let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0)
-            .unwrap_or(Utc::now());
+            let commit_time = author.when();
+            let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0)
+                .unwrap_or(Utc::now());
 
         let monday_task_mentions = CommitParser::extract_monday_task_mentions(&body);
         let monday_tasks = CommitParser::extract_monday_tasks(&body);
 
         Ok(GitCommit {
-            hash: oid.to_string(),
-            subject: subject.clone(),
-            body: body.clone(),
-            author_name,
-            author_email,
-            commit_date,
+                hash: oid.to_string(),
+                subject: subject.clone(),
+                body: body.clone(),
+                author_name,
+                author_email,
+                commit_date,
             commit_type: CommitParser::extract_commit_type(&subject),
             scope: CommitParser::extract_commit_scope(&subject),
             description: CommitParser::extract_commit_description(&subject),
             breaking_changes: CommitParser::extract_breaking_changes(&body),
             test_details: CommitParser::extract_test_details(&body),
             security: CommitParser::extract_security(&body),
-            monday_tasks,
-            monday_task_mentions,
+                monday_tasks,
+                monday_task_mentions,
             refs: CommitParser::extract_refs(&body),
             change_id: CommitParser::extract_change_id(&body),
         })

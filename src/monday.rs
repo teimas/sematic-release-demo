@@ -266,21 +266,21 @@ impl MondayClient {
     fn parse_board_specific_results(&self, result: &Value) -> Vec<MondayTask> {
         let mut tasks = Vec::new();
 
-        if let Some(boards) = result["data"]["boards"].as_array() {
-            for board in boards {
-                if let Some(items_page) = board["items_page"].as_object() {
-                    if let Some(items) = items_page["items"].as_array() {
-                        for item in items {
-                            if let Some(task) = self.parse_task_item(item) {
-                                if task.state == "active" {
-                                    tasks.push(task);
+            if let Some(boards) = result["data"]["boards"].as_array() {
+                for board in boards {
+                    if let Some(items_page) = board["items_page"].as_object() {
+                        if let Some(items) = items_page["items"].as_array() {
+                            for item in items {
+                                if let Some(task) = self.parse_task_item(item) {
+                                    if task.state == "active" {
+                                        tasks.push(task);
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
         tasks
     }
@@ -288,12 +288,12 @@ impl MondayClient {
     fn parse_global_search_results(&self, result: &Value) -> Vec<MondayTask> {
         let mut tasks = Vec::new();
 
-        if let Some(items_page) = result["data"]["items_page"].as_object() {
-            if let Some(items) = items_page["items"].as_array() {
-                for item in items {
-                    if let Some(task) = self.parse_task_item(item) {
-                        if task.state == "active" {
-                            tasks.push(task);
+            if let Some(items_page) = result["data"]["items_page"].as_object() {
+                if let Some(items) = items_page["items"].as_array() {
+                    for item in items {
+                        if let Some(task) = self.parse_task_item(item) {
+                            if task.state == "active" {
+                                tasks.push(task);
                         }
                     }
                 }
@@ -302,8 +302,8 @@ impl MondayClient {
 
         tasks
     }
-}
-
+    }
+    
 // =============================================================================
 // TASK ITEM PARSING AND CONSTRUCTION
 // =============================================================================

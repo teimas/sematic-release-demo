@@ -97,8 +97,8 @@ impl GeminiClient {
         self.add_final_instructions(&mut document);
 
         document
+        }
     }
-}
 
 // =============================================================================
 // COMMIT ANALYSIS FEATURE
@@ -136,7 +136,7 @@ Escribe una descripción técnica completa en español, sin encabezados ni forma
         );
 
         let response = self.call_gemini_with_fallback(&prompt).await?;
-        Ok(response.trim().to_string())
+                Ok(response.trim().to_string())
     }
 
     pub async fn analyze_security_risks(&self, changes: &str, commit_type: Option<&str>, scope: Option<&str>, title: &str) -> Result<String> {
@@ -175,15 +175,15 @@ FORMATO DE RESPUESTA:
         );
 
         match self.call_gemini_with_fallback(&prompt).await {
-            Ok(response) => {
-                let trimmed = response.trim();
-                Ok(if trimmed == "NA" || trimmed.is_empty() { 
-                    String::new() 
-                } else { 
-                    trimmed.to_string() 
-                })
-            },
-            Err(_) => Ok(String::new()) // Return empty if both fail
+                    Ok(response) => {
+                        let trimmed = response.trim();
+                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                            String::new() 
+                        } else { 
+                            trimmed.to_string() 
+                        })
+                    },
+                    Err(_) => Ok(String::new()) // Return empty if both fail
         }
     }
 
@@ -222,18 +222,18 @@ FORMATO DE RESPUESTA:
         );
 
         match self.call_gemini_with_fallback(&prompt).await {
-            Ok(response) => {
-                let trimmed = response.trim();
-                Ok(if trimmed == "NA" || trimmed.is_empty() { 
-                    String::new() 
-                } else { 
-                    trimmed.to_string() 
-                })
-            },
-            Err(_) => Ok(String::new()) // Return empty if both fail
+                    Ok(response) => {
+                        let trimmed = response.trim();
+                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                            String::new() 
+                        } else { 
+                            trimmed.to_string() 
+                        })
+                    },
+                    Err(_) => Ok(String::new()) // Return empty if both fail
+                }
+            }
         }
-    }
-}
 
 // =============================================================================
 // DOCUMENT GENERATION HELPERS
@@ -246,7 +246,7 @@ impl GeminiClient {
             .map(|task| (task.id.clone(), task))
             .collect()
     }
-
+        
     fn add_document_header(&self, document: &mut String, version: &str, commits: &[GitCommit], monday_tasks: &[MondayTask]) {
         document.push_str(&format!("# Datos para Generación de Notas de Versión {}\n\n", version));
         
@@ -256,7 +256,7 @@ impl GeminiClient {
         document.push_str(&format!("- **Total de Commits**: {}\n", commits.len()));
         document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
     }
-
+        
     fn add_instructions_section(&self, document: &mut String) {
         document.push_str("## Instrucciones\n\n");
         document.push_str("Necesito que generes unas notas de versión detalladas en español, basadas en los datos proporcionados a continuación. ");
@@ -329,9 +329,9 @@ impl GeminiClient {
                 }
                 document.push('\n');
             }
+            }
         }
-    }
-
+        
     fn add_breaking_changes_section(&self, document: &mut String, commits: &[GitCommit]) {
         let breaking_changes: Vec<&GitCommit> = commits.iter().filter(|c| !c.breaking_changes.is_empty()).collect();
         if !breaking_changes.is_empty() {
@@ -387,19 +387,19 @@ impl GeminiClient {
     }
 
     fn add_commit_monday_tasks(&self, document: &mut String, commit: &GitCommit, task_details_map: &HashMap<String, &MondayTask>) {
-        if !commit.monday_task_mentions.is_empty() {
-            document.push_str("**Tareas relacionadas**:\n");
-            
-            for mention in &commit.monday_task_mentions {
-                let task_details = task_details_map.get(&mention.id);
-                let task_name = task_details.map(|t| t.title.as_str()).unwrap_or(&mention.title);
-                let task_state = task_details.map(|t| t.state.as_str()).unwrap_or("Desconocido");
+            if !commit.monday_task_mentions.is_empty() {
+                document.push_str("**Tareas relacionadas**:\n");
                 
-                document.push_str(&format!("- {} (ID: {}, Estado: {})\n", task_name, mention.id, task_state));
+                for mention in &commit.monday_task_mentions {
+                    let task_details = task_details_map.get(&mention.id);
+                    let task_name = task_details.map(|t| t.title.as_str()).unwrap_or(&mention.title);
+                    let task_state = task_details.map(|t| t.state.as_str()).unwrap_or("Desconocido");
+                    
+                    document.push_str(&format!("- {} (ID: {}, Estado: {})\n", task_name, mention.id, task_state));
+                }
+                
+                document.push('\n');
             }
-            
-            document.push('\n');
-        }
     }
 
     fn group_commits_by_type<'a>(&self, commits: &'a [GitCommit]) -> HashMap<String, Vec<&'a GitCommit>> {
@@ -408,7 +408,7 @@ impl GeminiClient {
         for commit in commits {
             let commit_type = commit.commit_type.as_deref().unwrap_or("other").to_string();
             commits_by_type.entry(commit_type).or_insert_with(Vec::new).push(commit);
-        }
+            }
         
         commits_by_type
     }
@@ -426,7 +426,7 @@ impl GeminiClient {
 
         document.push_str("## Detalles de Tareas de Monday\n\n");
         
-        for task in monday_tasks {
+            for task in monday_tasks {
             document.push_str(&format!("### {} (ID: {})\n\n", task.title, task.id));
             document.push_str(&format!("- **Estado**: {}\n", task.state));
             document.push_str(&format!("- **Tablero**: {} (ID: {})\n", 
@@ -439,7 +439,7 @@ impl GeminiClient {
             self.add_related_commits(document, task, commits);
             
             document.push('\n');
-        }
+                }
     }
 
     fn add_task_column_values(&self, document: &mut String, task: &MondayTask) {
@@ -452,7 +452,7 @@ impl GeminiClient {
             if !relevant_columns.is_empty() {
                 for col in relevant_columns {
                     document.push_str(&format!("  - {}: {}\n", col.id, col.text.as_deref().unwrap_or("")));
-                }
+                        }
             } else {
                 document.push_str("  - No hay detalles adicionales disponibles\n");
             }
@@ -482,13 +482,13 @@ impl GeminiClient {
             if let Some(scope) = &commit.scope {
                 if scope.split('|').any(|id| id == task.id) {
                     return true;
-                }
+            }
             }
             
             // Check Monday task mentions
             commit.monday_task_mentions.iter().any(|mention| mention.id == task.id)
         }).collect();
-        
+            
         if !related_commits.is_empty() {
             document.push_str("- **Commits Relacionados**:\n");
             for commit in related_commits {
