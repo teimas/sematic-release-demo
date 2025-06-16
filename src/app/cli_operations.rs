@@ -144,6 +144,7 @@ impl App {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     pub async fn generate_release_notes(&self) -> Result<()> {
         println!("📝 Generating release notes...");
         

@@ -64,6 +64,7 @@ impl GeminiClient {
 // =============================================================================
 
 impl GeminiClient {
+    #[allow(dead_code)]
     pub async fn generate_release_notes(
         &self,
         version: &str,
@@ -80,6 +81,7 @@ impl GeminiClient {
         self.call_gemini_with_fallback(document).await
     }
 
+    #[allow(dead_code)]
     fn generate_document(&self, version: &str, commits: &[GitCommit], monday_tasks: &[MondayTask]) -> String {
         let mut document = String::new();
         
@@ -516,6 +518,7 @@ VALIDACIONES:
 // =============================================================================
 
 impl GeminiClient {
+    #[allow(dead_code)]
     fn create_task_details_map<'a>(&self, monday_tasks: &'a [MondayTask]) -> HashMap<String, &'a MondayTask> {
         monday_tasks
             .iter()
@@ -523,6 +526,7 @@ impl GeminiClient {
             .collect()
     }
         
+    #[allow(dead_code)]
     fn add_document_header(&self, document: &mut String, version: &str, commits: &[GitCommit], monday_tasks: &[MondayTask]) {
         document.push_str(&format!("# Datos para Generación de Notas de Versión {}\n\n", version));
         
@@ -533,12 +537,14 @@ impl GeminiClient {
         document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
     }
         
+    #[allow(dead_code)]
     fn add_instructions_section(&self, document: &mut String) {
         document.push_str("## Instrucciones\n\n");
         document.push_str("Necesito que generes unas notas de versión detalladas en español, basadas en los datos proporcionados a continuación. ");
         document.push_str("Estas notas deben estar dirigidas a usuarios finales y equipos técnicos, destacando las nuevas funcionalidades, correcciones y mejoras. ");
     }
 
+    #[allow(dead_code)]
     fn add_template_section(&self, document: &mut String) {
         document.push_str("La plantilla a utilizar para generar el documento tiene que ser la siguiente. Fijate en todo lo que hay y emúlalo por completo.\n\n");
         
@@ -553,6 +559,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_final_instructions(&self, document: &mut String) {
         document.push_str("\n---\n\n");
         document.push_str("**INSTRUCCIONES PARA GEMINI:**\n");
@@ -572,6 +579,7 @@ impl GeminiClient {
 // =============================================================================
 
 impl GeminiClient {
+    #[allow(dead_code)]
     fn add_changes_summary(&self, document: &mut String, commits: &[GitCommit]) {
         let commits_by_type = self.group_commits_by_type(commits);
         
@@ -588,6 +596,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_commits_section(&self, document: &mut String, commits_by_type: &HashMap<String, Vec<&GitCommit>>, commit_type: &str, section_title: &str) {
         if let Some(commits_list) = commits_by_type.get(commit_type) {
             if !commits_list.is_empty() {
@@ -608,6 +617,7 @@ impl GeminiClient {
         }
     }
         
+    #[allow(dead_code)]
     fn add_breaking_changes_section(&self, document: &mut String, commits: &[GitCommit]) {
         let breaking_changes: Vec<&GitCommit> = commits.iter().filter(|c| !c.breaking_changes.is_empty()).collect();
         if !breaking_changes.is_empty() {
@@ -627,6 +637,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_detailed_commits_section(&self, document: &mut String, commits: &[GitCommit], task_details_map: &HashMap<String, &MondayTask>) {
         document.push_str("## Detalles Completos de Commits\n\n");
         
@@ -662,6 +673,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_commit_monday_tasks(&self, document: &mut String, commit: &GitCommit, task_details_map: &HashMap<String, &MondayTask>) {
         if !commit.monday_task_mentions.is_empty() {
             document.push_str("**Tareas relacionadas**:\n");
@@ -678,6 +690,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn group_commits_by_type<'a>(&self, commits: &'a [GitCommit]) -> HashMap<String, Vec<&'a GitCommit>> {
         let mut commits_by_type = HashMap::new();
         
@@ -695,6 +708,7 @@ impl GeminiClient {
 // =============================================================================
 
 impl GeminiClient {
+    #[allow(dead_code)]
     fn add_monday_tasks_section(&self, document: &mut String, monday_tasks: &[MondayTask], commits: &[GitCommit], _task_details_map: &HashMap<String, &MondayTask>) {
         if monday_tasks.is_empty() {
             return;
@@ -718,6 +732,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_task_column_values(&self, document: &mut String, task: &MondayTask) {
         if !task.column_values.is_empty() {
             document.push_str("- **Detalles**:\n");
@@ -735,6 +750,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_task_updates(&self, document: &mut String, task: &MondayTask) {
         if !task.updates.is_empty() {
             document.push_str("- **Actualizaciones Recientes**:\n");
@@ -752,6 +768,7 @@ impl GeminiClient {
         }
     }
 
+    #[allow(dead_code)]
     fn add_related_commits(&self, document: &mut String, task: &MondayTask, commits: &[GitCommit]) {
         let related_commits: Vec<&GitCommit> = commits.iter().filter(|commit| {
             // Check scope for task ID
@@ -782,6 +799,7 @@ impl GeminiClient {
 // =============================================================================
 
 impl GeminiClient {
+    #[allow(dead_code)]
     fn format_multiline_text(text: &str) -> String {
         text.lines()
             .map(|line| line.trim())
@@ -790,6 +808,7 @@ impl GeminiClient {
             .join(" | ")
     }
 
+    #[allow(dead_code)]
     fn get_type_title(commit_type: &str) -> &str {
         match commit_type {
             "feat" => "Nuevas Funcionalidades",
