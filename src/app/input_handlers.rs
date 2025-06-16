@@ -96,6 +96,7 @@ impl App {
                 debug!("Adding newline in multiline field");
                 self.ui_state.current_input.push('\n');
                 self.ui_state.cursor_position = self.ui_state.current_input.len();
+                self.update_scroll_for_cursor();
             } else {
                 debug!("Enter ignored in single-line field - use Tab to navigate");
             }
@@ -233,6 +234,7 @@ impl App {
                 new_pos -= 1;
             }
             self.ui_state.cursor_position = new_pos;
+            self.update_scroll_for_cursor();
         }
     }
 
@@ -244,6 +246,7 @@ impl App {
                 new_pos += 1;
             }
             self.ui_state.cursor_position = new_pos.min(text.len());
+            self.update_scroll_for_cursor();
         }
     }
 
@@ -268,6 +271,7 @@ impl App {
             
             let new_column = current_column.min(prev_line_length);
             self.ui_state.cursor_position = prev_line_start + new_column;
+            self.update_scroll_for_cursor();
         }
     }
 
@@ -297,6 +301,7 @@ impl App {
                 
                 let new_column = current_column.min(next_line_length);
                 self.ui_state.cursor_position = next_line_start + new_column;
+                self.update_scroll_for_cursor();
             }
         }
     }
@@ -313,6 +318,7 @@ impl App {
         let text_before_cursor = &text[..cursor_pos];
         let line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         self.ui_state.cursor_position = line_start;
+        self.update_scroll_for_cursor();
     }
 
     fn move_cursor_to_line_end(&mut self) {
@@ -328,6 +334,7 @@ impl App {
         let line_end = text_after_cursor.find('\n')
             .map_or(text.len(), |pos| cursor_pos + pos);
         self.ui_state.cursor_position = line_end;
+        self.update_scroll_for_cursor();
     }
 
     fn insert_character(&mut self, c: char) {
@@ -341,6 +348,7 @@ impl App {
             self.ui_state.current_input.push(c);
             self.ui_state.cursor_position = self.ui_state.current_input.len();
         }
+        self.update_scroll_for_cursor();
     }
 
     fn delete_character_before_cursor(&mut self) {
@@ -356,6 +364,7 @@ impl App {
             if text.is_char_boundary(prev_pos) {
                 self.ui_state.current_input.remove(prev_pos);
                 self.ui_state.cursor_position = prev_pos;
+                self.update_scroll_for_cursor();
             }
         }
     }
@@ -366,14 +375,30 @@ impl App {
         
         if cursor_pos < text.len() && text.is_char_boundary(cursor_pos) {
             self.ui_state.current_input.remove(cursor_pos);
+            self.update_scroll_for_cursor();
         }
     }
 
     fn is_multiline_field(&self) -> bool {
-        matches!(
-            self.ui_state.current_field,
-            CommitField::Description | CommitField::TestDetails | CommitField::Security | CommitField::MigracionesLentas | CommitField::PartesAEjecutar
-        )
+        crate::ui::state::UIState::is_multiline_field(&self.ui_state.current_field)
+    }
+
+    fn update_scroll_for_cursor(&mut self) {
+        if self.is_multiline_field() {
+            let field_width = 80; // Approximate field width, this could be dynamic
+            let visible_height = 3; // Height of multiline fields minus borders
+            let current_scroll = self.ui_state.get_field_scroll_offset(&self.ui_state.current_field);
+            
+            let new_scroll = crate::ui::scrollable_text::calculate_required_scroll(
+                &self.ui_state.current_input,
+                self.ui_state.cursor_position,
+                field_width,
+                visible_height,
+                current_scroll,
+            );
+            
+            self.ui_state.set_field_scroll_offset(self.ui_state.current_field.clone(), new_scroll);
+        }
     }
 
     // Search input handling

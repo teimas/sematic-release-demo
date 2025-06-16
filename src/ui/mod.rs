@@ -3,6 +3,7 @@ pub mod components;
 pub mod screens;
 pub mod loading;
 pub mod cursor;
+pub mod scrollable_text;
 
 // Re-export the main types and functions for easy access
 pub use state::{UIState, InputMode, CommitField};

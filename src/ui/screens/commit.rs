@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::ui::state::{UIState, CommitField, InputMode};
+use crate::ui::scrollable_text::render_scrollable_text;
 use crate::types::{CommitType, CommitForm};
 
 pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form: &CommitForm) {
@@ -98,14 +99,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     } else {
         &commit_form.description
     };
-    let description = Paragraph::new(desc_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Description (multiline, press 'r' to generate)")
-            .border_style(ui_state.get_field_border_style(&CommitField::Description)))
-        .style(ui_state.get_field_style(&CommitField::Description))
-        .wrap(Wrap { trim: true });
-    f.render_widget(description, chunks[3]);
+    
+    let desc_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Description (multiline, press 'r' to generate)")
+        .border_style(ui_state.get_field_border_style(&CommitField::Description));
+    let desc_style = ui_state.get_field_style(&CommitField::Description);
+    
+    render_scrollable_text(f, chunks[3], desc_text, &CommitField::Description, ui_state, desc_block, desc_style);
 
     // Breaking Change
     let breaking_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::BreakingChange {
@@ -131,14 +132,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     } else {
         &commit_form.test_details
     };
-    let test_details = Paragraph::new(test_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Test Details (multiline)")
-            .border_style(ui_state.get_field_border_style(&CommitField::TestDetails)))
-        .style(ui_state.get_field_style(&CommitField::TestDetails))
-        .wrap(Wrap { trim: true });
-    f.render_widget(test_details, chunks[5]);
+    
+    let test_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Test Details (multiline)")
+        .border_style(ui_state.get_field_border_style(&CommitField::TestDetails));
+    let test_style = ui_state.get_field_style(&CommitField::TestDetails);
+    
+    render_scrollable_text(f, chunks[5], test_text, &CommitField::TestDetails, ui_state, test_block, test_style);
 
     // Security (multiline)
     let security_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::Security {
@@ -148,14 +149,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     } else {
         &commit_form.security
     };
-    let security = Paragraph::new(security_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Security (multiline)")
-            .border_style(ui_state.get_field_border_style(&CommitField::Security)))
-        .style(ui_state.get_field_style(&CommitField::Security))
-        .wrap(Wrap { trim: true });
-    f.render_widget(security, chunks[6]);
+    
+    let security_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Security (multiline)")
+        .border_style(ui_state.get_field_border_style(&CommitField::Security));
+    let security_style = ui_state.get_field_style(&CommitField::Security);
+    
+    render_scrollable_text(f, chunks[6], security_text, &CommitField::Security, ui_state, security_block, security_style);
 
     // Migraciones Lentas (multiline)
     let migraciones_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::MigracionesLentas {
@@ -165,14 +166,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     } else {
         &commit_form.migraciones_lentas
     };
-    let migraciones_lentas = Paragraph::new(migraciones_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Migraciones Lentas (multiline)")
-            .border_style(ui_state.get_field_border_style(&CommitField::MigracionesLentas)))
-        .style(ui_state.get_field_style(&CommitField::MigracionesLentas))
-        .wrap(Wrap { trim: true });
-    f.render_widget(migraciones_lentas, chunks[7]);
+    
+    let migraciones_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Migraciones Lentas (multiline)")
+        .border_style(ui_state.get_field_border_style(&CommitField::MigracionesLentas));
+    let migraciones_style = ui_state.get_field_style(&CommitField::MigracionesLentas);
+    
+    render_scrollable_text(f, chunks[7], migraciones_text, &CommitField::MigracionesLentas, ui_state, migraciones_block, migraciones_style);
 
     // Partes a Ejecutar (multiline)
     let partes_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::PartesAEjecutar {
@@ -182,14 +183,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     } else {
         &commit_form.partes_a_ejecutar
     };
-    let partes_a_ejecutar = Paragraph::new(partes_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Partes a Ejecutar (multiline)")
-            .border_style(ui_state.get_field_border_style(&CommitField::PartesAEjecutar)))
-        .style(ui_state.get_field_style(&CommitField::PartesAEjecutar))
-        .wrap(Wrap { trim: true });
-    f.render_widget(partes_a_ejecutar, chunks[8]);
+    
+    let partes_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Partes a Ejecutar (multiline)")
+        .border_style(ui_state.get_field_border_style(&CommitField::PartesAEjecutar));
+    let partes_style = ui_state.get_field_style(&CommitField::PartesAEjecutar);
+    
+    render_scrollable_text(f, chunks[8], partes_text, &CommitField::PartesAEjecutar, ui_state, partes_block, partes_style);
 
     // Instructions
     let instructions = if ui_state.input_mode == InputMode::Editing {

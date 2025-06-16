@@ -64,9 +64,16 @@ pub fn set_cursor_position(f: &mut Frame, area: Rect, ui_state: &UIState) {
     // Calculate cursor position within the field
     let (cursor_x, cursor_y) = calculate_cursor_position(&ui_state.current_input, ui_state.cursor_position, field_area.width.saturating_sub(2));
     
-    // Position cursor within the field (accounting for border)
+    // Account for scroll offset in multiline fields
+    let scroll_offset = if crate::ui::state::UIState::is_multiline_field(&ui_state.current_field) {
+        ui_state.get_field_scroll_offset(&ui_state.current_field)
+    } else {
+        0
+    };
+    
+    // Position cursor within the field (accounting for border and scroll)
     let cursor_x = field_area.x + 1 + cursor_x;
-    let cursor_y = field_area.y + 1 + cursor_y;
+    let cursor_y = field_area.y + 1 + cursor_y.saturating_sub(scroll_offset);
     
     // Set cursor position and make it visible
     f.set_cursor_position((cursor_x, cursor_y));
@@ -87,9 +94,12 @@ pub fn set_commit_preview_cursor_position(f: &mut Frame, area: Rect, ui_state: &
     // Calculate cursor position within the multiline editor
     let (cursor_x, cursor_y) = calculate_cursor_position(&ui_state.current_input, ui_state.cursor_position, editor_area.width.saturating_sub(2));
     
-    // Position cursor within the editor field (accounting for border)
+    // Account for scroll offset (commit preview always scrolls)
+    let scroll_offset = ui_state.scroll_offset;
+    
+    // Position cursor within the editor field (accounting for border and scroll)
     let cursor_x = editor_area.x + 1 + cursor_x;
-    let cursor_y = editor_area.y + 1 + cursor_y;
+    let cursor_y = editor_area.y + 1 + cursor_y.saturating_sub(scroll_offset);
     
     // Set cursor position and make it visible
     f.set_cursor_position((cursor_x, cursor_y));

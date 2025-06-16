@@ -2,6 +2,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::ListState,
 };
+use std::collections::HashMap;
 
 pub struct UIState {
     pub selected_tab: usize,
@@ -17,6 +18,8 @@ pub struct UIState {
     pub focused_search_index: usize,
     pub task_management_mode: bool,
     pub animation_frame: usize,
+    // Field-specific scroll offsets for multiline fields
+    pub field_scroll_offsets: HashMap<CommitField, u16>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +30,7 @@ pub enum InputMode {
     Selecting,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CommitField {
     Type,
     Scope,
@@ -55,6 +58,7 @@ impl Default for UIState {
             focused_search_index: 0,
             task_management_mode: false,
             animation_frame: 0,
+            field_scroll_offsets: HashMap::new(),
         }
     }
 }
@@ -79,5 +83,20 @@ impl UIState {
         } else {
             Style::default()
         }
+    }
+
+    pub fn get_field_scroll_offset(&self, field: &CommitField) -> u16 {
+        self.field_scroll_offsets.get(field).copied().unwrap_or(0)
+    }
+
+    pub fn set_field_scroll_offset(&mut self, field: CommitField, offset: u16) {
+        self.field_scroll_offsets.insert(field, offset);
+    }
+
+    pub fn is_multiline_field(field: &CommitField) -> bool {
+        matches!(
+            field,
+            CommitField::Description | CommitField::TestDetails | CommitField::Security | CommitField::MigracionesLentas | CommitField::PartesAEjecutar
+        )
     }
 } 
