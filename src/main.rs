@@ -10,6 +10,7 @@ mod ui;
 mod types;
 
 use app::App;
+use types::AppScreen;
 
 #[derive(Parser)]
 #[command(name = "semantic-release-tui")]
@@ -25,6 +26,10 @@ struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
+    
+    /// Auto-commit: Run comprehensive AI analysis and open commit editor directly
+    #[arg(long, global = true)]
+    autocommit: bool,
 }
 
 #[derive(Subcommand)]
@@ -75,6 +80,13 @@ async fn main() -> Result<()> {
         info!("Verbose logging enabled");
     }
 
+    // Handle --autocommit flag
+    if cli.autocommit {
+        let app = App::new().await?;
+        app.autocommit_flow().await?;
+        return Ok(());
+    }
+
     match cli.command.unwrap_or(Commands::Tui) {
         Commands::Tui => {
             let app = App::new().await?;
@@ -88,8 +100,9 @@ async fn main() -> Result<()> {
             app.commit_flow().await?;
         }
         Commands::ReleaseNotes => {
-            let app = App::new().await?;
-            app.generate_release_notes().await?;
+            let mut app = App::new().await?;
+            app.current_screen = AppScreen::ReleaseNotes;
+            app.run().await?;
         }
         Commands::Search { query } => {
             let app = App::new().await?;

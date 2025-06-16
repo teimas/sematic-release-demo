@@ -13,9 +13,135 @@ use crate::{
 impl App {
     // CLI methods for direct command usage
     pub async fn commit_flow(&self) -> Result<()> {
-        println!("🚀 Semantic Release TUI - Commit Flow");
-        println!("This would open the TUI commit interface");
+        println!("🚀 Semantic Release TUI - Opening Commit Interface...");
+        println!("💡 TIP: Use 'r' for AI analysis (5 calls), 't' for comprehensive analysis (1 call)");
+        println!("📋 Press 'q' to quit, 'Tab' to navigate between fields");
+        
+        // Create a new app instance specifically for commit flow
+        let mut app = App::new().await?;
+        
+        // Set the initial screen to commit instead of main
+        app.current_screen = crate::types::AppScreen::Commit;
+        
+        // Run the TUI starting on the commit screen
+        app.run().await?;
+        
         Ok(())
+    }
+
+    pub async fn autocommit_flow(&self) -> Result<()> {
+        println!("🚀 Semantic Release TUI - Auto-commit Flow");
+        println!("🧠 Running comprehensive AI analysis...");
+        
+        // Run comprehensive analysis directly without TUI state management
+        let analysis_result = self.run_comprehensive_analysis_cli().await?;
+        
+        println!("✅ AI analysis completed successfully!");
+        
+        // Create a new app instance for the commit editor
+        let mut app = App::new().await?;
+        
+        // Populate form with AI analysis results
+        if let Some(title) = analysis_result.get("title").and_then(|v| v.as_str()) {
+            if !title.is_empty() {
+                app.commit_form.title = title.to_string();
+            }
+        }
+        
+        if let Some(commit_type) = analysis_result.get("commitType").and_then(|v| v.as_str()) {
+            if !commit_type.is_empty() {
+                use crate::types::CommitType;
+                let commit_type_enum = match commit_type {
+                    "feat" => Some(CommitType::Feat),
+                    "fix" => Some(CommitType::Fix),
+                    "docs" => Some(CommitType::Docs),
+                    "style" => Some(CommitType::Style),
+                    "refactor" => Some(CommitType::Refactor),
+                    "perf" => Some(CommitType::Perf),
+                    "test" => Some(CommitType::Test),
+                    "chore" => Some(CommitType::Chore),
+                    "revert" => Some(CommitType::Revert),
+                    _ => None,
+                };
+                
+                if let Some(ct) = commit_type_enum {
+                    app.commit_form.commit_type = Some(ct.clone());
+                    // Update UI state to reflect the selected commit type
+                    let commit_types = CommitType::all();
+                    if let Some(index) = commit_types.iter().position(|t| *t == ct) {
+                        app.ui_state.selected_commit_type = index;
+                    }
+                }
+            }
+        }
+        
+        if let Some(description) = analysis_result.get("description").and_then(|v| v.as_str()) {
+            if !description.is_empty() {
+                app.commit_form.description = description.to_string();
+            }
+        }
+        
+        if let Some(scope) = analysis_result.get("scope").and_then(|v| v.as_str()) {
+            if !scope.is_empty() && scope != "general" {
+                app.commit_form.scope = scope.to_string();
+            }
+        }
+        
+        if let Some(security) = analysis_result.get("securityAnalysis").and_then(|v| v.as_str()) {
+            if !security.is_empty() {
+                app.commit_form.security = security.to_string();
+            }
+        }
+        
+        if let Some(breaking) = analysis_result.get("breakingChanges").and_then(|v| v.as_str()) {
+            if !breaking.is_empty() {
+                app.commit_form.breaking_change = breaking.to_string();
+            }
+        }
+        
+        // Generate commit message preview
+        use crate::app::commit_operations::CommitOperations;
+        app.preview_commit_message = app.build_commit_message();
+        
+        // Set screen to commit preview (like pressing 'c')
+        app.current_screen = crate::types::AppScreen::CommitPreview;
+        app.ui_state.input_mode = crate::ui::state::InputMode::Editing;
+        app.ui_state.current_input = app.preview_commit_message.clone();
+        app.ui_state.cursor_position = app.preview_commit_message.len();
+        
+        println!("📝 Opening commit editor...");
+        
+        // Run the TUI starting on the commit preview screen
+        app.run().await?;
+        
+        Ok(())
+    }
+
+    /// CLI-only comprehensive analysis that doesn't involve TUI state management
+    async fn run_comprehensive_analysis_cli(&self) -> Result<serde_json::Value> {
+        use crate::git::GitRepo;
+        use crate::services::GeminiClient;
+        
+        println!("🔍 Analyzing git repository changes...");
+        
+        // Get git changes
+        let git_repo = GitRepo::new()?;
+        let changes = git_repo.get_detailed_changes()?;
+        
+        if changes.trim().is_empty() || changes.contains("No hay cambios detectados") {
+            return Err(anyhow::anyhow!("No git changes found to analyze"));
+        }
+        
+        println!("🌐 Connecting to Gemini AI...");
+        
+        // Create Gemini client and run analysis
+        let gemini_client = GeminiClient::new(&self.config)?;
+        
+        println!("🧠 Generating comprehensive commit analysis...");
+        
+        let result = gemini_client.generate_comprehensive_commit_analysis(&changes).await?;
+        
+        Ok(result)
     }
 
     pub async fn generate_release_notes(&self) -> Result<()> {
