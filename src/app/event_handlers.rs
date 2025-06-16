@@ -1,11 +1,10 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use log::{debug, info, error};
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
     app::App,
     types::{AppScreen, AppState, CommitType},
-    ui::{self, InputMode, CommitField},
+    ui::{InputMode, CommitField},
 };
 
 pub trait EventHandlers {
@@ -22,7 +21,7 @@ impl EventHandlers for App {
 
         match (&self.current_screen, &self.ui_state.input_mode) {
             (_, InputMode::Editing) => {
-                use crate::app::input_handlers::*;
+
                 self.handle_input_mode(key).await?;
             }
             (AppScreen::Main, _) => {
@@ -93,9 +92,7 @@ impl App {
     }
 
     async fn handle_commit_screen(&mut self, key: KeyCode) -> Result<()> {
-        use crate::app::task_operations::TaskOperations;
-        use crate::app::background_operations::BackgroundOperations;
-        use crate::app::commit_operations::CommitOperations;
+
 
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
@@ -178,7 +175,6 @@ impl App {
     }
 
     async fn handle_task_search_screen(&mut self, key: KeyCode) -> Result<()> {
-        use crate::app::task_operations::TaskOperations;
 
         // Check if we're in search input mode (typing in the search box)
         let in_search_input = self.ui_state.input_mode == InputMode::Editing;
@@ -195,7 +191,6 @@ impl App {
     }
 
     async fn handle_task_selection_screen(&mut self, key: KeyCode) -> Result<()> {
-        use crate::app::task_operations::TaskOperations;
 
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
@@ -212,9 +207,11 @@ impl App {
                 }
             }
             KeyCode::Char(' ') => {
+                use crate::app::task_operations::TaskOperations;
                 self.toggle_task_selection();
             }
             KeyCode::Enter => {
+                use crate::app::task_operations::TaskOperations;
                 self.confirm_task_selection();
             }
             _ => {}
@@ -361,7 +358,6 @@ impl App {
     }
 
     fn handle_task_deletion(&mut self) {
-        use crate::app::task_operations::TaskOperations;
         if (self.ui_state.task_management_mode || self.ui_state.current_field == CommitField::SelectedTasks) 
             && !self.selected_tasks.is_empty() 
             && self.ui_state.selected_tab < self.selected_tasks.len() {
@@ -372,6 +368,7 @@ impl App {
                 self.ui_state.selected_tab = self.selected_tasks.len() - 1;
             }
             
+            use crate::app::task_operations::TaskOperations;
             self.update_task_selection();
             self.message = Some("Task removed from selection".to_string());
         }

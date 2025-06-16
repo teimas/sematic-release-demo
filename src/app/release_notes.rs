@@ -1,11 +1,10 @@
 use anyhow::Result;
 use std::fs;
-use std::path::Path;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use chrono::{Utc, Local};
+use chrono::Utc;
 
 use crate::{
     app::App,
@@ -199,7 +198,7 @@ impl App {
         groups
     }
 
-    fn add_changes_summary_to_document(&self, document: &mut String, commits_by_type: &std::collections::HashMap<String, Vec<&crate::types::GitCommit>>, commits: &[crate::types::GitCommit]) {
+    fn add_changes_summary_to_document(&self, document: &mut String, commits_by_type: &std::collections::HashMap<String, Vec<&crate::types::GitCommit>>, _commits: &[crate::types::GitCommit]) {
         document.push_str("## Resumen de Cambios\n\n");
         
         // Add feat commits

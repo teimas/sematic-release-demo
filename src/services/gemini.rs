@@ -97,8 +97,8 @@ impl GeminiClient {
         self.add_final_instructions(&mut document);
 
         document
-        }
     }
+}
 
 // =============================================================================
 // COMMIT ANALYSIS FEATURE
@@ -136,7 +136,7 @@ Escribe una descripción técnica completa en español, sin encabezados ni forma
         );
 
         let response = self.call_gemini_with_fallback(&prompt).await?;
-                Ok(response.trim().to_string())
+        Ok(response.trim().to_string())
     }
 
     pub async fn analyze_security_risks(&self, changes: &str, commit_type: Option<&str>, scope: Option<&str>, title: &str) -> Result<String> {
@@ -175,15 +175,15 @@ FORMATO DE RESPUESTA:
         );
 
         match self.call_gemini_with_fallback(&prompt).await {
-                    Ok(response) => {
-                        let trimmed = response.trim();
-                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
-                            String::new() 
-                        } else { 
-                            trimmed.to_string() 
-                        })
-                    },
-                    Err(_) => Ok(String::new()) // Return empty if both fail
+            Ok(response) => {
+                let trimmed = response.trim();
+                Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                    String::new() 
+                } else { 
+                    trimmed.to_string() 
+                })
+            },
+            Err(_) => Ok(String::new()) // Return empty if both fail
         }
     }
 
@@ -222,18 +222,104 @@ FORMATO DE RESPUESTA:
         );
 
         match self.call_gemini_with_fallback(&prompt).await {
-                    Ok(response) => {
-                        let trimmed = response.trim();
-                        Ok(if trimmed == "NA" || trimmed.is_empty() { 
-                            String::new() 
-                        } else { 
-                            trimmed.to_string() 
-                        })
-                    },
-                    Err(_) => Ok(String::new()) // Return empty if both fail
-                }
-            }
+            Ok(response) => {
+                let trimmed = response.trim();
+                Ok(if trimmed == "NA" || trimmed.is_empty() { 
+                    String::new() 
+                } else { 
+                    trimmed.to_string() 
+                })
+            },
+            Err(_) => Ok(String::new()) // Return empty if both fail
         }
+    }
+
+    pub async fn generate_commit_title(&self, changes: &str) -> Result<String> {
+        let prompt = format!(
+            r#"Eres un desarrollador experto que debe generar un título conciso para un commit de git basado en los cambios realizados.
+
+CAMBIOS EN EL CÓDIGO:
+{}
+
+INSTRUCCIONES:
+1. Analiza los cambios de código proporcionados
+2. Genera un título claro, conciso y descriptivo en español
+3. El título debe explicar QUÉ se hizo en máximo 50 caracteres
+4. NO incluyas el tipo de commit (feat:, fix:, etc.) - solo el título descriptivo
+5. Usa presente imperativo (ej: "añade validación", "corrige error", "actualiza dependencias")
+6. Sé específico sobre lo que cambió (archivos, funciones, características)
+
+EJEMPLOS BUENOS:
+- "añade validación de email en formulario de registro"
+- "corrige error de memoria en parser de JSON"
+- "actualiza dependencias de seguridad"
+- "implementa caché para consultas de usuario"
+
+FORMATO DE RESPUESTA:
+Responde ÚNICAMENTE con el título del commit, sin formato adicional, sin comillas, sin explicaciones extra."#,
+            changes
+        );
+
+        let response = self.call_gemini_with_fallback(&prompt).await?;
+        let title = response.trim().to_string();
+        
+        // Ensure the title is not too long
+        if title.len() > 50 {
+            Ok(title[..47].to_string() + "...")
+        } else {
+            Ok(title)
+        }
+    }
+
+    pub async fn generate_commit_type(&self, changes: &str, title: &str) -> Result<String> {
+        let prompt = format!(
+            r#"Eres un experto en semantic release que debe determinar el tipo de commit según los cambios realizados.
+
+TÍTULO DEL COMMIT: {}
+
+CAMBIOS EN EL CÓDIGO:
+{}
+
+TIPOS DE COMMIT DISPONIBLES:
+- feat: Nueva funcionalidad para el usuario
+- fix: Corrección de un bug
+- docs: Solo cambios en documentación
+- style: Cambios de formato (espacios, comas, etc. sin cambios de código)
+- refactor: Refactorización de código (ni nueva funcionalidad ni corrección de bugs)
+- perf: Mejoras de rendimiento
+- test: Añadir tests o corregir tests existentes
+- chore: Cambios en el proceso de build o herramientas auxiliares
+
+INSTRUCCIONES:
+1. Analiza los cambios de código y el título proporcionados
+2. Determina cuál es el tipo de commit más apropiado según semantic release
+3. Si es una nueva funcionalidad o característica → "feat"
+4. Si corrige un error o bug → "fix"
+5. Si solo cambia documentación → "docs"
+6. Si es refactorización sin cambios funcionales → "refactor"
+7. Si mejora el rendimiento → "perf"
+8. Si añade o modifica tests → "test"
+9. Si son cambios de configuración/herramientas → "chore"
+10. Si solo son cambios de formato/estilo → "style"
+
+FORMATO DE RESPUESTA:
+Responde ÚNICAMENTE con el tipo de commit (feat, fix, docs, style, refactor, perf, test, o chore) sin explicaciones adicionales."#,
+            title, changes
+        );
+
+        let response = self.call_gemini_with_fallback(&prompt).await?;
+        let commit_type = response.trim().to_lowercase();
+        
+        // Validate the commit type is one of the expected ones
+        let valid_types = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore"];
+        if valid_types.contains(&commit_type.as_str()) {
+            Ok(commit_type)
+        } else {
+            // Default to "chore" if we get an unexpected response
+            Ok("chore".to_string())
+        }
+    }
+}
 
 // =============================================================================
 // DOCUMENT GENERATION HELPERS
@@ -329,8 +415,8 @@ impl GeminiClient {
                 }
                 document.push('\n');
             }
-            }
         }
+    }
         
     fn add_breaking_changes_section(&self, document: &mut String, commits: &[GitCommit]) {
         let breaking_changes: Vec<&GitCommit> = commits.iter().filter(|c| !c.breaking_changes.is_empty()).collect();
@@ -387,19 +473,19 @@ impl GeminiClient {
     }
 
     fn add_commit_monday_tasks(&self, document: &mut String, commit: &GitCommit, task_details_map: &HashMap<String, &MondayTask>) {
-            if !commit.monday_task_mentions.is_empty() {
-                document.push_str("**Tareas relacionadas**:\n");
+        if !commit.monday_task_mentions.is_empty() {
+            document.push_str("**Tareas relacionadas**:\n");
+            
+            for mention in &commit.monday_task_mentions {
+                let task_details = task_details_map.get(&mention.id);
+                let task_name = task_details.map(|t| t.title.as_str()).unwrap_or(&mention.title);
+                let task_state = task_details.map(|t| t.state.as_str()).unwrap_or("Desconocido");
                 
-                for mention in &commit.monday_task_mentions {
-                    let task_details = task_details_map.get(&mention.id);
-                    let task_name = task_details.map(|t| t.title.as_str()).unwrap_or(&mention.title);
-                    let task_state = task_details.map(|t| t.state.as_str()).unwrap_or("Desconocido");
-                    
-                    document.push_str(&format!("- {} (ID: {}, Estado: {})\n", task_name, mention.id, task_state));
-                }
-                
-                document.push('\n');
+                document.push_str(&format!("- {} (ID: {}, Estado: {})\n", task_name, mention.id, task_state));
             }
+            
+            document.push('\n');
+        }
     }
 
     fn group_commits_by_type<'a>(&self, commits: &'a [GitCommit]) -> HashMap<String, Vec<&'a GitCommit>> {
@@ -408,7 +494,7 @@ impl GeminiClient {
         for commit in commits {
             let commit_type = commit.commit_type.as_deref().unwrap_or("other").to_string();
             commits_by_type.entry(commit_type).or_insert_with(Vec::new).push(commit);
-            }
+        }
         
         commits_by_type
     }
@@ -426,7 +512,7 @@ impl GeminiClient {
 
         document.push_str("## Detalles de Tareas de Monday\n\n");
         
-            for task in monday_tasks {
+        for task in monday_tasks {
             document.push_str(&format!("### {} (ID: {})\n\n", task.title, task.id));
             document.push_str(&format!("- **Estado**: {}\n", task.state));
             document.push_str(&format!("- **Tablero**: {} (ID: {})\n", 
@@ -439,7 +525,7 @@ impl GeminiClient {
             self.add_related_commits(document, task, commits);
             
             document.push('\n');
-                }
+        }
     }
 
     fn add_task_column_values(&self, document: &mut String, task: &MondayTask) {
@@ -452,7 +538,7 @@ impl GeminiClient {
             if !relevant_columns.is_empty() {
                 for col in relevant_columns {
                     document.push_str(&format!("  - {}: {}\n", col.id, col.text.as_deref().unwrap_or("")));
-                        }
+                }
             } else {
                 document.push_str("  - No hay detalles adicionales disponibles\n");
             }
@@ -482,7 +568,7 @@ impl GeminiClient {
             if let Some(scope) = &commit.scope {
                 if scope.split('|').any(|id| id == task.id) {
                     return true;
-            }
+                }
             }
             
             // Check Monday task mentions

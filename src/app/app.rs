@@ -9,7 +9,6 @@ use ratatui::{
     Terminal,
 };
 use std::io;
-use log::{debug, info};
 
 use crate::{
     config::load_config,
@@ -113,6 +112,40 @@ impl App {
                     if let Ok(breaking) = analysis_state.breaking.lock() {
                         if !breaking.is_empty() {
                             self.commit_form.breaking_change = breaking.clone();
+                        }
+                    }
+                    
+                    if let Ok(title) = analysis_state.title.lock() {
+                        if !title.is_empty() {
+                            self.commit_form.title = title.clone();
+                        }
+                    }
+                    
+                    if let Ok(commit_type) = analysis_state.commit_type.lock() {
+                        if !commit_type.is_empty() {
+                            // Convert string to CommitType enum
+                            use crate::types::CommitType;
+                            let commit_type_enum = match commit_type.as_str() {
+                                "feat" => Some(CommitType::Feat),
+                                "fix" => Some(CommitType::Fix),
+                                "docs" => Some(CommitType::Docs),
+                                "style" => Some(CommitType::Style),
+                                "refactor" => Some(CommitType::Refactor),
+                                "perf" => Some(CommitType::Perf),
+                                "test" => Some(CommitType::Test),
+                                "chore" => Some(CommitType::Chore),
+                                "revert" => Some(CommitType::Revert),
+                                _ => None,
+                            };
+                            
+                            if let Some(ct) = commit_type_enum {
+                                self.commit_form.commit_type = Some(ct.clone());
+                                // Update UI state to reflect the selected commit type
+                                let commit_types = CommitType::all();
+                                if let Some(index) = commit_types.iter().position(|t| *t == ct) {
+                                    self.ui_state.selected_commit_type = index;
+                                }
+                            }
                         }
                     }
                     

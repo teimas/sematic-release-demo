@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -40,21 +39,29 @@ pub struct MondayUser {
 #[derive(Debug, Clone)]
 pub struct GitCommit {
     pub hash: String,
+    #[allow(dead_code)]
     pub subject: String,
-    pub body: String,
+    pub description: String,
     pub author_name: String,
     pub author_email: String,
-    pub commit_date: DateTime<Utc>,
+    pub commit_date: chrono::DateTime<chrono::FixedOffset>,
     pub commit_type: Option<String>,
     pub scope: Option<String>,
-    pub description: String,
+    pub body: String,
     pub breaking_changes: Vec<String>,
+    #[allow(dead_code)]
+    pub issues_closed: Vec<String>,
     pub test_details: Vec<String>,
     pub security: Option<String>,
+    #[allow(dead_code)]
+    pub migraciones_lentas: String,
+    #[allow(dead_code)]
+    pub partes_a_ejecutar: String,
     pub monday_tasks: Vec<String>,
     pub monday_task_mentions: Vec<MondayTaskMention>,
     #[allow(dead_code)]
     pub refs: Vec<String>,
+    #[allow(dead_code)]
     pub change_id: Option<String>,
 }
 
@@ -179,6 +186,8 @@ pub struct GeminiAnalysisState {
     pub result: Arc<Mutex<String>>,
     pub security: Arc<Mutex<String>>,
     pub breaking: Arc<Mutex<String>>,
+    pub title: Arc<Mutex<String>>,
+    pub commit_type: Arc<Mutex<String>>,
 }
 
 #[derive(Debug, Clone)]

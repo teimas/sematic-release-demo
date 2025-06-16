@@ -6,12 +6,12 @@ use crate::{
     types::{GeminiAnalysisState, ReleaseNotesAnalysisState, AppState},
     git::GitRepo,
     services::GeminiClient,
-    services::MondayClient,
 };
 
 pub trait BackgroundOperations {
     async fn start_gemini_analysis_wrapper(&mut self);
-    fn start_release_notes_analysis_wrapper(&self, analysis_state: ReleaseNotesAnalysisState);
+    #[allow(dead_code)]
+    fn start_release_notes_analysis_wrapper(&self, _analysis_state: ReleaseNotesAnalysisState);
 }
 
 impl BackgroundOperations for App {
@@ -33,6 +33,8 @@ impl BackgroundOperations for App {
             result: Arc::new(Mutex::new(String::new())),
             security: Arc::new(Mutex::new(String::new())),
             breaking: Arc::new(Mutex::new(String::new())),
+            title: Arc::new(Mutex::new(String::new())),
+            commit_type: Arc::new(Mutex::new(String::new())),
         };
         
         // Start the analysis in a background thread
@@ -42,7 +44,7 @@ impl BackgroundOperations for App {
         self.gemini_analysis_state = Some(analysis_state);
     }
 
-    fn start_release_notes_analysis_wrapper(&self, analysis_state: ReleaseNotesAnalysisState) {
+    fn start_release_notes_analysis_wrapper(&self, _analysis_state: ReleaseNotesAnalysisState) {
         // Implementation moved from original app.rs
         // This method will start the release notes analysis in a background thread
     }
@@ -63,6 +65,8 @@ impl App {
         let result_clone = analysis_state.result.clone();
         let security_clone = analysis_state.security.clone();
         let breaking_clone = analysis_state.breaking.clone();
+        let title_clone = analysis_state.title.clone();
+        let commit_type_clone = analysis_state.commit_type.clone();
 
         // Spawn the analysis in a background thread
         thread::spawn(move || {
@@ -165,13 +169,15 @@ impl App {
             let commit_type_ref = commit_type.as_deref();
             let scope_ref = scope.as_deref();
             
-            // Run three Gemini analyses in parallel
+            // Run five Gemini analyses in parallel
             let results = rt.block_on(async {
                 let description_future = gemini_client.generate_commit_description(&changes, commit_type_ref, scope_ref, &title);
                 let security_future = gemini_client.analyze_security_risks(&changes, commit_type_ref, scope_ref, &title);
                 let breaking_future = gemini_client.analyze_breaking_changes(&changes, commit_type_ref, scope_ref, &title);
+                let title_future = gemini_client.generate_commit_title(&changes);
+                let commit_type_future = gemini_client.generate_commit_type(&changes, &title);
                 
-                tokio::join!(description_future, security_future, breaking_future)
+                tokio::join!(description_future, security_future, breaking_future, title_future, commit_type_future)
             });
             
             // Handle the results
@@ -203,6 +209,24 @@ impl App {
                 if !breaking.is_empty() {
                     if let Ok(mut brk) = breaking_clone.lock() {
                         *brk = breaking;
+                    }
+                }
+            }
+            
+            // Handle title generation result
+            if let Ok(generated_title) = results.3 {
+                if !generated_title.is_empty() {
+                    if let Ok(mut title_result) = title_clone.lock() {
+                        *title_result = generated_title;
+                    }
+                }
+            }
+            
+            // Handle commit type generation result
+            if let Ok(generated_commit_type) = results.4 {
+                if !generated_commit_type.is_empty() {
+                    if let Ok(mut commit_type_result) = commit_type_clone.lock() {
+                        *commit_type_result = generated_commit_type;
                     }
                 }
             }

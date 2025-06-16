@@ -1,7 +1,6 @@
 use ratatui::{
     layout::Rect,
     style::Style,
-    text::Text,
     widgets::{Block, Paragraph, Wrap},
     Frame,
 };
@@ -96,6 +95,7 @@ fn get_cursor_line(text: &str, cursor_pos: usize, field_width: u16) -> usize {
     line
 }
 
+#[allow(dead_code)]
 pub fn get_text_line_count(text: &str, field_width: u16) -> usize {
     if text.is_empty() {
         return 1;

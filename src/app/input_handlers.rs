@@ -1,6 +1,6 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use log::{debug, info, error};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use log::debug;
 
 use crate::{
     app::App,

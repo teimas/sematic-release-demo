@@ -84,7 +84,7 @@ impl App {
         let script_file = release_notes_dir.join(format!("release-notes-{}_SCRIPT.md", date));
         let ai_file = release_notes_dir.join(format!("release-notes-{}_GEMINI.md", date));
         
-        use crate::app::release_notes::*;
+
         let script_content = self.generate_raw_release_notes(&version, &commits, &monday_tasks, &responsible_person);
         fs::write(&script_file, &script_content)?;
         println!("✅ Script release notes saved to: {}", script_file.display());

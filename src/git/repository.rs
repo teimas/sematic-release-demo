@@ -88,13 +88,16 @@ impl GitRepo {
                 body: body.clone(),
                 author_name,
                 author_email,
-                commit_date,
+                commit_date: commit_date.into(),
             commit_type: CommitParser::extract_commit_type(&subject),
             scope: CommitParser::extract_commit_scope(&subject),
             description: CommitParser::extract_commit_description(&subject),
             breaking_changes: CommitParser::extract_breaking_changes(&body),
+            issues_closed: Vec::new(), // Add this field
             test_details: CommitParser::extract_test_details(&body),
             security: CommitParser::extract_security(&body),
+            migraciones_lentas: String::new(), // Add this field
+            partes_a_ejecutar: String::new(), // Add this field
                 monday_tasks,
                 monday_task_mentions,
             refs: CommitParser::extract_refs(&body),
