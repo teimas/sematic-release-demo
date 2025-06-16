@@ -19,6 +19,11 @@ impl EventHandlers for App {
             return Ok(());
         }
 
+        // Handle confirmation dialog for staging all files
+        if matches!(self.current_state, AppState::ConfirmingStageAll) {
+            return self.handle_stage_confirmation(key.code).await;
+        }
+
         match (&self.current_screen, &self.ui_state.input_mode) {
             (_, InputMode::Editing) => {
 
@@ -42,7 +47,6 @@ impl EventHandlers for App {
             (AppScreen::TaskSearch, _) => {
                 self.handle_task_search_screen(key.code).await?;
             }
-
         }
 
         Ok(())
@@ -343,18 +347,21 @@ impl App {
     }
 
     fn enter_edit_mode_if_text_field(&mut self) {
-        if !matches!(self.ui_state.current_field, CommitField::Type | CommitField::SelectedTasks) {
-            self.ui_state.input_mode = InputMode::Editing;
-            self.load_current_field_content();
-            self.ui_state.cursor_position = self.ui_state.current_input.len();
-        } else {
-            self.ui_state.input_mode = InputMode::Normal;
-            self.ui_state.current_input.clear();
+        match self.ui_state.current_field {
+            CommitField::Type | CommitField::SelectedTasks => {
+                self.ui_state.input_mode = InputMode::Normal;
+            }
+            _ => {
+                self.ui_state.input_mode = InputMode::Editing;
+                self.load_current_field_content();
+                self.ui_state.cursor_position = self.ui_state.current_input.len();
+            }
         }
     }
 
     fn load_current_field_content(&mut self) {
         self.ui_state.current_input = match self.ui_state.current_field {
+            CommitField::Type => String::new(),
             CommitField::Scope => self.commit_form.scope.clone(),
             CommitField::Title => self.commit_form.title.clone(),
             CommitField::Description => self.commit_form.description.clone(),
@@ -363,37 +370,67 @@ impl App {
             CommitField::Security => self.commit_form.security.clone(),
             CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
             CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
-            _ => String::new(),
+            CommitField::SelectedTasks => String::new(),
         };
     }
 
     pub fn save_current_field(&mut self) {
         match self.ui_state.current_field {
-            CommitField::Scope => {
-                self.commit_form.scope = self.ui_state.current_input.clone();
-            }
-            CommitField::Title => {
-                self.commit_form.title = self.ui_state.current_input.clone();
-            }
-            CommitField::Description => {
-                self.commit_form.description = self.ui_state.current_input.clone();
-            }
-            CommitField::BreakingChange => {
-                self.commit_form.breaking_change = self.ui_state.current_input.clone();
-            }
-            CommitField::TestDetails => {
-                self.commit_form.test_details = self.ui_state.current_input.clone();
-            }
-            CommitField::Security => {
-                self.commit_form.security = self.ui_state.current_input.clone();
-            }
-            CommitField::MigracionesLentas => {
-                self.commit_form.migraciones_lentas = self.ui_state.current_input.clone();
-            }
-            CommitField::PartesAEjecutar => {
-                self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone();
-            }
-            _ => {}
+            CommitField::Type => {},
+            CommitField::Scope => self.commit_form.scope = self.ui_state.current_input.clone(),
+            CommitField::Title => self.commit_form.title = self.ui_state.current_input.clone(),
+            CommitField::Description => self.commit_form.description = self.ui_state.current_input.clone(),
+            CommitField::BreakingChange => self.commit_form.breaking_change = self.ui_state.current_input.clone(),
+            CommitField::TestDetails => self.commit_form.test_details = self.ui_state.current_input.clone(),
+            CommitField::Security => self.commit_form.security = self.ui_state.current_input.clone(),
+            CommitField::MigracionesLentas => self.commit_form.migraciones_lentas = self.ui_state.current_input.clone(),
+            CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone(),
+            CommitField::SelectedTasks => {},
         }
+    }
+
+    async fn handle_stage_confirmation(&mut self, key: KeyCode) -> Result<()> {
+        use crate::app::commit_operations::CommitOperations;
+        use crate::git::GitRepo;
+
+        match key {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // User confirmed, stage all changes
+                let git_repo = match GitRepo::new() {
+                    Ok(repo) => repo,
+                    Err(e) => {
+                        self.current_state = AppState::Error(format!("Git repository error: {}", e));
+                        return Ok(());
+                    }
+                };
+
+                match git_repo.stage_all() {
+                    Ok(_) => {
+                        // Successfully staged, now proceed with commit
+                        if let Err(e) = self.create_commit_with_message(&self.preview_commit_message).await {
+                            self.current_state = AppState::Error(e.to_string());
+                        } else {
+                            self.message = Some("All changes staged and commit created successfully!".to_string());
+                            self.current_screen = AppScreen::Main;
+                            self.ui_state.input_mode = InputMode::Normal;
+                            self.ui_state.current_input.clear();
+                            self.current_state = AppState::Normal;
+                        }
+                    }
+                    Err(e) => {
+                        self.current_state = AppState::Error(format!("Failed to stage changes: {}", e));
+                    }
+                }
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                // User declined or cancelled
+                self.current_state = AppState::Normal;
+                self.message = Some("Commit cancelled. No changes were staged.".to_string());
+            }
+            _ => {
+                // Ignore other keys, keep waiting for y/n
+            }
+        }
+        Ok(())
     }
 } 

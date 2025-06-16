@@ -146,7 +146,21 @@ impl GitRepo {
         }
     }
 
+    pub fn stage_all(&self) -> Result<String> {
+        // Use git command for staging all changes (equivalent to git add -A)
+        let output = Command::new("git")
+            .args(["add", "-A"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()?;
 
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr);
+            Err(anyhow::anyhow!("Git add failed: {}", error))
+        }
+    }
 }
 
 // =============================================================================

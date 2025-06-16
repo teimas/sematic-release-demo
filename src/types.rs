@@ -158,6 +158,7 @@ pub enum AppState {
     Normal,
     Loading,
     Error(String),
+    ConfirmingStageAll,
 }
 
 

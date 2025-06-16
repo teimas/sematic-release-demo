@@ -27,7 +27,7 @@ pub fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message:
             }
         },
         AppState::Error(err) => (err.as_str(), "⚠️ ERROR - Presiona cualquier tecla para continuar"),
-
+        AppState::ConfirmingStageAll => (message.unwrap_or("Press 'y' to stage all changes (git add -A), 'n' to cancel"), "❓ Confirmation Required"),
     };
 
     let status_style = match app_state {
@@ -39,6 +39,7 @@ pub fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message:
                 Style::default().fg(Color::Yellow)
             }
         },
+        AppState::ConfirmingStageAll => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
         _ => Style::default().fg(Color::Green),
     };
 

@@ -171,6 +171,43 @@ impl App {
         // Check for Ctrl+C first (before general character handling)
         if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c')) {
             self.preview_commit_message = self.ui_state.current_input.clone();
+            
+            // Check if there are staged changes
+            use crate::git::GitRepo;
+            let git_repo = match GitRepo::new() {
+                Ok(repo) => repo,
+                Err(e) => {
+                    self.current_state = AppState::Error(format!("Git repository error: {}", e));
+                    return Ok(());
+                }
+            };
+            
+            let git_status = match git_repo.get_status() {
+                Ok(status) => status,
+                Err(e) => {
+                    self.current_state = AppState::Error(format!("Could not check git status: {}", e));
+                    return Ok(());
+                }
+            };
+            
+            // If no staged changes but there are modified/untracked files, ask user to stage
+            if git_status.staged.is_empty() && (!git_status.modified.is_empty() || !git_status.untracked.is_empty()) {
+                self.current_state = AppState::ConfirmingStageAll;
+                self.message = Some(format!(
+                    "No staged changes found. {} modified files and {} untracked files. Press 'y' to stage all (git add -A), 'n' to cancel.",
+                    git_status.modified.len(),
+                    git_status.untracked.len()
+                ));
+                return Ok(());
+            }
+            
+            // If no staged changes and no other changes, show error
+            if git_status.staged.is_empty() {
+                self.current_state = AppState::Error("No changes to commit. Make some changes first.".to_string());
+                return Ok(());
+            }
+            
+            // Proceed with commit if there are staged changes
             if let Err(e) = self.create_commit_with_message(&self.preview_commit_message).await {
                 self.current_state = AppState::Error(e.to_string());
             } else {

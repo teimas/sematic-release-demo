@@ -54,7 +54,6 @@ pub fn draw(
         AppScreen::CommitPreview => draw_commit_preview_screen(f, chunks[1], ui_state),
         AppScreen::ReleaseNotes => draw_release_notes_screen(f, chunks[1]),
         AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, tasks, commit_form),
-
     }
 
     // Status bar
