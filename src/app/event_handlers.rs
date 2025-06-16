@@ -110,12 +110,6 @@ impl App {
                     self.start_comprehensive_analysis_wrapper().await;
                 }
             }
-            KeyCode::Char('r') => {
-                if !matches!(self.current_state, AppState::Loading) && self.gemini_analysis_state.is_none() {
-                    use crate::app::background_operations::BackgroundOperations;
-                    self.start_gemini_analysis_wrapper().await;
-                }
-            }
             KeyCode::Char('m') => {
                 self.handle_task_management_toggle();
             }
@@ -168,9 +162,6 @@ impl App {
             }
             KeyCode::Enter => {
                 self.handle_release_notes_generation().await?;
-            }
-            KeyCode::Char('i') => {
-                self.generate_release_notes_internal_wrapper().await?;
             }
             KeyCode::Char('o') => {
                 self.generate_release_notes_with_npm_wrapper().await?;

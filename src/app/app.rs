@@ -13,7 +13,7 @@ use std::io;
 use crate::{
     config::load_config,
     git::GitRepo,
-    types::{AppConfig, AppScreen, AppState, CommitForm, GeminiAnalysisState, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, MondayTask},
+    types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, MondayTask},
     ui::{self, UIState},
 };
 
@@ -28,7 +28,6 @@ pub struct App {
     pub message: Option<String>,
     pub should_quit: bool,
     pub preview_commit_message: String,
-    pub gemini_analysis_state: Option<GeminiAnalysisState>,
     pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
     pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
 }
@@ -48,7 +47,6 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
-            gemini_analysis_state: None,
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
         })
@@ -66,7 +64,6 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
-            gemini_analysis_state: None,
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
         }
@@ -96,82 +93,7 @@ impl App {
 
     async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
         loop {
-            // Check for completed Gemini analysis
-            if let Some(analysis_state) = &self.gemini_analysis_state {
-                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
-                
-                if is_finished {
-                    // Analysis completed - update form and reset state
-                    if let Ok(result) = analysis_state.result.lock() {
-                        self.commit_form.description = result.clone();
-                    }
-                    
-                    if let Ok(security) = analysis_state.security.lock() {
-                        if !security.is_empty() {
-                            self.commit_form.security = security.clone();
-                        }
-                    }
-                    
-                    if let Ok(breaking) = analysis_state.breaking.lock() {
-                        if !breaking.is_empty() {
-                            self.commit_form.breaking_change = breaking.clone();
-                        }
-                    }
-                    
-                    if let Ok(title) = analysis_state.title.lock() {
-                        if !title.is_empty() {
-                            self.commit_form.title = title.clone();
-                        }
-                    }
-                    
-                    if let Ok(commit_type) = analysis_state.commit_type.lock() {
-                        if !commit_type.is_empty() {
-                            // Convert string to CommitType enum
-                            use crate::types::CommitType;
-                            let commit_type_enum = match commit_type.as_str() {
-                                "feat" => Some(CommitType::Feat),
-                                "fix" => Some(CommitType::Fix),
-                                "docs" => Some(CommitType::Docs),
-                                "style" => Some(CommitType::Style),
-                                "refactor" => Some(CommitType::Refactor),
-                                "perf" => Some(CommitType::Perf),
-                                "test" => Some(CommitType::Test),
-                                "chore" => Some(CommitType::Chore),
-                                "revert" => Some(CommitType::Revert),
-                                _ => None,
-                            };
-                            
-                            if let Some(ct) = commit_type_enum {
-                                self.commit_form.commit_type = Some(ct.clone());
-                                // Update UI state to reflect the selected commit type
-                                let commit_types = CommitType::all();
-                                if let Some(index) = commit_types.iter().position(|t| *t == ct) {
-                                    self.ui_state.selected_commit_type = index;
-                                }
-                            }
-                        }
-                    }
-                    
-                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
-                    if success {
-                        self.current_state = AppState::Normal;
-                        self.message = Some("✅ Análisis completado - Campos actualizados automáticamente".to_string());
-                    } else {
-                        let status = analysis_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
-                        self.current_state = AppState::Error(format!("Error en análisis: {}", status));
-                    }
-                    
-                    self.gemini_analysis_state = None;
-                } else {
-                    // Update status message if it changed
-                    if let Ok(status) = analysis_state.status.lock() {
-                        let current_message = self.message.as_deref().unwrap_or("");
-                        if *status != current_message {
-                            self.message = Some(status.clone());
-                        }
-                    }
-                }
-            }
+
             
             // Check for completed Release Notes analysis
             if let Some(analysis_state) = &self.release_notes_analysis_state {

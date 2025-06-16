@@ -14,7 +14,7 @@ impl App {
     // CLI methods for direct command usage
     pub async fn commit_flow(&self) -> Result<()> {
         println!("🚀 Semantic Release TUI - Opening Commit Interface...");
-        println!("💡 TIP: Use 'r' for AI analysis (5 calls), 't' for comprehensive analysis (1 call)");
+        println!("💡 TIP: Use 't' for comprehensive AI analysis");
         println!("📋 Press 'q' to quit, 'Tab' to navigate between fields");
         
         // Create a new app instance specifically for commit flow

@@ -178,17 +178,7 @@ pub enum AppState {
     Input,
 }
 
-#[derive(Debug, Clone)]
-pub struct GeminiAnalysisState {
-    pub status: Arc<Mutex<String>>,
-    pub finished: Arc<Mutex<bool>>,
-    pub success: Arc<Mutex<bool>>,
-    pub result: Arc<Mutex<String>>,
-    pub security: Arc<Mutex<String>>,
-    pub breaking: Arc<Mutex<String>>,
-    pub title: Arc<Mutex<String>>,
-    pub commit_type: Arc<Mutex<String>>,
-}
+
 
 #[derive(Debug, Clone)]
 pub struct ReleaseNotesAnalysisState {

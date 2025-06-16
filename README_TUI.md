@@ -7,7 +7,7 @@ A Terminal User Interface (TUI) version of the semantic release tool built with 
 - 🚀 **Interactive TUI**: Beautiful terminal interface built with Ratatui
 - 📋 **Commit Management**: Create semantic commits with Monday.com task integration
 - 🤖 **Dual AI Analysis**: 
-  - **Multi-call Analysis**: 5 parallel Gemini API calls for detailed analysis (`r` key)
+  
   - **Comprehensive Analysis**: Single API call with JSON response for all fields (`t` key)
 - 🔍 **Task Search**: Search and select Monday.com tasks directly from the TUI
 - ⚙️ **Configuration**: Easy setup for API keys and settings
@@ -129,15 +129,7 @@ Interactive commit creation with:
 
 ### AI Analysis Features
 
-#### Multi-Call Analysis (`r` key)
-- **5 Parallel API Calls** to Gemini:
-  1. Generate commit title
-  2. Determine commit type
-  3. Generate detailed description
-  4. Analyze security risks
-  5. Detect breaking changes
-- **Background Processing** with progress indicators
-- **Individual Field Updates** as each analysis completes
+
 
 #### Comprehensive Analysis (`t` key)
 - **Single API Call** with detailed prompt
@@ -177,8 +169,7 @@ All long-running operations use background threads:
 ### AI Analysis Status Messages
 - 🔍 "Analizando cambios en el repositorio..."
 - 🌐 "Conectando con Gemini AI..."
-- 🧠 "Generando análisis inteligente..." (for `r` key)
-- 🧠 "Generando análisis completo de commit..." (for `t` key)
+- 🧠 "Generando análisis completo de commit..."
 - ✅ "Análisis completado exitosamente"
 
 ### Release Notes Status Messages

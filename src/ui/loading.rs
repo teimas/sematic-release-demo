@@ -10,8 +10,7 @@ pub fn draw_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize, m
     // Check if this is a Gemini analysis process
     let is_gemini_analysis = message.map_or(false, |msg| 
         msg.contains("Analizando cambios") || 
-        msg.contains("Generando descripción") || 
-        msg.contains("analizando seguridad") ||
+        msg.contains("análisis completo") ||
         msg.contains("Gemini")
     );
     
