@@ -95,14 +95,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     let desc_text = if ui_state.input_mode == InputMode::Editing && ui_state.current_field == CommitField::Description {
         &ui_state.current_input
     } else if commit_form.description.is_empty() {
-        "Press 'r' to generate AI description, or type manually... (Enter for new line)"
+        "Press 'r' for AI analysis (5 parallel calls) or 't' for comprehensive analysis (1 call), or type manually... (Enter for new line)"
     } else {
         &commit_form.description
     };
     
     let desc_block = Block::default()
         .borders(Borders::ALL)
-        .title("Description (multiline, press 'r' to generate)")
+        .title("Description (multiline, 'r' for AI analysis, 't' for comprehensive)")
         .border_style(ui_state.get_field_border_style(&CommitField::Description));
     let desc_style = ui_state.get_field_style(&CommitField::Description);
     
@@ -200,7 +200,7 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
             "🔤 EDITING SINGLE LINE - Type text, Tab/arrows to save & move, Esc to cancel"
         }
     } else {
-        "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' to search tasks, 'r' to generate AI description, 'c' to commit, 'q' to quit"
+        "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' to search tasks, 'r' for AI analysis (5 calls), 't' for comprehensive analysis (1 call), 'm' to manage tasks, 'c' to commit, 'q' to quit"
     };
     let instructions_widget = Paragraph::new(instructions)
         .block(Block::default().borders(Borders::ALL).title("Instructions"))
@@ -226,7 +226,7 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
         .collect();
 
     let tasks_title = if ui_state.task_management_mode {
-        "Selected Monday.com Tasks (Task Management Mode - Use Up/Down, Delete/r/Space to remove, 't' to exit)"
+        "Selected Monday.com Tasks (Task Management Mode - Use Up/Down, Delete/r/Space to remove, 'm' to exit)"
     } else {
         "Selected Monday.com Tasks (Press Enter to manage tasks)"
     };

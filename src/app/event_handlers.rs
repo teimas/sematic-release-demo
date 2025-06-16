@@ -105,13 +105,19 @@ impl App {
                 self.handle_commit_preview();
             }
             KeyCode::Char('t') => {
-                self.handle_task_management_toggle();
+                if !matches!(self.current_state, AppState::Loading) && self.comprehensive_analysis_state.is_none() {
+                    use crate::app::background_operations::BackgroundOperations;
+                    self.start_comprehensive_analysis_wrapper().await;
+                }
             }
             KeyCode::Char('r') => {
                 if !matches!(self.current_state, AppState::Loading) && self.gemini_analysis_state.is_none() {
                     use crate::app::background_operations::BackgroundOperations;
                     self.start_gemini_analysis_wrapper().await;
                 }
+            }
+            KeyCode::Char('m') => {
+                self.handle_task_management_toggle();
             }
             KeyCode::Tab => {
                 self.handle_tab_navigation();

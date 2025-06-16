@@ -195,4 +195,12 @@ pub struct ReleaseNotesAnalysisState {
     pub status: Arc<Mutex<String>>,
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComprehensiveAnalysisState {
+    pub status: Arc<Mutex<String>>,
+    pub finished: Arc<Mutex<bool>>,
+    pub success: Arc<Mutex<bool>>,
+    pub result: Arc<Mutex<serde_json::Value>>,
 } 

@@ -13,7 +13,7 @@ use std::io;
 use crate::{
     config::load_config,
     git::GitRepo,
-    types::{AppConfig, AppScreen, AppState, CommitForm, GeminiAnalysisState, ReleaseNotesAnalysisState, MondayTask},
+    types::{AppConfig, AppScreen, AppState, CommitForm, GeminiAnalysisState, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, MondayTask},
     ui::{self, UIState},
 };
 
@@ -30,6 +30,7 @@ pub struct App {
     pub preview_commit_message: String,
     pub gemini_analysis_state: Option<GeminiAnalysisState>,
     pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
+    pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
 }
 
 impl App {
@@ -49,6 +50,7 @@ impl App {
             preview_commit_message: String::new(),
             gemini_analysis_state: None,
             release_notes_analysis_state: None,
+            comprehensive_analysis_state: None,
         })
     }
 
@@ -66,6 +68,7 @@ impl App {
             preview_commit_message: String::new(),
             gemini_analysis_state: None,
             release_notes_analysis_state: None,
+            comprehensive_analysis_state: None,
         }
     }
 
@@ -186,6 +189,93 @@ impl App {
                     }
                     
                     self.release_notes_analysis_state = None;
+                } else {
+                    // Update status message if it changed
+                    if let Ok(status) = analysis_state.status.lock() {
+                        let current_message = self.message.as_deref().unwrap_or("");
+                        if *status != current_message {
+                            self.message = Some(status.clone());
+                        }
+                    }
+                }
+            }
+            
+            // Check for completed Comprehensive Analysis
+            if let Some(analysis_state) = &self.comprehensive_analysis_state {
+                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
+                
+                if is_finished {
+                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
+                    if success {
+                        // Extract results from JSON and populate form
+                        if let Ok(result) = analysis_state.result.lock() {
+                            // Parse and populate all fields from the JSON response
+                            if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
+                                if !title.is_empty() {
+                                    self.commit_form.title = title.to_string();
+                                }
+                            }
+                            
+                            if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str()) {
+                                if !commit_type.is_empty() {
+                                    use crate::types::CommitType;
+                                    let commit_type_enum = match commit_type {
+                                        "feat" => Some(CommitType::Feat),
+                                        "fix" => Some(CommitType::Fix),
+                                        "docs" => Some(CommitType::Docs),
+                                        "style" => Some(CommitType::Style),
+                                        "refactor" => Some(CommitType::Refactor),
+                                        "perf" => Some(CommitType::Perf),
+                                        "test" => Some(CommitType::Test),
+                                        "chore" => Some(CommitType::Chore),
+                                        "revert" => Some(CommitType::Revert),
+                                        _ => None,
+                                    };
+                                    
+                                    if let Some(ct) = commit_type_enum {
+                                        self.commit_form.commit_type = Some(ct.clone());
+                                        // Update UI state to reflect the selected commit type
+                                        let commit_types = CommitType::all();
+                                        if let Some(index) = commit_types.iter().position(|t| *t == ct) {
+                                            self.ui_state.selected_commit_type = index;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if let Some(description) = result.get("description").and_then(|v| v.as_str()) {
+                                if !description.is_empty() {
+                                    self.commit_form.description = description.to_string();
+                                }
+                            }
+                            
+                            if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
+                                if !scope.is_empty() && scope != "general" {
+                                    self.commit_form.scope = scope.to_string();
+                                }
+                            }
+                            
+                            if let Some(security) = result.get("securityAnalysis").and_then(|v| v.as_str()) {
+                                if !security.is_empty() {
+                                    self.commit_form.security = security.to_string();
+                                }
+                            }
+                            
+                            if let Some(breaking) = result.get("breakingChanges").and_then(|v| v.as_str()) {
+                                if !breaking.is_empty() {
+                                    self.commit_form.breaking_change = breaking.to_string();
+                                }
+                            }
+                        }
+                        
+                        self.current_state = AppState::Normal;
+                        self.message = Some("✅ Análisis completo completado - Todos los campos actualizados automáticamente".to_string());
+                    } else {
+                        let status = analysis_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
+                        self.current_state = AppState::Error(format!("Error en análisis completo: {}", status));
+                    }
+                    
+                    self.comprehensive_analysis_state = None;
                 } else {
                     // Update status message if it changed
                     if let Ok(status) = analysis_state.status.lock() {
