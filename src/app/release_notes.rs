@@ -10,8 +10,8 @@ use chrono::{Utc, Local};
 use crate::{
     app::App,
     git::{GitRepo, get_next_version},
-    monday::MondayClient,
-    gemini::GeminiClient,
+    services::MondayClient,
+    services::GeminiClient,
     types::{AppState, ReleaseNotesAnalysisState, MondayTask},
 };
 

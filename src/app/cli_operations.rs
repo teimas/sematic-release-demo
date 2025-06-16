@@ -6,8 +6,8 @@ use chrono::Utc;
 use crate::{
     app::App,
     git::{GitRepo, get_next_version},
-    monday::MondayClient,
-    gemini::GeminiClient,
+    services::MondayClient,
+    services::GeminiClient,
 };
 
 impl App {
@@ -165,7 +165,7 @@ impl App {
         
         println!("✅ Gemini API token: Configured");
         
-        match crate::gemini::test_gemini_connection(&self.config).await {
+        match crate::services::test_gemini_connection(&self.config).await {
             Ok(response) => {
                 println!("✅ Gemini connection: SUCCESS");
                 println!("🤖 Response: {}", response);

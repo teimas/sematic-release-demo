@@ -4,9 +4,8 @@ use log::info;
 
 mod app;
 mod config;
-mod monday;
+mod services;
 mod git;
-mod gemini;
 mod ui;
 mod types;
 

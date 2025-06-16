@@ -5,8 +5,8 @@ use crate::{
     app::App,
     types::{GeminiAnalysisState, ReleaseNotesAnalysisState, AppState},
     git::GitRepo,
-    gemini::GeminiClient,
-    monday::MondayClient,
+    services::GeminiClient,
+    services::MondayClient,
 };
 
 pub trait BackgroundOperations {

@@ -4,7 +4,7 @@ use std::io::Write;
 
 use crate::{
     app::App,
-    monday::MondayClient,
+    services::MondayClient,
     types::MondayTask,
 };
 
