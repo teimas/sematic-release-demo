@@ -3,7 +3,8 @@ use dirs::home_dir;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use dialoguer::{Input, Password};
+use std::process::Command;
+use dialoguer::{Input, Password, Select};
 
 use crate::types::AppConfig;
 
@@ -218,4 +219,197 @@ async fn test_monday_connection(config: &AppConfig) -> Result<String> {
     } else {
         Err(anyhow::anyhow!("No Monday.com API key configured"))
     }
+}
+
+pub async fn setup_commit_template() -> Result<()> {
+    println!("🚀 TEIMAS Semantic Release - Git Commit Template Setup");
+    println!("======================================================");
+    println!();
+
+    // Define the template path
+    let template_path = if let Some(home) = home_dir() {
+        home.join(".gitmessage")
+    } else {
+        return Err(anyhow::anyhow!("Could not determine home directory"));
+    };
+
+    // Create the commit template content
+    let template_content = r#"# Commit Type and Scope
+# Format: type(scope): subject
+# Types: feat, fix, docs, style, refactor, perf, test, chore, revert
+# Scope: Component or area affected (use N/A if not applicable)
+type(scope): 
+
+# Detailed Description
+# Explain what and why vs how
+# Use present tense: "change" not "changed" nor "changes"
+
+
+# Breaking Changes
+# List any breaking changes or N/A if none
+BREAKING CHANGE: 
+
+# Test Details  
+# Describe testing performed or N/A if none
+Test Details: 
+
+# Security Considerations
+# List security implications or N/A if none
+Security: 
+
+# Migraciones Lentas
+# Describe slow migrations or N/A if none
+Migraciones Lentas: 
+
+# Partes a Ejecutar
+# List deployment steps or N/A if none
+Partes a Ejecutar: 
+
+# Monday Tasks
+# List related Monday.com tasks or N/A if none
+# Format: - Task Title (ID: task_id) - Status
+MONDAY TASKS: 
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# COMMIT MESSAGE TEMPLATE GUIDELINES
+# ────────────────────────────────────────────────────────────────────────────
+#
+# Subject Line (First Line):
+# • Keep under 50 characters
+# • Use imperative mood: "Add feature" not "Added feature" 
+# • Don't end with a period
+# • Be concise but descriptive
+#
+# Commit Types:
+# • feat:     New feature for the user
+# • fix:      Bug fix for the user
+# • docs:     Documentation changes
+# • style:    Code style changes (formatting, etc)
+# • refactor: Code changes that neither fix bugs nor add features
+# • perf:     Performance improvements
+# • test:     Adding or fixing tests
+# • chore:    Build process or auxiliary tools changes
+# • revert:   Revert to a commit
+#
+# Body Guidelines:
+# • Separate subject from body with a blank line
+# • Use the body to explain what and why vs how
+# • Each line should be under 72 characters
+# • Use present tense: "change" not "changed" nor "changes"
+#
+# All Fields Required:
+# • Use "N/A" for any field that doesn't apply
+# • This ensures consistent commit structure across all commits
+# • Makes automated parsing and analysis possible
+#
+# Examples:
+# feat(auth): Add JWT authentication system
+# fix(api): Resolve null pointer in user service  
+# docs(readme): Update installation instructions
+# test(user): Add unit tests for user validation
+#
+# Lines starting with # are comments and will be ignored
+# ────────────────────────────────────────────────────────────────────────────
+"#;
+
+    // Write the template file
+    fs::write(&template_path, template_content)?;
+    println!("📝 Created commit template at: {}", template_path.display());
+    println!();
+
+    // Ask user for setup type
+    let setup_options = vec![
+        "Global (all repositories on this machine)",
+        "Local (current repository only)",
+        "Both (global + local)",
+    ];
+
+    let selection = Select::new()
+        .with_prompt("Choose setup type:")
+        .items(&setup_options)
+        .default(0)
+        .interact()?;
+
+    match selection {
+        0 => {
+            // Global setup
+            setup_git_config_global(&template_path)?;
+            println!("✅ Global git commit template configured");
+            println!("💡 This will apply to all repositories on this machine");
+        }
+        1 => {
+            // Local setup
+            setup_git_config_local(&template_path)?;
+        }
+        2 => {
+            // Both
+            setup_git_config_global(&template_path)?;
+            match setup_git_config_local(&template_path) {
+                Ok(_) => {
+                    println!("✅ Both global and local git commit templates configured");
+                }
+                Err(_) => {
+                    println!("✅ Global git commit template configured");
+                    println!("⚠️  Local configuration skipped (not in a git repository)");
+                }
+            }
+        }
+        _ => unreachable!(),
+    }
+
+    println!();
+    println!("🎉 Setup complete!");
+    println!();
+    println!("📋 How to use:");
+    println!("• Run 'git commit' (without -m) to open editor with template");
+    println!("• Fill in the template fields, replacing placeholders with actual content");
+    println!("• Use 'N/A' for fields that don't apply");
+    println!("• The TEIMAS Semantic Release TUI will also follow this same structure");
+    println!();
+    println!("🔧 To disable template:");
+    println!("• Global: git config --global --unset commit.template");
+    println!("• Local:  git config --unset commit.template");
+    println!();
+    println!("✨ Happy committing with consistent messages!");
+
+    Ok(())
+}
+
+fn setup_git_config_global(template_path: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args(&["config", "--global", "commit.template", &template_path.to_string_lossy()])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("Failed to set global git config: {}", stderr));
+    }
+
+    Ok(())
+}
+
+fn setup_git_config_local(template_path: &Path) -> Result<()> {
+    // Check if we're in a git repository
+    let git_check = Command::new("git")
+        .args(&["rev-parse", "--git-dir"])
+        .output()?;
+
+    if !git_check.status.success() {
+        return Err(anyhow::anyhow!("Not in a git repository. Please run this command from inside a git repository or choose global setup."));
+    }
+
+    let output = Command::new("git")
+        .args(&["config", "commit.template", &template_path.to_string_lossy()])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("Failed to set local git config: {}", stderr));
+    }
+
+    println!("✅ Local git commit template configured");
+    println!("💡 This will apply only to the current repository");
+
+    Ok(())
 } 

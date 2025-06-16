@@ -44,6 +44,8 @@ enum Commands {
     ReleaseNotes,
     /// Search Monday.com tasks
     Search { query: Option<String> },
+    /// Setup git commit template for consistent commit messages
+    SetupTemplate,
     /// Debug mode - show detailed error information
     Debug { 
         #[command(subcommand)]
@@ -111,6 +113,9 @@ async fn main() -> Result<()> {
             } else {
                 println!("Please provide a search query");
             }
+        }
+        Commands::SetupTemplate => {
+            config::setup_commit_template().await?;
         }
         Commands::Debug { debug_command } => {
             let app = App::new().await?;

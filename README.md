@@ -10,11 +10,12 @@ Ambas versiones están configuradas con semantic-release y commitizen para mensa
 ## Tabla de Contenidos
 
 - [Formato de Mensaje de Commit](#formato-de-mensaje-de-commit)
-- [Node.js Version](#nodejs-version)
-- [Rust TUI Version](#rust-tui-version)
-- [Configuración](#configuración)
-- [Integración con APIs](#integración-con-apis)
-- [Scripts Disponibles](#scripts-disponibles)
+  - [Plantilla Git de Commit](#-plantilla-git-de-commit)
+- [Node.js Version](#-nodejs-version)
+- [Rust TUI Version](#-rust-tui-version)
+- [Configuración](#️-configuración)
+- [Integración con APIs](#-integración-con-apis)
+- [Scripts Disponibles](#-scripts-disponibles)
 
 ## Formato de Mensaje de Commit
 
@@ -54,6 +55,67 @@ Security: Validación de tokens VERIFACTU implementada
 
 MONDAY TASKS:
 - [PE.25.002] VERIFACTU - Registros de facturación (ID: 8816791718) - Done
+```
+
+### 📝 Plantilla Git de Commit
+
+Para garantizar consistencia en los mensajes de commit, se incluye una **plantilla de git** que aplica el mismo formato en todos los entornos.
+
+#### Configuración Automática
+
+**Opción 1: Script bash**
+```bash
+./scripts/setup-commit-template.sh
+```
+
+**Opción 2: Comando TUI**
+```bash
+cargo run -- setup-template
+```
+
+**Opciones disponibles en ambos métodos:**
+- **Global**: Aplica a todos los repositorios del sistema
+- **Local**: Solo para el repositorio actual  
+- **Ambos**: Configuración completa
+
+#### Configuración Manual
+
+```bash
+# Configurar globalmente
+git config --global commit.template ~/.gitmessage
+
+# Configurar solo para el repositorio actual
+git config commit.template ~/.gitmessage
+```
+
+#### Uso de la Plantilla
+
+**Con plantilla activada:**
+```bash
+git commit  # Abre editor con plantilla pre-rellenada
+```
+
+**Sin plantilla (commits rápidos):**
+```bash
+git commit -m "mensaje rápido"  # Omite la plantilla
+```
+
+#### Beneficios
+
+- ✅ **Consistencia total** entre TUI, CLI y git directo
+- ✅ **Documentación integrada** en cada commit
+- ✅ **Campos estructurados** garantizados
+- ✅ **Adopción gradual** del equipo
+- ✅ **Compatible** con cualquier cliente Git
+
+#### Desactivar Plantilla
+
+```bash
+# Desactivar globalmente
+git config --global --unset commit.template
+
+# Desactivar localmente
+git config --unset commit.template
 ```
 
 ---
@@ -385,6 +447,13 @@ cargo run -- config
 | `npm run monday-selector` | Buscar tareas Monday.com |
 | `npm run release-notes` | Generar notas con IA |
 
+### Setup Scripts
+
+| Comando | Descripción |
+|---------|-------------|
+| `./scripts/setup-commit-template.sh` | Configurar plantilla git de commits (script bash) |
+| `cargo run -- setup-template` | Configurar plantilla git de commits (comando TUI) |
+
 ### Rust TUI Commands
 
 | Comando | Descripción |
@@ -394,6 +463,7 @@ cargo run -- config
 | `cargo run -- --autocommit` | Auto-commit con IA |
 | `cargo run -- release-notes` | Generar notas de versión |
 | `cargo run -- search "query"` | Buscar tareas |
+| `cargo run -- setup-template` | Configurar plantilla git de commits |
 | `cargo run -- debug [monday\|gemini\|git\|commit]` | Debug específico |
 | `cargo run -- config` | Configurar APIs |
 
