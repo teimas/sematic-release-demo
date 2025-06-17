@@ -3,6 +3,7 @@ pub mod config;
 pub mod commit;
 pub mod release_notes;
 pub mod tasks;
+pub mod semantic_release;
 
 pub use main::draw_main_screen;
 pub use config::draw_config_screen;

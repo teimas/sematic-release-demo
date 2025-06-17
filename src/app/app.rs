@@ -13,7 +13,7 @@ use std::io;
 use crate::{
     config::load_config,
     git::GitRepo,
-    types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, MondayTask, JiraTask},
+    types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, SemanticReleaseState, MondayTask, JiraTask},
     ui::{self, UIState},
 };
 
@@ -32,6 +32,7 @@ pub struct App {
     pub preview_commit_message: String,
     pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
     pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
+    pub semantic_release_state: Option<SemanticReleaseState>,
 }
 
 impl App {
@@ -53,6 +54,7 @@ impl App {
             preview_commit_message: String::new(),
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
+            semantic_release_state: None,
         })
     }
 
@@ -72,6 +74,7 @@ impl App {
             preview_commit_message: String::new(),
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
+            semantic_release_state: None,
         }
     }
 
@@ -207,6 +210,34 @@ impl App {
                 } else {
                     // Update status message if it changed
                     if let Ok(status) = analysis_state.status.lock() {
+                        let current_message = self.message.as_deref().unwrap_or("");
+                        if *status != current_message {
+                            self.message = Some(status.clone());
+                        }
+                    }
+                }
+            }
+            
+            // Check for completed Semantic Release operation
+            if let Some(release_state) = &self.semantic_release_state {
+                let is_finished = release_state.finished.lock().map(|f| *f).unwrap_or(false);
+                
+                if is_finished {
+                    let success = release_state.success.lock().map(|s| *s).unwrap_or(false);
+                    if success {
+                        self.current_state = AppState::Normal;
+                        let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Completado".to_string());
+                        self.message = Some(status);
+                        self.current_screen = AppScreen::Main;
+                    } else {
+                        let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
+                        self.current_state = AppState::Error(format!("Error en semantic-release: {}", status));
+                    }
+                    
+                    self.semantic_release_state = None;
+                } else {
+                    // Update status message if it changed
+                    if let Ok(status) = release_state.status.lock() {
                         let current_message = self.message.as_deref().unwrap_or("");
                         if *status != current_message {
                             self.message = Some(status.clone());

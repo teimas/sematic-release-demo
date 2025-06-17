@@ -243,6 +243,7 @@ pub enum AppScreen {
     Commit,
     CommitPreview,
     ReleaseNotes,
+    SemanticRelease,
     TaskSearch,
 }
 
@@ -269,4 +270,12 @@ pub struct ComprehensiveAnalysisState {
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
     pub result: Arc<Mutex<serde_json::Value>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SemanticReleaseState {
+    pub status: Arc<Mutex<String>>,
+    pub finished: Arc<Mutex<bool>>,
+    pub success: Arc<Mutex<bool>>,
+    pub result: Arc<Mutex<String>>,
 } 
