@@ -78,7 +78,7 @@ impl TaskLike for MondayTask {
     fn get_id(&self) -> &str {
         &self.id
     }
-    
+
     fn get_title(&self) -> &str {
         &self.title
     }
@@ -88,7 +88,7 @@ impl TaskLike for JiraTask {
     fn get_id(&self) -> &str {
         &self.id
     }
-    
+
     fn get_title(&self) -> &str {
         &self.summary
     }
@@ -176,8 +176,7 @@ impl CommitType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub monday_api_key: Option<String>,
     pub monday_account_slug: Option<String>,
@@ -194,11 +193,11 @@ impl AppConfig {
     pub fn is_monday_configured(&self) -> bool {
         self.monday_api_key.is_some() && self.monday_account_slug.is_some()
     }
-    
+
     pub fn is_jira_configured(&self) -> bool {
         self.jira_url.is_some() && self.jira_username.is_some() && self.jira_api_token.is_some()
     }
-    
+
     pub fn get_task_system(&self) -> TaskSystem {
         if self.is_monday_configured() {
             TaskSystem::Monday
@@ -217,9 +216,7 @@ pub enum TaskSystem {
     None,
 }
 
-
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CommitForm {
     pub commit_type: Option<CommitType>,
     pub scope: String,
@@ -234,7 +231,6 @@ pub struct CommitForm {
     pub selected_monday_tasks: Vec<MondayTask>,
     pub selected_jira_tasks: Vec<JiraTask>,
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppScreen {
@@ -254,8 +250,6 @@ pub enum AppState {
     Error(String),
     ConfirmingStageAll,
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct ReleaseNotesAnalysisState {
@@ -278,4 +272,4 @@ pub struct SemanticReleaseState {
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
     pub result: Arc<Mutex<String>>,
-} 
+}

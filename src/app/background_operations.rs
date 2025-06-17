@@ -3,9 +3,9 @@ use std::thread;
 
 use crate::{
     app::App,
-    types::{ComprehensiveAnalysisState, AppState},
     git::GitRepo,
     services::GeminiClient,
+    types::{AppState, ComprehensiveAnalysisState},
     utils,
 };
 
@@ -16,37 +16,39 @@ pub trait BackgroundOperations {
 impl BackgroundOperations for App {
     async fn start_comprehensive_analysis_wrapper(&mut self) {
         // Check if already processing to avoid multiple concurrent analyses
-        if matches!(self.current_state, AppState::Loading) || self.comprehensive_analysis_state.is_some() {
+        if matches!(self.current_state, AppState::Loading)
+            || self.comprehensive_analysis_state.is_some()
+        {
             return;
         }
-        
+
         // IMMEDIATELY set loading state and create analysis state
         self.current_state = AppState::Loading;
         self.message = Some("🚀 Iniciando análisis completo con Gemini AI...".to_string());
-        
+
         // Create shared state for the analysis
         let analysis_state = ComprehensiveAnalysisState {
-            status: Arc::new(Mutex::new("🔍 Analizando cambios en el repositorio...".to_string())),
+            status: Arc::new(Mutex::new(
+                "🔍 Analizando cambios en el repositorio...".to_string(),
+            )),
             finished: Arc::new(Mutex::new(false)),
             success: Arc::new(Mutex::new(true)),
             result: Arc::new(Mutex::new(serde_json::Value::Null)),
         };
-        
+
         // Start the analysis in a background thread
         self.start_comprehensive_analysis(analysis_state.clone());
-        
+
         // Store the analysis state so the main loop can poll it
         self.comprehensive_analysis_state = Some(analysis_state);
     }
 }
 
 impl App {
-
-
     pub fn start_comprehensive_analysis(&self, analysis_state: ComprehensiveAnalysisState) {
         // Clone data needed for the thread
         let config_clone = self.config.clone();
-        
+
         // Clone analysis state components
         let status_clone = analysis_state.status.clone();
         let finished_clone = analysis_state.finished.clone();
@@ -59,7 +61,7 @@ impl App {
             if let Ok(mut status) = status_clone.lock() {
                 *status = "🔍 Analizando cambios en el repositorio...".to_string();
             }
-            
+
             // Get git changes
             let git_repo = match GitRepo::new() {
                 Ok(repo) => repo,
@@ -76,7 +78,7 @@ impl App {
                     return;
                 }
             };
-            
+
             let changes = match git_repo.get_detailed_changes() {
                 Ok(changes) => changes,
                 Err(e) => {
@@ -157,12 +159,14 @@ impl App {
                     return;
                 }
             };
-            
+
             // Run the comprehensive analysis
             let result = rt.block_on(async {
-                gemini_client.generate_comprehensive_commit_analysis(&changes).await
+                gemini_client
+                    .generate_comprehensive_commit_analysis(&changes)
+                    .await
             });
-            
+
             // Handle the result
             match result {
                 Ok(json_result) => {
@@ -192,11 +196,11 @@ impl App {
                     }
                 }
             }
-            
+
             // Mark as finished
             if let Ok(mut finished) = finished_clone.lock() {
                 *finished = true;
             }
         });
     }
-} 
+}

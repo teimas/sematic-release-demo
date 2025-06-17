@@ -5,7 +5,7 @@ use log::debug;
 use crate::{
     app::App,
     types::{AppScreen, AppState},
-    ui::{InputMode, CommitField},
+    ui::{CommitField, InputMode},
 };
 
 impl App {
@@ -65,12 +65,20 @@ impl App {
     fn remove_task_from_selection(&mut self, task_id: &str) {
         match self.config.get_task_system() {
             crate::types::TaskSystem::Monday => {
-                if let Some(pos) = self.selected_monday_tasks.iter().position(|t| t.id == task_id) {
+                if let Some(pos) = self
+                    .selected_monday_tasks
+                    .iter()
+                    .position(|t| t.id == task_id)
+                {
                     self.selected_monday_tasks.remove(pos);
                 }
             }
             crate::types::TaskSystem::Jira => {
-                if let Some(pos) = self.selected_jira_tasks.iter().position(|t| t.id == task_id) {
+                if let Some(pos) = self
+                    .selected_jira_tasks
+                    .iter()
+                    .position(|t| t.id == task_id)
+                {
                     self.selected_jira_tasks.remove(pos);
                 }
             }
@@ -164,10 +172,13 @@ impl App {
 
         // Special handling for TaskSearch screen - trigger search
         if self.current_screen == AppScreen::TaskSearch {
-            self.message = Some(format!("DEBUG: Starting search with query: '{}'", self.ui_state.current_input));
+            self.message = Some(format!(
+                "DEBUG: Starting search with query: '{}'",
+                self.ui_state.current_input
+            ));
             if !self.ui_state.current_input.is_empty() {
                 self.current_state = AppState::Loading;
-                
+
                 match self.config.get_task_system() {
                     crate::types::TaskSystem::Monday => {
                         match self.search_monday_tasks(&self.ui_state.current_input).await {
@@ -176,10 +187,14 @@ impl App {
                                 self.ui_state.selected_tab = 0;
                                 self.current_state = AppState::Normal;
                                 self.ui_state.input_mode = InputMode::Normal;
-                                self.message = Some(format!("DEBUG: Monday search completed! Found {} tasks", self.monday_tasks.len()));
+                                self.message = Some(format!(
+                                    "DEBUG: Monday search completed! Found {} tasks",
+                                    self.monday_tasks.len()
+                                ));
                             }
                             Err(e) => {
-                                self.current_state = AppState::Error(format!("DEBUG: Monday search failed: {}", e));
+                                self.current_state =
+                                    AppState::Error(format!("DEBUG: Monday search failed: {}", e));
                             }
                         }
                     }
@@ -190,15 +205,20 @@ impl App {
                                 self.ui_state.selected_tab = 0;
                                 self.current_state = AppState::Normal;
                                 self.ui_state.input_mode = InputMode::Normal;
-                                self.message = Some(format!("DEBUG: JIRA search completed! Found {} tasks", self.jira_tasks.len()));
+                                self.message = Some(format!(
+                                    "DEBUG: JIRA search completed! Found {} tasks",
+                                    self.jira_tasks.len()
+                                ));
                             }
                             Err(e) => {
-                                self.current_state = AppState::Error(format!("DEBUG: JIRA search failed: {}", e));
+                                self.current_state =
+                                    AppState::Error(format!("DEBUG: JIRA search failed: {}", e));
                             }
                         }
                     }
                     crate::types::TaskSystem::None => {
-                        self.current_state = AppState::Error("No task management system configured".to_string());
+                        self.current_state =
+                            AppState::Error("No task management system configured".to_string());
                     }
                 }
             } else {
@@ -206,7 +226,7 @@ impl App {
             }
         } else {
             debug!("Enter pressed, is_multiline: {}", self.is_multiline_field());
-            
+
             if self.is_multiline_field() {
                 debug!("Adding newline in multiline field");
                 self.ui_state.current_input.push('\n');
@@ -222,7 +242,7 @@ impl App {
     fn handle_tab_in_input_mode(&mut self) {
         self.save_current_field();
         self.ui_state.current_input.clear();
-        
+
         // Navigate to next field
         self.ui_state.current_field = match self.ui_state.current_field {
             CommitField::Type => CommitField::Scope,
@@ -236,14 +256,14 @@ impl App {
             CommitField::PartesAEjecutar => CommitField::SelectedTasks,
             CommitField::SelectedTasks => CommitField::Type,
         };
-        
+
         self.enter_edit_mode_if_text_field_input();
     }
 
     fn handle_back_tab_in_input_mode(&mut self) {
         self.save_current_field();
         self.ui_state.current_input.clear();
-        
+
         // Navigate to previous field
         self.ui_state.current_field = match self.ui_state.current_field {
             CommitField::Type => CommitField::SelectedTasks,
@@ -257,12 +277,15 @@ impl App {
             CommitField::PartesAEjecutar => CommitField::MigracionesLentas,
             CommitField::SelectedTasks => CommitField::PartesAEjecutar,
         };
-        
+
         self.enter_edit_mode_if_text_field_input();
     }
 
     fn enter_edit_mode_if_text_field_input(&mut self) {
-        if !matches!(self.ui_state.current_field, CommitField::Type | CommitField::SelectedTasks) {
+        if !matches!(
+            self.ui_state.current_field,
+            CommitField::Type | CommitField::SelectedTasks
+        ) {
             self.ui_state.current_input = match self.ui_state.current_field {
                 CommitField::Scope => self.commit_form.scope.clone(),
                 CommitField::Title => self.commit_form.title.clone(),
@@ -286,7 +309,7 @@ impl App {
         // Check for Ctrl+C first (before general character handling)
         if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c')) {
             self.preview_commit_message = self.ui_state.current_input.clone();
-            
+
             // Check if there are staged changes
             use crate::git::GitRepo;
             let git_repo = match GitRepo::new() {
@@ -296,17 +319,20 @@ impl App {
                     return Ok(());
                 }
             };
-            
+
             let git_status = match git_repo.get_status() {
                 Ok(status) => status,
                 Err(e) => {
-                    self.current_state = AppState::Error(format!("Could not check git status: {}", e));
+                    self.current_state =
+                        AppState::Error(format!("Could not check git status: {}", e));
                     return Ok(());
                 }
             };
-            
+
             // If no staged changes but there are modified/untracked files, ask user to stage
-            if git_status.staged.is_empty() && (!git_status.modified.is_empty() || !git_status.untracked.is_empty()) {
+            if git_status.staged.is_empty()
+                && (!git_status.modified.is_empty() || !git_status.untracked.is_empty())
+            {
                 self.current_state = AppState::ConfirmingStageAll;
                 self.message = Some(format!(
                     "No staged changes found. {} modified files and {} untracked files. Press 'y' to stage all (git add -A), 'n' to cancel.",
@@ -315,15 +341,19 @@ impl App {
                 ));
                 return Ok(());
             }
-            
+
             // If no staged changes and no other changes, show error
             if git_status.staged.is_empty() {
-                self.current_state = AppState::Error("No changes to commit. Make some changes first.".to_string());
+                self.current_state =
+                    AppState::Error("No changes to commit. Make some changes first.".to_string());
                 return Ok(());
             }
-            
+
             // Proceed with commit if there are staged changes
-            if let Err(e) = self.create_commit_with_message(&self.preview_commit_message).await {
+            if let Err(e) = self
+                .create_commit_with_message(&self.preview_commit_message)
+                .await
+            {
                 self.current_state = AppState::Error(e.to_string());
             } else {
                 self.message = Some("Commit created successfully!".to_string());
@@ -405,22 +435,22 @@ impl App {
     fn move_cursor_up(&mut self) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if !text.is_char_boundary(cursor_pos) {
             self.ui_state.cursor_position = text.len();
             return;
         }
-        
+
         let text_before_cursor = &text[..cursor_pos];
         let current_line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         let current_column = cursor_pos - current_line_start;
-        
+
         if current_line_start > 0 {
             let prev_line_end = current_line_start - 1;
             let text_before_prev_line = &text[..prev_line_end];
             let prev_line_start = text_before_prev_line.rfind('\n').map_or(0, |pos| pos + 1);
             let prev_line_length = prev_line_end - prev_line_start;
-            
+
             let new_column = current_column.min(prev_line_length);
             self.ui_state.cursor_position = prev_line_start + new_column;
             self.update_scroll_for_cursor();
@@ -430,27 +460,28 @@ impl App {
     fn move_cursor_down(&mut self) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if !text.is_char_boundary(cursor_pos) {
             self.ui_state.cursor_position = text.len();
             return;
         }
-        
+
         let text_before_cursor = &text[..cursor_pos];
         let current_line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         let current_column = cursor_pos - current_line_start;
-        
+
         let text_after_cursor = &text[cursor_pos..];
         if let Some(current_line_end_offset) = text_after_cursor.find('\n') {
             let current_line_end = cursor_pos + current_line_end_offset;
             let next_line_start = current_line_end + 1;
-            
+
             if next_line_start < text.len() {
                 let text_after_next_line = &text[next_line_start..];
-                let next_line_end = text_after_next_line.find('\n')
+                let next_line_end = text_after_next_line
+                    .find('\n')
                     .map_or(text.len(), |pos| next_line_start + pos);
                 let next_line_length = next_line_end - next_line_start;
-                
+
                 let new_column = current_column.min(next_line_length);
                 self.ui_state.cursor_position = next_line_start + new_column;
                 self.update_scroll_for_cursor();
@@ -461,12 +492,12 @@ impl App {
     fn move_cursor_to_line_start(&mut self) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if !text.is_char_boundary(cursor_pos) {
             self.ui_state.cursor_position = text.len();
             return;
         }
-        
+
         let text_before_cursor = &text[..cursor_pos];
         let line_start = text_before_cursor.rfind('\n').map_or(0, |pos| pos + 1);
         self.ui_state.cursor_position = line_start;
@@ -476,14 +507,15 @@ impl App {
     fn move_cursor_to_line_end(&mut self) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if !text.is_char_boundary(cursor_pos) {
             self.ui_state.cursor_position = text.len();
             return;
         }
-        
+
         let text_after_cursor = &text[cursor_pos..];
-        let line_end = text_after_cursor.find('\n')
+        let line_end = text_after_cursor
+            .find('\n')
             .map_or(text.len(), |pos| cursor_pos + pos);
         self.ui_state.cursor_position = line_end;
         self.update_scroll_for_cursor();
@@ -492,7 +524,7 @@ impl App {
     fn insert_character(&mut self, c: char) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if text.is_char_boundary(cursor_pos) {
             self.ui_state.current_input.insert(cursor_pos, c);
             self.ui_state.cursor_position = cursor_pos + c.len_utf8();
@@ -507,12 +539,12 @@ impl App {
         let text = &self.ui_state.current_input;
         if self.ui_state.cursor_position > 0 {
             let cursor_pos = self.ui_state.cursor_position.min(text.len());
-            
+
             let mut prev_pos = cursor_pos.saturating_sub(1);
             while prev_pos > 0 && !text.is_char_boundary(prev_pos) {
                 prev_pos -= 1;
             }
-            
+
             if text.is_char_boundary(prev_pos) {
                 self.ui_state.current_input.remove(prev_pos);
                 self.ui_state.cursor_position = prev_pos;
@@ -524,7 +556,7 @@ impl App {
     fn delete_character_at_cursor(&mut self) {
         let text = &self.ui_state.current_input;
         let cursor_pos = self.ui_state.cursor_position.min(text.len());
-        
+
         if cursor_pos < text.len() && text.is_char_boundary(cursor_pos) {
             self.ui_state.current_input.remove(cursor_pos);
             self.update_scroll_for_cursor();
@@ -539,8 +571,10 @@ impl App {
         if self.is_multiline_field() {
             let field_width = 80; // Approximate field width, this could be dynamic
             let visible_height = 3; // Height of multiline fields minus borders
-            let current_scroll = self.ui_state.get_field_scroll_offset(&self.ui_state.current_field);
-            
+            let current_scroll = self
+                .ui_state
+                .get_field_scroll_offset(&self.ui_state.current_field);
+
             let new_scroll = crate::ui::scrollable_text::calculate_required_scroll(
                 &self.ui_state.current_input,
                 self.ui_state.cursor_position,
@@ -548,8 +582,9 @@ impl App {
                 visible_height,
                 current_scroll,
             );
-            
-            self.ui_state.set_field_scroll_offset(self.ui_state.current_field.clone(), new_scroll);
+
+            self.ui_state
+                .set_field_scroll_offset(self.ui_state.current_field.clone(), new_scroll);
         }
     }
 
@@ -563,10 +598,13 @@ impl App {
                 self.message = Some("Exited search mode".to_string());
             }
             KeyCode::Enter => {
-                self.message = Some(format!("DEBUG: Starting search with query: '{}'", self.ui_state.current_input));
+                self.message = Some(format!(
+                    "DEBUG: Starting search with query: '{}'",
+                    self.ui_state.current_input
+                ));
                 if !self.ui_state.current_input.is_empty() {
                     self.current_state = AppState::Loading;
-                    
+
                     match self.config.get_task_system() {
                         crate::types::TaskSystem::Monday => {
                             match self.search_monday_tasks(&self.ui_state.current_input).await {
@@ -575,10 +613,16 @@ impl App {
                                     self.ui_state.selected_tab = 0;
                                     self.current_state = AppState::Normal;
                                     self.ui_state.input_mode = InputMode::Normal;
-                                    self.message = Some(format!("DEBUG: Monday search completed! Found {} tasks", self.monday_tasks.len()));
+                                    self.message = Some(format!(
+                                        "DEBUG: Monday search completed! Found {} tasks",
+                                        self.monday_tasks.len()
+                                    ));
                                 }
                                 Err(e) => {
-                                    self.current_state = AppState::Error(format!("DEBUG: Monday search failed: {}", e));
+                                    self.current_state = AppState::Error(format!(
+                                        "DEBUG: Monday search failed: {}",
+                                        e
+                                    ));
                                 }
                             }
                         }
@@ -589,15 +633,22 @@ impl App {
                                     self.ui_state.selected_tab = 0;
                                     self.current_state = AppState::Normal;
                                     self.ui_state.input_mode = InputMode::Normal;
-                                    self.message = Some(format!("DEBUG: JIRA search completed! Found {} tasks", self.jira_tasks.len()));
+                                    self.message = Some(format!(
+                                        "DEBUG: JIRA search completed! Found {} tasks",
+                                        self.jira_tasks.len()
+                                    ));
                                 }
                                 Err(e) => {
-                                    self.current_state = AppState::Error(format!("DEBUG: JIRA search failed: {}", e));
+                                    self.current_state = AppState::Error(format!(
+                                        "DEBUG: JIRA search failed: {}",
+                                        e
+                                    ));
                                 }
                             }
                         }
                         crate::types::TaskSystem::None => {
-                            self.current_state = AppState::Error("No task management system configured".to_string());
+                            self.current_state =
+                                AppState::Error("No task management system configured".to_string());
                         }
                     }
                 } else {
@@ -635,7 +686,7 @@ impl App {
             KeyCode::Enter => {
                 if !self.ui_state.current_input.is_empty() {
                     self.current_state = AppState::Loading;
-                    
+
                     match self.config.get_task_system() {
                         crate::types::TaskSystem::Monday => {
                             match self.search_monday_tasks(&self.ui_state.current_input).await {
@@ -643,7 +694,10 @@ impl App {
                                     self.monday_tasks = tasks;
                                     self.ui_state.selected_tab = 0;
                                     self.current_state = AppState::Normal;
-                                    self.message = Some(format!("Found {} Monday tasks", self.monday_tasks.len()));
+                                    self.message = Some(format!(
+                                        "Found {} Monday tasks",
+                                        self.monday_tasks.len()
+                                    ));
                                 }
                                 Err(e) => {
                                     self.current_state = AppState::Error(e.to_string());
@@ -656,7 +710,8 @@ impl App {
                                     self.jira_tasks = tasks;
                                     self.ui_state.selected_tab = 0;
                                     self.current_state = AppState::Normal;
-                                    self.message = Some(format!("Found {} JIRA tasks", self.jira_tasks.len()));
+                                    self.message =
+                                        Some(format!("Found {} JIRA tasks", self.jira_tasks.len()));
                                 }
                                 Err(e) => {
                                     self.current_state = AppState::Error(e.to_string());
@@ -664,7 +719,8 @@ impl App {
                             }
                         }
                         crate::types::TaskSystem::None => {
-                            self.current_state = AppState::Error("No task management system configured".to_string());
+                            self.current_state =
+                                AppState::Error("No task management system configured".to_string());
                         }
                     }
                 } else {
@@ -700,22 +756,22 @@ impl App {
             if self.ui_state.focused_search_index > 0 {
                 self.ui_state.focused_search_index -= 1;
             }
-        } else if self.get_current_selected_tasks_count() > 0 {
-            if self.ui_state.selected_tab > 0 {
-                self.ui_state.selected_tab -= 1;
-            }
+        } else if self.get_current_selected_tasks_count() > 0 && self.ui_state.selected_tab > 0 {
+            self.ui_state.selected_tab -= 1;
         }
     }
 
     fn handle_search_down_navigation(&mut self) {
         if self.get_current_tasks_count() > 0 {
-            if self.ui_state.focused_search_index < self.get_current_tasks_count().saturating_sub(1) {
+            if self.ui_state.focused_search_index < self.get_current_tasks_count().saturating_sub(1)
+            {
                 self.ui_state.focused_search_index += 1;
             }
-        } else if self.get_current_selected_tasks_count() > 0 {
-            if self.ui_state.selected_tab < self.get_current_selected_tasks_count().saturating_sub(1) {
-                self.ui_state.selected_tab += 1;
-            }
+        } else if self.get_current_selected_tasks_count() > 0
+            && self.ui_state.selected_tab
+                < self.get_current_selected_tasks_count().saturating_sub(1)
+        {
+            self.ui_state.selected_tab += 1;
         }
     }
 
@@ -735,15 +791,15 @@ impl App {
         } else {
             let selected_tab = self.ui_state.selected_tab;
             let selected_tasks_len = self.get_current_selected_tasks_count();
-            
+
             if selected_tasks_len > 0 && selected_tab < selected_tasks_len {
                 self.remove_selected_task_at_index(selected_tab);
-                
+
                 let new_len = self.get_current_selected_tasks_count();
                 if selected_tab >= new_len && new_len > 0 {
                     self.ui_state.selected_tab = new_len - 1;
                 }
-                
+
                 self.update_task_selection();
                 self.message = Some("Task removed from selection".to_string());
             }
@@ -767,15 +823,15 @@ impl App {
         } else {
             let selected_tab = self.ui_state.selected_tab;
             let selected_tasks_len = self.get_current_selected_tasks_count();
-            
+
             if selected_tasks_len > 0 && selected_tab < selected_tasks_len {
                 self.remove_selected_task_at_index(selected_tab);
-                
+
                 let new_len = self.get_current_selected_tasks_count();
                 if selected_tab >= new_len && new_len > 0 {
                     self.ui_state.selected_tab = new_len - 1;
                 }
-                
+
                 self.update_task_selection();
                 self.message = Some("Task removed from selection".to_string());
             }
@@ -785,8 +841,12 @@ impl App {
     fn handle_numeric_task_selection(&mut self, c: char) {
         use crate::app::task_operations::TaskOperations;
 
-        let index = if c == '0' { 9 } else { (c as usize) - ('1' as usize) };
-        
+        let index = if c == '0' {
+            9
+        } else {
+            (c as usize) - ('1' as usize)
+        };
+
         if let Some(task_id) = self.get_current_task_id(index) {
             if self.is_task_selected(&task_id) {
                 self.remove_task_from_selection(&task_id);
@@ -796,4 +856,4 @@ impl App {
             self.update_task_selection();
         }
     }
-} 
+}

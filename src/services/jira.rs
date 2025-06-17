@@ -26,20 +26,23 @@ impl JiraClient {
             &config.jira_api_token,
         ) {
             // Log initialization before self is fully constructed
-            utils::log_debug("JIRA", &format!("🔧 JIRA Client - Initializing with URL: {}", url));
-            
+            utils::log_debug(
+                "JIRA",
+                &format!("🔧 JIRA Client - Initializing with URL: {}", url),
+            );
+
             let instance = JiraInstance::at(url.clone())
                 .map_err(|e| anyhow::anyhow!("Failed to create JIRA instance: {}", e))?
                 .authenticate(Auth::Basic {
                     user: username.clone(),
                     password: api_token.clone(),
                 });
-            
+
             Some(instance)
         } else {
-            utils::log_debug("JIRA", &format!("❌ JIRA configuration incomplete - missing URL: {}, username: {}, API token: {}", 
+            utils::log_debug("JIRA", &format!("❌ JIRA configuration incomplete - missing URL: {}, username: {}, API token: {}",
                 config.jira_url.is_none(),
-                config.jira_username.is_none(), 
+                config.jira_username.is_none(),
                 config.jira_api_token.is_none()));
             None
         };
@@ -48,10 +51,12 @@ impl JiraClient {
             config: config.clone(),
             jira_instance,
         })
-        }
+    }
 
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<JiraTask>> {
-        let instance = self.jira_instance.as_ref()
+        let instance = self
+            .jira_instance
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("JIRA not configured properly"))?;
 
         // Build JQL query for the configured project
@@ -61,13 +66,19 @@ impl JiraClient {
         // Perform the search using jira_query
         match instance.search(&jql).await {
             Ok(issues) => {
-                self.log_debug(&format!("✅ JIRA Search Success: Found {} issues", issues.len()));
+                self.log_debug(&format!(
+                    "✅ JIRA Search Success: Found {} issues",
+                    issues.len()
+                ));
                 let mut tasks = Vec::new();
                 for issue in issues {
                     match self.convert_jira_issue_to_task(issue) {
                         Ok(task) => tasks.push(task),
                         Err(e) => {
-                            self.log_debug(&format!("⚠️  Failed to convert JIRA issue to task: {}", e));
+                            self.log_debug(&format!(
+                                "⚠️  Failed to convert JIRA issue to task: {}",
+                                e
+                            ));
                         }
                     }
                 }
@@ -81,48 +92,58 @@ impl JiraClient {
     }
 
     pub async fn get_task_details(&self, task_keys: &[String]) -> Result<Vec<JiraTask>> {
-        let instance = self.jira_instance.as_ref()
+        let instance = self
+            .jira_instance
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("JIRA not configured properly"))?;
 
         let mut tasks = Vec::new();
         let mut errors = Vec::new();
-        
+
         for key in task_keys {
             self.log_debug(&format!("🔍 JIRA - Fetching task details for: {}", key));
             match instance.issue(key).await {
-                Ok(issue) => {
-                    match self.convert_jira_issue_to_task(issue) {
-                        Ok(task) => {
-                            self.log_debug(&format!("✅ JIRA - Successfully fetched task: {}", key));
-                            tasks.push(task);
-                        }
-                        Err(e) => {
-                            self.log_debug(&format!("❌ JIRA - Failed to convert issue {}: {}", key, e));
-                            errors.push(format!("{}: {}", key, e));
-                        }
+                Ok(issue) => match self.convert_jira_issue_to_task(issue) {
+                    Ok(task) => {
+                        self.log_debug(&format!("✅ JIRA - Successfully fetched task: {}", key));
+                        tasks.push(task);
                     }
-                }
+                    Err(e) => {
+                        self.log_debug(&format!(
+                            "❌ JIRA - Failed to convert issue {}: {}",
+                            key, e
+                        ));
+                        errors.push(format!("{}: {}", key, e));
+                    }
+                },
                 Err(e) => {
                     self.log_debug(&format!("❌ JIRA - Failed to fetch task {}: {}", key, e));
                     errors.push(format!("{}: {}", key, e));
                 }
             }
         }
-        
+
         if !errors.is_empty() && tasks.is_empty() {
-            return Err(anyhow::anyhow!("Failed to fetch any JIRA tasks: {}", errors.join(", ")));
+            return Err(anyhow::anyhow!(
+                "Failed to fetch any JIRA tasks: {}",
+                errors.join(", ")
+            ));
         }
-        
+
         if !errors.is_empty() {
-            self.log_debug(&format!("⚠️  Some JIRA tasks failed to load: {}", errors.join(", ")));
+            self.log_debug(&format!(
+                "⚠️  Some JIRA tasks failed to load: {}",
+                errors.join(", ")
+            ));
         }
-        
+
         Ok(tasks)
     }
 
     pub async fn test_connection(&self) -> Result<String> {
-        let instance = self.jira_instance.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("JIRA configuration incomplete - missing URL, username, or API token"))?;
+        let instance = self.jira_instance.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("JIRA configuration incomplete - missing URL, username, or API token")
+        })?;
 
         // Try to search for any issue to test the connection
         let test_jql = if let Some(project_key) = &self.config.jira_project_key {
@@ -135,7 +156,10 @@ impl JiraClient {
 
         match instance.search(&test_jql).await {
             Ok(issues) => {
-                let message = format!("✅ JIRA connection successful! Found {} issues", issues.len());
+                let message = format!(
+                    "✅ JIRA connection successful! Found {} issues",
+                    issues.len()
+                );
                 self.log_debug(&message);
                 Ok(message)
             }
@@ -147,7 +171,7 @@ impl JiraClient {
         }
     }
 
-        // =============================================================================
+    // =============================================================================
     // HELPER METHODS
     // =============================================================================
 
@@ -179,17 +203,22 @@ impl JiraClient {
 
     fn convert_jira_issue_to_task(&self, issue: Issue) -> Result<JiraTask> {
         // Extract components into a string
-        let components: Vec<String> = issue.fields.components.iter()
+        let components: Vec<String> = issue
+            .fields
+            .components
+            .iter()
             .map(|c| c.name.clone())
             .collect();
 
         // Extract assignee information
-        let assignee = issue.fields.assignee.as_ref()
+        let assignee = issue
+            .fields
+            .assignee
+            .as_ref()
             .map(|a| a.display_name.clone());
 
         // Extract priority
-        let priority = issue.fields.priority.as_ref()
-            .map(|p| p.name.clone());
+        let priority = issue.fields.priority.as_ref().map(|p| p.name.clone());
 
         Ok(JiraTask {
             id: issue.id,
@@ -205,8 +234,16 @@ impl JiraClient {
             project_name: issue.fields.project.name,
             created: Some(issue.fields.created.to_rfc3339()),
             updated: Some(issue.fields.updated.to_rfc3339()),
-            components: if components.is_empty() { None } else { Some(components) },
-            labels: if issue.fields.labels.is_empty() { None } else { Some(issue.fields.labels) },
+            components: if components.is_empty() {
+                None
+            } else {
+                Some(components)
+            },
+            labels: if issue.fields.labels.is_empty() {
+                None
+            } else {
+                Some(issue.fields.labels)
+            },
         })
     }
-} 
+}

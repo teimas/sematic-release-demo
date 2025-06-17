@@ -2,10 +2,10 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
+    app::semantic_release_operations::SemanticReleaseOperations,
     app::App,
     types::{AppScreen, AppState, CommitType},
-    ui::{InputMode, CommitField},
-    app::semantic_release_operations::SemanticReleaseOperations,
+    ui::{CommitField, InputMode},
 };
 
 pub trait EventHandlers {
@@ -27,7 +27,6 @@ impl EventHandlers for App {
 
         match (&self.current_screen, &self.ui_state.input_mode) {
             (_, InputMode::Editing) => {
-
                 self.handle_input_mode(key).await?;
             }
             (AppScreen::Main, _) => {
@@ -104,7 +103,7 @@ impl App {
                     1 => self.current_screen = AppScreen::ReleaseNotes,
                     2 => self.current_screen = AppScreen::SemanticRelease,
                     3 => self.current_screen = AppScreen::Config,
-                    4 => {}, // Help - stay here
+                    4 => {} // Help - stay here
                     _ => {}
                 }
             }
@@ -124,8 +123,6 @@ impl App {
     }
 
     async fn handle_commit_screen(&mut self, key: KeyCode) -> Result<()> {
-
-
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.current_screen = AppScreen::Main;
@@ -136,7 +133,8 @@ impl App {
                         self.handle_monday_search();
                     }
                     crate::types::TaskSystem::Jira => {
-                        self.message = Some("JIRA is configured. Use 'j' to search JIRA tasks.".to_string());
+                        self.message =
+                            Some("JIRA is configured. Use 'j' to search JIRA tasks.".to_string());
                     }
                     crate::types::TaskSystem::None => {
                         self.message = Some("No task system configured. Configure Monday.com or JIRA in config screen.".to_string());
@@ -149,7 +147,10 @@ impl App {
                         self.handle_jira_search();
                     }
                     crate::types::TaskSystem::Monday => {
-                        self.message = Some("Monday.com is configured. Use 's' to search Monday.com tasks.".to_string());
+                        self.message = Some(
+                            "Monday.com is configured. Use 's' to search Monday.com tasks."
+                                .to_string(),
+                        );
                     }
                     crate::types::TaskSystem::None => {
                         self.message = Some("No task system configured. Configure Monday.com or JIRA in config screen.".to_string());
@@ -160,7 +161,9 @@ impl App {
                 self.handle_commit_preview();
             }
             KeyCode::Char('t') => {
-                if !matches!(self.current_state, AppState::Loading) && self.comprehensive_analysis_state.is_none() {
+                if !matches!(self.current_state, AppState::Loading)
+                    && self.comprehensive_analysis_state.is_none()
+                {
                     use crate::app::background_operations::BackgroundOperations;
                     self.start_comprehensive_analysis_wrapper().await;
                 }
@@ -291,13 +294,15 @@ impl App {
     }
 
     async fn handle_task_search_screen(&mut self, key: KeyCode) -> Result<()> {
-
         // Check if we're in search input mode (typing in the search box)
         let in_search_input = self.ui_state.input_mode == InputMode::Editing;
-        
+
         // Debug: log key events and current mode
-        self.message = Some(format!("DEBUG: Key: {:?}, Mode: {:?}, Input: '{}'", key, self.ui_state.input_mode, self.ui_state.current_input));
-        
+        self.message = Some(format!(
+            "DEBUG: Key: {:?}, Mode: {:?}, Input: '{}'",
+            key, self.ui_state.input_mode, self.ui_state.current_input
+        ));
+
         if in_search_input {
             self.handle_search_input_mode(key).await?;
         } else {
@@ -305,8 +310,6 @@ impl App {
         }
         Ok(())
     }
-
-
 
     // Helper methods for commit screen handling
     fn handle_monday_search(&mut self) {
@@ -332,14 +335,20 @@ impl App {
         self.ui_state.input_mode = InputMode::Editing;
         self.ui_state.current_input = self.preview_commit_message.clone();
         self.ui_state.cursor_position = self.preview_commit_message.len();
-        self.message = Some("Review and edit your commit message. Press Ctrl+C to commit, Esc to cancel".to_string());
+        self.message = Some(
+            "Review and edit your commit message. Press Ctrl+C to commit, Esc to cancel"
+                .to_string(),
+        );
     }
 
     fn handle_task_management_toggle(&mut self) {
         self.ui_state.task_management_mode = !self.ui_state.task_management_mode;
         if self.ui_state.task_management_mode {
             self.ui_state.selected_tab = 0;
-            self.message = Some("Task management mode ON - Use ↑↓ to navigate, Delete/Space to remove tasks".to_string());
+            self.message = Some(
+                "Task management mode ON - Use ↑↓ to navigate, Delete/Space to remove tasks"
+                    .to_string(),
+            );
         } else {
             self.message = Some("Task management mode OFF".to_string());
         }
@@ -349,7 +358,7 @@ impl App {
         if self.ui_state.input_mode == InputMode::Editing {
             self.save_current_field();
         }
-        
+
         // Navigate to next field
         self.ui_state.current_field = match self.ui_state.current_field {
             CommitField::Type => CommitField::Scope,
@@ -363,7 +372,7 @@ impl App {
             CommitField::PartesAEjecutar => CommitField::SelectedTasks,
             CommitField::SelectedTasks => CommitField::Type,
         };
-        
+
         self.enter_edit_mode_if_text_field();
     }
 
@@ -371,7 +380,7 @@ impl App {
         if self.ui_state.input_mode == InputMode::Editing {
             self.save_current_field();
         }
-        
+
         // Navigate to previous field
         self.ui_state.current_field = match self.ui_state.current_field {
             CommitField::Type => CommitField::SelectedTasks,
@@ -385,7 +394,7 @@ impl App {
             CommitField::PartesAEjecutar => CommitField::MigracionesLentas,
             CommitField::SelectedTasks => CommitField::PartesAEjecutar,
         };
-        
+
         self.enter_edit_mode_if_text_field();
     }
 
@@ -413,7 +422,9 @@ impl App {
 
     fn handle_down_navigation(&mut self) {
         if self.ui_state.task_management_mode {
-            if self.get_selected_tasks_count() > 0 && self.ui_state.selected_tab < self.get_selected_tasks_count().saturating_sub(1) {
+            if self.get_selected_tasks_count() > 0
+                && self.ui_state.selected_tab < self.get_selected_tasks_count().saturating_sub(1)
+            {
                 self.ui_state.selected_tab += 1;
             }
         } else {
@@ -425,7 +436,10 @@ impl App {
                     }
                 }
                 CommitField::SelectedTasks => {
-                    if self.get_selected_tasks_count() > 0 && self.ui_state.selected_tab < self.get_selected_tasks_count().saturating_sub(1) {
+                    if self.get_selected_tasks_count() > 0
+                        && self.ui_state.selected_tab
+                            < self.get_selected_tasks_count().saturating_sub(1)
+                    {
                         self.ui_state.selected_tab += 1;
                     }
                 }
@@ -457,18 +471,19 @@ impl App {
     fn handle_task_deletion(&mut self) {
         let selected_tab = self.ui_state.selected_tab;
         let selected_tasks_len = self.get_selected_tasks_count();
-        let should_delete = (self.ui_state.task_management_mode || self.ui_state.current_field == CommitField::SelectedTasks) 
+        let should_delete = (self.ui_state.task_management_mode
+            || self.ui_state.current_field == CommitField::SelectedTasks)
             && selected_tasks_len > 0
             && selected_tab < selected_tasks_len;
-            
+
         if should_delete {
             self.remove_selected_task_by_index(selected_tab);
-            
+
             let new_len = self.get_selected_tasks_count();
             if selected_tab >= new_len && new_len > 0 {
                 self.ui_state.selected_tab = new_len - 1;
             }
-            
+
             use crate::app::task_operations::TaskOperations;
             self.update_task_selection();
             self.message = Some("Task removed from selection".to_string());
@@ -505,16 +520,28 @@ impl App {
 
     pub fn save_current_field(&mut self) {
         match self.ui_state.current_field {
-            CommitField::Type => {},
+            CommitField::Type => {}
             CommitField::Scope => self.commit_form.scope = self.ui_state.current_input.clone(),
             CommitField::Title => self.commit_form.title = self.ui_state.current_input.clone(),
-            CommitField::Description => self.commit_form.description = self.ui_state.current_input.clone(),
-            CommitField::BreakingChange => self.commit_form.breaking_change = self.ui_state.current_input.clone(),
-            CommitField::TestDetails => self.commit_form.test_details = self.ui_state.current_input.clone(),
-            CommitField::Security => self.commit_form.security = self.ui_state.current_input.clone(),
-            CommitField::MigracionesLentas => self.commit_form.migraciones_lentas = self.ui_state.current_input.clone(),
-            CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone(),
-            CommitField::SelectedTasks => {},
+            CommitField::Description => {
+                self.commit_form.description = self.ui_state.current_input.clone()
+            }
+            CommitField::BreakingChange => {
+                self.commit_form.breaking_change = self.ui_state.current_input.clone()
+            }
+            CommitField::TestDetails => {
+                self.commit_form.test_details = self.ui_state.current_input.clone()
+            }
+            CommitField::Security => {
+                self.commit_form.security = self.ui_state.current_input.clone()
+            }
+            CommitField::MigracionesLentas => {
+                self.commit_form.migraciones_lentas = self.ui_state.current_input.clone()
+            }
+            CommitField::PartesAEjecutar => {
+                self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone()
+            }
+            CommitField::SelectedTasks => {}
         }
     }
 
@@ -528,7 +555,8 @@ impl App {
                 let git_repo = match GitRepo::new() {
                     Ok(repo) => repo,
                     Err(e) => {
-                        self.current_state = AppState::Error(format!("Git repository error: {}", e));
+                        self.current_state =
+                            AppState::Error(format!("Git repository error: {}", e));
                         return Ok(());
                     }
                 };
@@ -536,10 +564,15 @@ impl App {
                 match git_repo.stage_all() {
                     Ok(_) => {
                         // Successfully staged, now proceed with commit
-                        if let Err(e) = self.create_commit_with_message(&self.preview_commit_message).await {
+                        if let Err(e) = self
+                            .create_commit_with_message(&self.preview_commit_message)
+                            .await
+                        {
                             self.current_state = AppState::Error(e.to_string());
                         } else {
-                            self.message = Some("All changes staged and commit created successfully!".to_string());
+                            self.message = Some(
+                                "All changes staged and commit created successfully!".to_string(),
+                            );
                             self.current_screen = AppScreen::Main;
                             self.ui_state.input_mode = InputMode::Normal;
                             self.ui_state.current_input.clear();
@@ -547,7 +580,8 @@ impl App {
                         }
                     }
                     Err(e) => {
-                        self.current_state = AppState::Error(format!("Failed to stage changes: {}", e));
+                        self.current_state =
+                            AppState::Error(format!("Failed to stage changes: {}", e));
                     }
                 }
             }
@@ -562,4 +596,4 @@ impl App {
         }
         Ok(())
     }
-} 
+}

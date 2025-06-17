@@ -2,7 +2,7 @@ use anyhow::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
 
-use crate::types::{AppConfig, MondayTask, MondayUpdate, MondayUser, MondayColumnValue};
+use crate::types::{AppConfig, MondayColumnValue, MondayTask, MondayUpdate, MondayUser};
 
 // =============================================================================
 // CORE MONDAY.COM CLIENT STRUCTURE
@@ -44,11 +44,9 @@ impl MondayClient {
 
         let response = self.execute_graphql_request(&graphql_query).await?;
         let result: Value = response.json().await?;
-        
+
         self.parse_search_results(result)
     }
-
-
 
     fn build_search_query(&self, query: &str) -> Value {
         if let Some(board_id) = &self.board_id {
@@ -142,11 +140,11 @@ impl MondayClient {
 impl MondayClient {
     pub async fn get_task_details(&self, task_ids: &[String]) -> Result<Vec<MondayTask>> {
         let ids: Vec<&str> = task_ids.iter().map(|s| s.as_str()).collect();
-        
+
         let graphql_query = self.build_task_details_query(&ids);
         let response = self.execute_graphql_request(&graphql_query).await?;
         let result: Value = response.json().await?;
-        
+
         self.parse_task_details_results(result)
     }
 
@@ -239,34 +237,16 @@ impl MondayClient {
     fn parse_board_specific_results(&self, result: &Value) -> Vec<MondayTask> {
         let mut tasks = Vec::new();
 
-            if let Some(boards) = result["data"]["boards"].as_array() {
-                for board in boards {
-                    if let Some(items_page) = board["items_page"].as_object() {
-                        if let Some(items) = items_page["items"].as_array() {
-                            for item in items {
-                                if let Some(task) = self.parse_task_item(item) {
-                                    if task.state == "active" {
-                                        tasks.push(task);
-                                    }
+        if let Some(boards) = result["data"]["boards"].as_array() {
+            for board in boards {
+                if let Some(items_page) = board["items_page"].as_object() {
+                    if let Some(items) = items_page["items"].as_array() {
+                        for item in items {
+                            if let Some(task) = self.parse_task_item(item) {
+                                if task.state == "active" {
+                                    tasks.push(task);
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-        tasks
-    }
-
-    fn parse_global_search_results(&self, result: &Value) -> Vec<MondayTask> {
-        let mut tasks = Vec::new();
-
-            if let Some(items_page) = result["data"]["items_page"].as_object() {
-                if let Some(items) = items_page["items"].as_array() {
-                    for item in items {
-                        if let Some(task) = self.parse_task_item(item) {
-                            if task.state == "active" {
-                                tasks.push(task);
                         }
                     }
                 }
@@ -275,8 +255,26 @@ impl MondayClient {
 
         tasks
     }
+
+    fn parse_global_search_results(&self, result: &Value) -> Vec<MondayTask> {
+        let mut tasks = Vec::new();
+
+        if let Some(items_page) = result["data"]["items_page"].as_object() {
+            if let Some(items) = items_page["items"].as_array() {
+                for item in items {
+                    if let Some(task) = self.parse_task_item(item) {
+                        if task.state == "active" {
+                            tasks.push(task);
+                        }
+                    }
+                }
+            }
+        }
+
+        tasks
     }
-    
+}
+
 // =============================================================================
 // TASK ITEM PARSING AND CONSTRUCTION
 // =============================================================================
@@ -342,9 +340,9 @@ impl MondayClient {
         let created_at = update["created_at"].as_str().unwrap_or("").to_string();
 
         let creator = update["creator"].as_object().map(|creator_obj| MondayUser {
-                id: creator_obj["id"].as_str().unwrap_or("").to_string(),
-                name: creator_obj["name"].as_str().unwrap_or("").to_string(),
-            });
+            id: creator_obj["id"].as_str().unwrap_or("").to_string(),
+            name: creator_obj["name"].as_str().unwrap_or("").to_string(),
+        });
 
         Some(MondayUpdate {
             id,
@@ -380,7 +378,10 @@ impl MondayClient {
                 .replace("{board_id}", board_id)
                 .replace("{item_id}", item_id)
         } else if let Some(slug) = &self.account_slug {
-            format!("https://{}.monday.com/boards/{}/pulses/{}", slug, board_id, item_id)
+            format!(
+                "https://{}.monday.com/boards/{}/pulses/{}",
+                slug, board_id, item_id
+            )
         } else {
             format!("https://monday.com/boards/{}/pulses/{}", board_id, item_id)
         }
@@ -412,4 +413,4 @@ impl MondayClient {
             Err(anyhow::anyhow!("Failed to get user information"))
         }
     }
-} 
+}
