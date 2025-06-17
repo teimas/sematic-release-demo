@@ -2,6 +2,7 @@ use anyhow::Result;
 use jira_query::{Auth, Issue, JiraInstance};
 
 use crate::types::{AppConfig, JiraTask};
+use crate::utils;
 
 // =============================================================================
 // CORE JIRA CLIENT STRUCTURE
@@ -13,6 +14,10 @@ pub struct JiraClient {
 }
 
 impl JiraClient {
+    fn log_debug(&self, message: &str) {
+        utils::log_debug("JIRA", message);
+    }
+
     pub fn new(config: &AppConfig) -> Result<Self> {
         // Validate JIRA configuration
         let jira_instance = if let (Some(url), Some(username), Some(api_token)) = (
@@ -20,7 +25,8 @@ impl JiraClient {
             &config.jira_username,
             &config.jira_api_token,
         ) {
-            eprintln!("🔧 JIRA Client - Initializing with URL: {}", url);
+            // Log initialization before self is fully constructed
+            utils::log_debug("JIRA", &format!("🔧 JIRA Client - Initializing with URL: {}", url));
             
             let instance = JiraInstance::at(url.clone())
                 .map_err(|e| anyhow::anyhow!("Failed to create JIRA instance: {}", e))?
@@ -31,10 +37,10 @@ impl JiraClient {
             
             Some(instance)
         } else {
-            eprintln!("❌ JIRA configuration incomplete - missing URL: {}, username: {}, API token: {}", 
+            utils::log_debug("JIRA", &format!("❌ JIRA configuration incomplete - missing URL: {}, username: {}, API token: {}", 
                 config.jira_url.is_none(),
                 config.jira_username.is_none(), 
-                config.jira_api_token.is_none());
+                config.jira_api_token.is_none()));
             None
         };
 
@@ -50,25 +56,25 @@ impl JiraClient {
 
         // Build JQL query for the configured project
         let jql = self.build_jql_query(query);
-        eprintln!("🔍 JIRA Search - JQL Query: {}", jql);
+        self.log_debug(&format!("🔍 JIRA Search - JQL Query: {}", jql));
 
         // Perform the search using jira_query
         match instance.search(&jql).await {
             Ok(issues) => {
-                eprintln!("✅ JIRA Search Success: Found {} issues", issues.len());
+                self.log_debug(&format!("✅ JIRA Search Success: Found {} issues", issues.len()));
                 let mut tasks = Vec::new();
                 for issue in issues {
                     match self.convert_jira_issue_to_task(issue) {
                         Ok(task) => tasks.push(task),
                         Err(e) => {
-                            eprintln!("⚠️  Failed to convert JIRA issue to task: {}", e);
+                            self.log_debug(&format!("⚠️  Failed to convert JIRA issue to task: {}", e));
                         }
                     }
                 }
                 Ok(tasks)
             }
             Err(e) => {
-                eprintln!("❌ JIRA Search Failed: {}", e);
+                self.log_debug(&format!("❌ JIRA Search Failed: {}", e));
                 Err(anyhow::anyhow!("JIRA search failed: {}", e))
             }
         }
@@ -82,22 +88,22 @@ impl JiraClient {
         let mut errors = Vec::new();
         
         for key in task_keys {
-            eprintln!("🔍 JIRA - Fetching task details for: {}", key);
+            self.log_debug(&format!("🔍 JIRA - Fetching task details for: {}", key));
             match instance.issue(key).await {
                 Ok(issue) => {
                     match self.convert_jira_issue_to_task(issue) {
                         Ok(task) => {
-                            eprintln!("✅ JIRA - Successfully fetched task: {}", key);
+                            self.log_debug(&format!("✅ JIRA - Successfully fetched task: {}", key));
                             tasks.push(task);
                         }
                         Err(e) => {
-                            eprintln!("❌ JIRA - Failed to convert issue {}: {}", key, e);
+                            self.log_debug(&format!("❌ JIRA - Failed to convert issue {}: {}", key, e));
                             errors.push(format!("{}: {}", key, e));
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("❌ JIRA - Failed to fetch task {}: {}", key, e);
+                    self.log_debug(&format!("❌ JIRA - Failed to fetch task {}: {}", key, e));
                     errors.push(format!("{}: {}", key, e));
                 }
             }
@@ -108,7 +114,7 @@ impl JiraClient {
         }
         
         if !errors.is_empty() {
-            eprintln!("⚠️  Some JIRA tasks failed to load: {}", errors.join(", "));
+            self.log_debug(&format!("⚠️  Some JIRA tasks failed to load: {}", errors.join(", ")));
         }
         
         Ok(tasks)
@@ -125,17 +131,17 @@ impl JiraClient {
             "ORDER BY created DESC".to_string()
         };
 
-        eprintln!("🔍 JIRA Connection Test - JQL: {}", test_jql);
+        self.log_debug(&format!("🔍 JIRA Connection Test - JQL: {}", test_jql));
 
         match instance.search(&test_jql).await {
             Ok(issues) => {
                 let message = format!("✅ JIRA connection successful! Found {} issues", issues.len());
-                eprintln!("{}", message);
+                self.log_debug(&message);
                 Ok(message)
             }
             Err(e) => {
                 let error_message = format!("❌ JIRA connection failed: {}", e);
-                eprintln!("{}", error_message);
+                self.log_debug(&error_message);
                 Err(anyhow::anyhow!(error_message))
             }
         }

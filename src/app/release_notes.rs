@@ -12,6 +12,7 @@ use crate::{
     services::MondayClient,
     services::GeminiClient,
     types::{AppState, ReleaseNotesAnalysisState, MondayTask, AppConfig},
+    utils,
 };
 
 pub trait ReleaseNotesOperations {
@@ -130,7 +131,7 @@ impl App {
         // Add task counts based on configured system
         match self.config.get_task_system() {
             crate::types::TaskSystem::Monday => {
-                document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
+        document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
             }
             crate::types::TaskSystem::Jira => {
                 document.push_str(&format!("- **Tareas de JIRA relacionadas**: {}\n\n", jira_tasks.len()));
@@ -150,7 +151,7 @@ impl App {
         // Add system-specific instructions
         match self.config.get_task_system() {
             crate::types::TaskSystem::Monday => {
-                document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
+        document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
             }
             crate::types::TaskSystem::Jira => {
                 document.push_str("2. Para las tareas de JIRA, usa SIEMPRE el formato del issue key (ej: SMP-123).\n");
@@ -868,13 +869,13 @@ impl TempAppForBackground {
                             tasks
                         },
                         Err(e) => {
-                            eprintln!("⚠️ Error obteniendo detalles de Monday.com: {}", e);
+                            utils::log_error("RELEASE-NOTES", &e);
                             Vec::new()
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Error conectando con Monday.com: {}", e);
+                                                utils::log_error("RELEASE-NOTES", &e);
                     Vec::new()
                 }
             }
@@ -938,13 +939,15 @@ impl TempAppForBackground {
                                     tasks
                                 },
                                 Err(e) => {
-                                    eprintln!("⚠️ Error obteniendo detalles de JIRA: {}", e);
+                                    // Log JIRA errors to debug file instead of screen
+                                    utils::log_error("RELEASE-NOTES", &e);
                                     Vec::new()
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("⚠️ Error conectando con JIRA: {}", e);
+                            // Log JIRA connection errors to debug file instead of screen
+                            utils::log_error("RELEASE-NOTES", &e);
                             Vec::new()
                         }
                     }
@@ -1052,7 +1055,7 @@ impl TempAppForBackground {
         
         // Create output directory
         if let Err(e) = fs::create_dir_all("release-notes") {
-            eprintln!("Warning: Could not create release-notes directory: {}", e);
+                            utils::log_warning("RELEASE-NOTES", &format!("Could not create release-notes directory: {}", e));
         }
         
         // Generate filenames
@@ -1093,7 +1096,7 @@ impl TempAppForBackground {
                         
                         // Save the Gemini-processed version
                         if let Err(e) = fs::write(&gemini_filename, &gemini_response) {
-                            eprintln!("⚠️ Error guardando respuesta de Gemini: {}", e);
+                            utils::log_error("RELEASE-NOTES", &e);
                             if let Ok(mut status) = status_clone.lock() {
                                 *status = format!(
                                     "✅ Documento estructurado generado: {}\n⚠️ Error guardando versión de Gemini",
@@ -1110,7 +1113,7 @@ impl TempAppForBackground {
                         }
                     }
                     Err(e) => {
-                        eprintln!("⚠️ Error procesando con Gemini: {}", e);
+                        utils::log_error("RELEASE-NOTES", &e);
                         if let Ok(mut status) = status_clone.lock() {
                             *status = format!(
                                 "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Ejecuta el script de Node.js para procesamiento con Gemini",
@@ -1121,7 +1124,7 @@ impl TempAppForBackground {
                 }
             }
             Err(e) => {
-                eprintln!("⚠️ Error configurando Gemini: {}", e);
+                utils::log_error("RELEASE-NOTES", &e);
                 if let Ok(mut status) = status_clone.lock() {
                     *status = format!(
                         "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Configura el token de Gemini para procesamiento IA",

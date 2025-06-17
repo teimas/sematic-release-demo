@@ -6,6 +6,7 @@ use crate::{
     types::{ComprehensiveAnalysisState, AppState},
     git::GitRepo,
     services::GeminiClient,
+    utils,
 };
 
 pub trait BackgroundOperations {
@@ -173,7 +174,8 @@ impl App {
                     }
                 }
                 Err(e) => {
-                    eprintln!("❌ Error en análisis completo: {}", e);
+                    // Log error to debug file instead of screen
+                    utils::log_error("BACKGROUND", &e);
                     // Fallback to basic result
                     if let Ok(mut result) = result_clone.lock() {
                         *result = serde_json::json!({

@@ -2,8 +2,8 @@ use anyhow::Result;
 use genai::chat::{ChatMessage, ChatRequest};
 use genai::Client;
 
-
 use crate::types::AppConfig;
+use crate::utils;
 
 // =============================================================================
 // CORE GEMINI CLIENT
@@ -40,7 +40,7 @@ impl GeminiClient {
         match self.call_gemini_api(prompt, "gemini-2.5-pro-preview-06-05").await {
             Ok(response) => Ok(response),
             Err(_) => {
-                eprintln!("Gemini 2.5 Pro Preview failed, trying 2.0 Flash...");
+                utils::log_info("GEMINI", "Gemini 2.5 Pro Preview failed, trying 2.0 Flash...");
                 self.call_gemini_api(prompt, "gemini-2.0-flash").await
             }
         }
@@ -199,8 +199,8 @@ VALIDACIONES:
                    json.get("breakingChanges").is_some() {
                     Ok(json)
                 } else {
-                    eprintln!("JSON response missing required fields");
-                    eprintln!("Parsed JSON: {}", json);
+                    utils::log_warning("GEMINI", "JSON response missing required fields");
+                    utils::log_debug("GEMINI", &format!("Parsed JSON: {}", json));
                     // Return a fallback JSON structure
                     Ok(serde_json::json!({
                         "title": "cambios realizados en el código",
@@ -213,9 +213,9 @@ VALIDACIONES:
                 }
             }
             Err(e) => {
-                eprintln!("Failed to parse Gemini JSON response: {}", e);
-                eprintln!("Raw response: {}", response);
-                eprintln!("Cleaned response: {}", cleaned_response);
+                utils::log_error("GEMINI", &e);
+                utils::log_debug("GEMINI", &format!("Raw response: {}", response));
+                utils::log_debug("GEMINI", &format!("Cleaned response: {}", cleaned_response));
                 
                 // Return a fallback JSON structure
                 Ok(serde_json::json!({

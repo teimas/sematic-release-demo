@@ -8,6 +8,7 @@ mod services;
 mod git;
 mod ui;
 mod types;
+mod utils;
 
 use app::App;
 use types::AppScreen;
