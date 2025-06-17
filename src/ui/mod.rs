@@ -1,34 +1,35 @@
-pub mod state;
 pub mod components;
-pub mod screens;
-pub mod loading;
 pub mod cursor;
+pub mod loading;
+pub mod screens;
 pub mod scrollable_text;
+pub mod state;
 
 // Re-export the main types and functions for easy access
-pub use state::{UIState, InputMode, CommitField};
-pub use components::{draw_title_bar, draw_status_bar};
-pub use screens::{
-    draw_main_screen, draw_config_screen, draw_commit_screen, 
-    draw_commit_preview_screen, draw_release_notes_screen,
-    draw_task_search_screen
+pub use components::{draw_status_bar, draw_title_bar};
+pub use cursor::{
+    set_commit_preview_cursor_position, set_cursor_position, set_search_cursor_position,
 };
 pub use loading::draw_loading_overlay;
-pub use cursor::{
-    set_cursor_position, set_commit_preview_cursor_position, 
-    set_search_cursor_position
+pub use screens::{
+    draw_commit_preview_screen, draw_commit_screen, draw_config_screen, draw_main_screen,
+    draw_release_notes_screen, draw_task_search_screen,
 };
+pub use state::{CommitField, InputMode, UIState};
 
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     Frame,
 };
 
-use crate::types::{AppScreen, AppState, CommitForm, MondayTask, JiraTask, AppConfig, SemanticReleaseState};
 use crate::git::GitStatus;
+use crate::types::{
+    AppConfig, AppScreen, AppState, CommitForm, JiraTask, MondayTask, SemanticReleaseState,
+};
 use crate::ui::screens::semantic_release::draw_semantic_release_screen;
 
 // Main drawing orchestrator function
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     f: &mut Frame,
     app_screen: &AppScreen,
@@ -44,7 +45,11 @@ pub fn draw(
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(3)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ])
         .split(f.area());
 
     // Title bar
@@ -57,8 +62,24 @@ pub fn draw(
         AppScreen::Commit => draw_commit_screen(f, chunks[1], ui_state, commit_form),
         AppScreen::CommitPreview => draw_commit_preview_screen(f, chunks[1], ui_state),
         AppScreen::ReleaseNotes => draw_release_notes_screen(f, chunks[1]),
-        AppScreen::SemanticRelease => draw_semantic_release_screen(f, chunks[1], ui_state, config, app_state, message, semantic_release_state),
-        AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, monday_tasks, jira_tasks, config, commit_form),
+        AppScreen::SemanticRelease => draw_semantic_release_screen(
+            f,
+            chunks[1],
+            ui_state,
+            config,
+            app_state,
+            message,
+            semantic_release_state,
+        ),
+        AppScreen::TaskSearch => draw_task_search_screen(
+            f,
+            chunks[1],
+            ui_state,
+            monday_tasks,
+            jira_tasks,
+            config,
+            commit_form,
+        ),
     }
 
     // Status bar
@@ -80,4 +101,4 @@ pub fn draw(
             _ => {}
         }
     }
-} 
+}

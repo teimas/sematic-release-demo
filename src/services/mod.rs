@@ -1,7 +1,7 @@
 pub mod gemini;
-pub mod monday;
 pub mod jira;
+pub mod monday;
 
 pub use gemini::*;
+pub use jira::*;
 pub use monday::*;
-pub use jira::*; 

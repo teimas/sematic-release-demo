@@ -6,14 +6,19 @@ use ratatui::{
     Frame,
 };
 
-pub fn draw_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize, message: Option<&str>) {
+pub fn draw_loading_overlay(
+    f: &mut Frame,
+    area: Rect,
+    animation_frame: usize,
+    message: Option<&str>,
+) {
     // Check if this is a Gemini analysis process
-    let is_gemini_analysis = message.map_or(false, |msg| 
-        msg.contains("Analizando cambios") || 
-        msg.contains("análisis completo") ||
-        msg.contains("Gemini")
-    );
-    
+    let is_gemini_analysis = message.is_some_and(|msg| {
+        msg.contains("Analizando cambios")
+            || msg.contains("análisis completo")
+            || msg.contains("Gemini")
+    });
+
     if is_gemini_analysis {
         draw_gemini_analysis_overlay(f, area, animation_frame, message);
     } else {
@@ -21,20 +26,32 @@ pub fn draw_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize, m
     }
 }
 
-fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usize, message: Option<&str>) {
+fn draw_gemini_analysis_overlay(
+    f: &mut Frame,
+    area: Rect,
+    animation_frame: usize,
+    message: Option<&str>,
+) {
     // Spinner characters for animation
     let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let spinner_char = spinner_chars[animation_frame % spinner_chars.len()];
-    
+
     // Create a larger, more detailed overlay for Gemini analysis
     let overlay_area = centered_rect(70, 30, area);
     f.render_widget(Clear, overlay_area);
-    
+
     // Main block with title
     let main_block = Block::default()
-        .title(format!(" {} 🧠 Análisis Inteligente con Gemini AI ", spinner_char))
+        .title(format!(
+            " {} 🧠 Análisis Inteligente con Gemini AI ",
+            spinner_char
+        ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .style(Style::default().bg(Color::Black));
     f.render_widget(main_block, overlay_area);
 
@@ -48,41 +65,49 @@ fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usiz
 
     // Determine current stage and create progress content
     let (current_stage, stage_details) = match message {
-        Some(msg) if msg.contains("Analizando cambios") => {
-            ("Etapa 1/3: Análisis de Cambios", vec![
+        Some(msg) if msg.contains("Analizando cambios") => (
+            "Etapa 1/3: Análisis de Cambios",
+            vec![
                 "🔍 Examinando archivos modificados",
                 "📊 Evaluando impacto de los cambios",
                 "🔧 Identificando patrones de código",
-            ])
-        },
-        Some(msg) if msg.contains("analizando seguridad") => {
-            ("Etapa 2/3: Análisis Múltiple", vec![
+            ],
+        ),
+        Some(msg) if msg.contains("analizando seguridad") => (
+            "Etapa 2/3: Análisis Múltiple",
+            vec![
                 "📝 Generando descripción técnica detallada",
                 "🔒 Analizando posibles riesgos de seguridad",
                 "⚠️  Detectando cambios que rompen compatibilidad",
-            ])
-        },
-        Some(msg) if msg.contains("completado") => {
-            ("Etapa 3/3: Finalizando", vec![
+            ],
+        ),
+        Some(msg) if msg.contains("completado") => (
+            "Etapa 3/3: Finalizando",
+            vec![
                 "✅ Descripción generada exitosamente",
                 "✅ Análisis de seguridad completado",
                 "✅ Verificación de cambios finalizada",
-            ])
-        },
-        _ => {
-            ("Iniciando análisis...", vec![
+            ],
+        ),
+        _ => (
+            "Iniciando análisis...",
+            vec![
                 "🚀 Preparando análisis inteligente",
                 "🌐 Conectando con Gemini AI",
                 "📡 Enviando datos para procesamiento",
-            ])
-        }
+            ],
+        ),
     };
 
     // Current stage title
     let stage_title = Paragraph::new(current_stage)
-        .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center);
-    
+
     let title_area = Rect {
         x: content_area.x,
         y: content_area.y,
@@ -98,13 +123,17 @@ fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usiz
         Some(msg) if msg.contains("completado") => 100,
         _ => ((animation_frame * 2) % 30) as u16,
     };
-    
+
     let gauge = Gauge::default()
         .block(Block::default().borders(Borders::NONE))
-        .gauge_style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+        .gauge_style(
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )
         .percent(progress_percent)
         .label(format!("{}%", progress_percent));
-    
+
     let gauge_area = Rect {
         x: content_area.x,
         y: content_area.y + 2,
@@ -119,10 +148,12 @@ fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usiz
         Line::from("🔄 Procesos en ejecución:"),
         Line::from(""),
     ];
-    
+
     for (i, detail) in stage_details.iter().enumerate() {
         let style = if i == (animation_frame / 8) % stage_details.len() {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Gray)
         };
@@ -132,23 +163,31 @@ fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usiz
     info_lines.extend(vec![
         Line::from(""),
         Line::from(""),
-        Line::from(Span::styled("💡 ¿Qué está sucediendo?", 
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "💡 ¿Qué está sucediendo?",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from("Gemini AI está analizando tus cambios de código para:"),
         Line::from("• Generar una descripción técnica detallada"),
         Line::from("• Identificar posibles vulnerabilidades de seguridad"),
         Line::from("• Detectar cambios que puedan romper compatibilidad"),
         Line::from(""),
-        Line::from(Span::styled("⏱️  Este proceso puede tomar unos segundos...", 
-            Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC))),
+        Line::from(Span::styled(
+            "⏱️  Este proceso puede tomar unos segundos...",
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::ITALIC),
+        )),
     ]);
 
     let info_paragraph = Paragraph::new(info_lines)
         .style(Style::default().fg(Color::White))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
-    
+
     let info_area = Rect {
         x: content_area.x,
         y: content_area.y + 4,
@@ -158,21 +197,26 @@ fn draw_gemini_analysis_overlay(f: &mut Frame, area: Rect, animation_frame: usiz
     f.render_widget(info_paragraph, info_area);
 }
 
-fn draw_simple_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize, message: Option<&str>) {
+fn draw_simple_loading_overlay(
+    f: &mut Frame,
+    area: Rect,
+    animation_frame: usize,
+    message: Option<&str>,
+) {
     // Spinner characters for animation
     let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let spinner_char = spinner_chars[animation_frame % spinner_chars.len()];
-    
+
     // Determine the loading message
     let loading_message = match message {
         Some(msg) if msg.contains("search") => "🔍 Buscando tareas en Monday.com...",
         Some(msg) if msg.contains("release") => "📝 Generando notas de versión...",
         _ => "⏳ Cargando...",
     };
-    
+
     let loading_area = centered_rect(50, 15, area);
     f.render_widget(Clear, loading_area);
-    
+
     // Main loading block
     let block = Block::default()
         .title(format!(" {} Procesando ", spinner_char))
@@ -191,10 +235,14 @@ fn draw_simple_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize
 
     // Loading message
     let message_para = Paragraph::new(loading_message)
-        .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
-    
+
     let message_area = Rect {
         x: content_area.x,
         y: content_area.y,
@@ -207,10 +255,14 @@ fn draw_simple_loading_overlay(f: &mut Frame, area: Rect, animation_frame: usize
     let progress_percent = ((animation_frame * 3) % 100) as u16;
     let gauge = Gauge::default()
         .block(Block::default().borders(Borders::NONE))
-        .gauge_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .gauge_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .percent(progress_percent)
         .label(format!("{}%", progress_percent));
-    
+
     let gauge_area = Rect {
         x: content_area.x,
         y: content_area.y + 3,
@@ -238,4 +290,4 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
-} 
+}

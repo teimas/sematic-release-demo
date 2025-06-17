@@ -4,10 +4,10 @@ use log::info;
 
 mod app;
 mod config;
-mod services;
 mod git;
-mod ui;
+mod services;
 mod types;
+mod ui;
 mod utils;
 
 use app::App;
@@ -19,15 +19,15 @@ use types::AppScreen;
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
-    
+
     /// Enable debug logging
     #[arg(short, long, global = true)]
     debug: bool,
-    
+
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
-    
+
     /// Auto-commit: Run comprehensive AI analysis and open commit editor directly
     #[arg(long, global = true)]
     autocommit: bool,
@@ -48,7 +48,7 @@ enum Commands {
     /// Setup git commit template for consistent commit messages
     SetupTemplate,
     /// Debug mode - show detailed error information
-    Debug { 
+    Debug {
         #[command(subcommand)]
         debug_command: DebugCommands,
     },
@@ -69,7 +69,7 @@ enum DebugCommands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     // Initialize logging based on flags
     if cli.debug {
         env_logger::Builder::from_default_env()
@@ -138,4 +138,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-} 
+}

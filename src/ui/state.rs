@@ -58,7 +58,9 @@ impl Default for UIState {
 impl UIState {
     pub fn get_field_style(&self, field: &CommitField) -> Style {
         if self.current_field == *field {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         }
@@ -87,7 +89,11 @@ impl UIState {
     pub fn is_multiline_field(field: &CommitField) -> bool {
         matches!(
             field,
-            CommitField::Description | CommitField::TestDetails | CommitField::Security | CommitField::MigracionesLentas | CommitField::PartesAEjecutar
+            CommitField::Description
+                | CommitField::TestDetails
+                | CommitField::Security
+                | CommitField::MigracionesLentas
+                | CommitField::PartesAEjecutar
         )
     }
-} 
+}

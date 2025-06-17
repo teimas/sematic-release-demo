@@ -21,8 +21,12 @@ pub fn draw_release_notes_screen(f: &mut Frame, area: Rect) {
         Line::from("Press Enter to generate release notes"),
         Line::from("Press 'q' to go back to main menu"),
     ])
-    .block(Block::default().borders(Borders::ALL).title("Release Notes"))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Release Notes"),
+    )
     .wrap(Wrap { trim: true });
 
     f.render_widget(content, area);
-} 
+}

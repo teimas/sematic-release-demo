@@ -6,21 +6,21 @@ use ratatui::{
     Frame,
 };
 
-use crate::ui::state::{UIState, InputMode};
-use crate::types::{MondayTask, JiraTask, CommitForm, AppConfig, TaskSystem, TaskLike};
+use crate::types::{AppConfig, CommitForm, JiraTask, MondayTask, TaskLike, TaskSystem};
+use crate::ui::state::{InputMode, UIState};
 
 // =============================================================================
 // MAIN DRAW FUNCTION
 // =============================================================================
 
 pub fn draw_task_search_screen(
-    f: &mut Frame, 
-    area: Rect, 
-    ui_state: &UIState, 
-    monday_tasks: &[MondayTask], 
-    jira_tasks: &[JiraTask], 
-    config: &AppConfig, 
-    commit_form: &CommitForm
+    f: &mut Frame,
+    area: Rect,
+    ui_state: &UIState,
+    monday_tasks: &[MondayTask],
+    jira_tasks: &[JiraTask],
+    config: &AppConfig,
+    commit_form: &CommitForm,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -33,7 +33,15 @@ pub fn draw_task_search_screen(
 
     // Render each section
     render_search_input(f, chunks[0], ui_state, config);
-    render_search_results(f, chunks[1], ui_state, monday_tasks, jira_tasks, config, commit_form);
+    render_search_results(
+        f,
+        chunks[1],
+        ui_state,
+        monday_tasks,
+        jira_tasks,
+        config,
+        commit_form,
+    );
     render_selected_tasks(f, chunks[2], ui_state, commit_form);
 }
 
@@ -43,25 +51,32 @@ pub fn draw_task_search_screen(
 
 fn render_search_input(f: &mut Frame, area: Rect, ui_state: &UIState, config: &AppConfig) {
     let task_system_name = get_task_system_name(config);
-    
+
     let (search_title, search_style) = if ui_state.input_mode == InputMode::Editing {
         (
-            format!("🔍 Search {} Tasks (Type to search, Enter to submit, Esc to exit)", task_system_name),
-            Style::default().fg(Color::Green)
+            format!(
+                "🔍 Search {} Tasks (Type to search, Enter to submit, Esc to exit)",
+                task_system_name
+            ),
+            Style::default().fg(Color::Green),
         )
     } else {
         (
-            format!("🔍 Search {} Tasks (Press 'i' or '/' to start typing, Enter to search)", task_system_name),
-            Style::default()
+            format!(
+                "🔍 Search {} Tasks (Press 'i' or '/' to start typing, Enter to search)",
+                task_system_name
+            ),
+            Style::default(),
         )
     };
-    
-    let search_input = Paragraph::new(format!("Search: {}", ui_state.current_input))
-        .block(Block::default()
+
+    let search_input = Paragraph::new(format!("Search: {}", ui_state.current_input)).block(
+        Block::default()
             .borders(Borders::ALL)
             .title(search_title.as_str())
-            .border_style(search_style));
-    
+            .border_style(search_style),
+    );
+
     f.render_widget(search_input, area);
 }
 
@@ -84,9 +99,9 @@ fn render_search_results(
         TaskSystem::None => build_no_system_list(),
     };
 
-    let tasks_list = List::new(task_items)
-        .block(Block::default().borders(Borders::ALL).title(list_title));
-    
+    let tasks_list =
+        List::new(task_items).block(Block::default().borders(Borders::ALL).title(list_title));
+
     f.render_widget(tasks_list, area);
 }
 
@@ -107,23 +122,31 @@ fn build_monday_task_list<'a>(
         .iter()
         .enumerate()
         .map(|(i, task)| {
-            let is_selected = commit_form.selected_tasks.iter().any(|selected| selected.id == task.id);
+            let is_selected = commit_form
+                .selected_tasks
+                .iter()
+                .any(|selected| selected.id == task.id);
             let is_focused = i == ui_state.focused_search_index;
-            
+
             build_task_item(
                 i,
                 task.get_title(),
-                &format!("ID: {} | Board: {} | State: {}", 
+                &format!(
+                    "ID: {} | Board: {} | State: {}",
                     task.id,
                     task.board_name.as_deref().unwrap_or("Unknown"),
-                    task.state),
+                    task.state
+                ),
                 is_selected,
                 is_focused,
             )
         })
         .collect();
 
-    ("Monday.com Search Results (Press 1-9,0 or Space to select tasks)".to_string(), items)
+    (
+        "Monday.com Search Results (Press 1-9,0 or Space to select tasks)".to_string(),
+        items,
+    )
 }
 
 fn build_jira_task_list<'a>(
@@ -139,53 +162,56 @@ fn build_jira_task_list<'a>(
         .iter()
         .enumerate()
         .map(|(i, task)| {
-            let is_selected = commit_form.selected_jira_tasks.iter().any(|selected| selected.id == task.id);
+            let is_selected = commit_form
+                .selected_jira_tasks
+                .iter()
+                .any(|selected| selected.id == task.id);
             let is_focused = i == ui_state.focused_search_index;
-            
+
             build_task_item(
                 i,
                 task.get_title(),
-                &format!("Key: {} | Status: {} | Type: {}", 
-                    task.key,
-                    task.status,
-                    task.issue_type),
+                &format!(
+                    "Key: {} | Status: {} | Type: {}",
+                    task.key, task.status, task.issue_type
+                ),
                 is_selected,
                 is_focused,
             )
         })
         .collect();
 
-    ("JIRA Search Results (Press 1-9,0 or Space to select tasks)".to_string(), items)
+    (
+        "JIRA Search Results (Press 1-9,0 or Space to select tasks)".to_string(),
+        items,
+    )
 }
 
 fn build_no_system_list() -> (String, Vec<ListItem<'static>>) {
-    let items = vec![
-        ListItem::new(vec![
-            Line::from("⚠️  No task system configured"),
-            Line::from("   Configure Monday.com or JIRA in config screen"),
-        ])
-    ];
+    let items = vec![ListItem::new(vec![
+        Line::from("⚠️  No task system configured"),
+        Line::from("   Configure Monday.com or JIRA in config screen"),
+    ])];
     ("No task system configured".to_string(), items)
 }
 
-fn build_empty_results_list(system_name: &str, current_input: &str) -> (String, Vec<ListItem<'static>>) {
+fn build_empty_results_list(
+    system_name: &str,
+    current_input: &str,
+) -> (String, Vec<ListItem<'static>>) {
     if current_input.is_empty() {
         // No search query, show placeholder
-        let items = vec![
-            ListItem::new(vec![
-                Line::from("💡 Type a search query above and press Enter"),
-                Line::from("   Or press 'q' to return to commit screen"),
-            ])
-        ];
+        let items = vec![ListItem::new(vec![
+            Line::from("💡 Type a search query above and press Enter"),
+            Line::from("   Or press 'q' to return to commit screen"),
+        ])];
         (format!("Type to search for {} tasks", system_name), items)
     } else {
         // Search performed but no results
-        let items = vec![
-            ListItem::new(vec![
-                Line::from(format!("❌ No {} tasks found for your search", system_name)),
-                Line::from("   Try a different search term"),
-            ])
-        ];
+        let items = vec![ListItem::new(vec![
+            Line::from(format!("❌ No {} tasks found for your search", system_name)),
+            Line::from("   Try a different search term"),
+        ])];
         (format!("No {} tasks found", system_name), items)
     }
 }
@@ -203,16 +229,16 @@ fn build_task_item(
 ) -> ListItem<'static> {
     // Build styles based on state
     let styles = TaskItemStyles::new(is_focused, is_selected);
-    
+
     // Build number and checkbox
     let number = get_selection_number(index);
     let checkbox = if is_selected { "☑ " } else { "☐ " };
     let focus_indicator = if is_focused { "→ " } else { "  " };
-    
+
     // Convert borrowed strings to owned strings for static lifetime
     let title_owned = title.to_string();
     let details_owned = details.to_string();
-    
+
     ListItem::new(vec![
         Line::from(vec![
             Span::styled(focus_indicator, styles.focus_style),
@@ -230,31 +256,32 @@ fn build_task_item(
 
 fn render_selected_tasks(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form: &CommitForm) {
     let selected_items = build_selected_tasks_list(&commit_form.selected_tasks);
-    
+
     // Create list state for navigation
     let mut selected_list_state = ListState::default();
     if !commit_form.selected_tasks.is_empty() {
-        let selected_index = ui_state.selected_tab.min(commit_form.selected_tasks.len().saturating_sub(1));
+        let selected_index = ui_state
+            .selected_tab
+            .min(commit_form.selected_tasks.len().saturating_sub(1));
         selected_list_state.select(Some(selected_index));
     }
 
     let selected_list = List::new(selected_items)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(format!("Selected Tasks ({}) - Use ↑↓ to navigate, Del/r to remove", commit_form.selected_tasks.len())))
+        .block(Block::default().borders(Borders::ALL).title(format!(
+            "Selected Tasks ({}) - Use ↑↓ to navigate, Del/r to remove",
+            commit_form.selected_tasks.len()
+        )))
         .highlight_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
-    
+
     f.render_stateful_widget(selected_list, area, &mut selected_list_state);
 }
 
 fn build_selected_tasks_list(selected_tasks: &[MondayTask]) -> Vec<ListItem<'static>> {
     if selected_tasks.is_empty() {
-        vec![
-            ListItem::new(vec![
-                Line::from("No tasks selected yet"),
-                Line::from("Search and select tasks above"),
-            ])
-        ]
+        vec![ListItem::new(vec![
+            Line::from("No tasks selected yet"),
+            Line::from("Search and select tasks above"),
+        ])]
     } else {
         selected_tasks
             .iter()
@@ -262,9 +289,17 @@ fn build_selected_tasks_list(selected_tasks: &[MondayTask]) -> Vec<ListItem<'sta
                 ListItem::new(vec![
                     Line::from(vec![
                         Span::styled("✅ ", Style::default().fg(Color::Green)),
-                        Span::styled(task.get_title().to_string(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            task.get_title().to_string(),
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                     ]),
-                    Line::from(format!("   ID: {} | Use ↑↓ to navigate, Del/r to remove", task.id)),
+                    Line::from(format!(
+                        "   ID: {} | Use ↑↓ to navigate, Del/r to remove",
+                        task.id
+                    )),
                 ])
             })
             .collect()
@@ -291,16 +326,26 @@ impl TaskItemStyles {
         };
 
         Self {
-            focus_style: Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            focus_style: Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
             number_style: if is_focused {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             },
             checkbox_style: if is_focused {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else if is_selected {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Blue)
             },
@@ -328,5 +373,3 @@ fn get_selection_number(index: usize) -> String {
         _ => " ".to_string(),
     }
 }
-
- 

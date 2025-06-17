@@ -9,7 +9,11 @@ use crate::types::AppState;
 
 pub fn draw_title_bar(f: &mut Frame, area: Rect) {
     let title = Paragraph::new("🚀 Semantic Release TUI")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(title, area);
@@ -25,21 +29,31 @@ pub fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message:
             } else {
                 (loading_message, "⏳ Cargando")
             }
-        },
-        AppState::Error(err) => (err.as_str(), "⚠️ ERROR - Presiona cualquier tecla para continuar"),
-        AppState::ConfirmingStageAll => (message.unwrap_or("Press 'y' to stage all changes (git add -A), 'n' to cancel"), "❓ Confirmation Required"),
+        }
+        AppState::Error(err) => (
+            err.as_str(),
+            "⚠️ ERROR - Presiona cualquier tecla para continuar",
+        ),
+        AppState::ConfirmingStageAll => (
+            message.unwrap_or("Press 'y' to stage all changes (git add -A), 'n' to cancel"),
+            "❓ Confirmation Required",
+        ),
     };
 
     let status_style = match app_state {
         AppState::Error(_) => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
         AppState::Loading => {
             if message.is_some_and(|m| m.contains("Gemini")) {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Yellow)
             }
-        },
-        AppState::ConfirmingStageAll => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+        }
+        AppState::ConfirmingStageAll => Style::default()
+            .fg(Color::Blue)
+            .add_modifier(Modifier::BOLD),
         _ => Style::default().fg(Color::Green),
     };
 
@@ -49,4 +63,4 @@ pub fn draw_status_bar(f: &mut Frame, area: Rect, app_state: &AppState, message:
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(status, area);
-} 
+}

@@ -5,7 +5,7 @@ use std::thread;
 
 use crate::{
     app::App,
-    types::{SemanticReleaseState, AppState},
+    types::{AppState, SemanticReleaseState},
     utils,
 };
 
@@ -18,7 +18,8 @@ pub trait SemanticReleaseOperations {
 impl SemanticReleaseOperations for App {
     async fn execute_semantic_release(&mut self, dry_run: bool) -> Result<()> {
         // Check if already processing
-        if matches!(self.current_state, AppState::Loading) || self.semantic_release_state.is_some() {
+        if matches!(self.current_state, AppState::Loading) || self.semantic_release_state.is_some()
+        {
             return Ok(());
         }
 
@@ -29,7 +30,10 @@ impl SemanticReleaseOperations for App {
 
         // Create shared state for the operation
         let release_state = SemanticReleaseState {
-            status: Arc::new(Mutex::new(format!("📋 Preparando semantic-release {}...", action))),
+            status: Arc::new(Mutex::new(format!(
+                "📋 Preparando semantic-release {}...",
+                action
+            ))),
             finished: Arc::new(Mutex::new(false)),
             success: Arc::new(Mutex::new(true)),
             result: Arc::new(Mutex::new(String::new())),
@@ -55,7 +59,8 @@ impl SemanticReleaseOperations for App {
             }
             Err(e) => {
                 utils::log_error("SEMANTIC-RELEASE", &e);
-                self.current_state = AppState::Error(format!("Error obteniendo información: {}", e));
+                self.current_state =
+                    AppState::Error(format!("Error obteniendo información: {}", e));
             }
         }
 
@@ -82,7 +87,11 @@ impl SemanticReleaseOperations for App {
 }
 
 impl App {
-    pub fn start_semantic_release_operation(&self, release_state: SemanticReleaseState, dry_run: bool) {
+    pub fn start_semantic_release_operation(
+        &self,
+        release_state: SemanticReleaseState,
+        dry_run: bool,
+    ) {
         // Clone state components for the thread
         let status_clone = release_state.status.clone();
         let finished_clone = release_state.finished.clone();
@@ -170,15 +179,20 @@ impl App {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    
+
                     if output.status.success() {
                         if let Ok(mut status) = status_clone.lock() {
-                            *status = format!("✅ Semantic-release {} completado exitosamente", action);
+                            *status =
+                                format!("✅ Semantic-release {} completado exitosamente", action);
                         }
                         if let Ok(mut result) = result_clone.lock() {
-                            *result = format!("Salida:\n{}\n\nErrores/Advertencias:\n{}", stdout, stderr);
+                            *result =
+                                format!("Salida:\n{}\n\nErrores/Advertencias:\n{}", stdout, stderr);
                         }
-                        utils::log_success("SEMANTIC-RELEASE", &format!("Semantic-release {} completed successfully", action));
+                        utils::log_success(
+                            "SEMANTIC-RELEASE",
+                            &format!("Semantic-release {} completed successfully", action),
+                        );
                         utils::log_debug("SEMANTIC-RELEASE", &format!("Output: {}", stdout));
                     } else {
                         if let Ok(mut status) = status_clone.lock() {
@@ -190,7 +204,10 @@ impl App {
                         if let Ok(mut success) = success_clone.lock() {
                             *success = false;
                         }
-                        utils::log_error("SEMANTIC-RELEASE", &format!("Semantic-release failed: {}", stderr));
+                        utils::log_error(
+                            "SEMANTIC-RELEASE",
+                            &format!("Semantic-release failed: {}", stderr),
+                        );
                     }
                 }
                 Err(e) => {
@@ -225,19 +242,25 @@ impl App {
 
         if output.status.success() {
             let last_tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            
+
             // Get commit count since last tag
             let commit_count_output = Command::new("git")
-                .args(&["rev-list", "--count", &format!("{}..HEAD", last_tag)])
+                .args(["rev-list", "--count", &format!("{}..HEAD", last_tag)])
                 .output()?;
 
             let commit_count_str = String::from_utf8_lossy(&commit_count_output.stdout);
             let commit_count = commit_count_str.trim();
-            
+
             if commit_count == "0" {
-                Ok(format!("{} (sin cambios desde la última versión)", last_tag))
+                Ok(format!(
+                    "{} (sin cambios desde la última versión)",
+                    last_tag
+                ))
             } else {
-                Ok(format!("{} ({} commits desde entonces)", last_tag, commit_count))
+                Ok(format!(
+                    "{} ({} commits desde entonces)",
+                    last_tag, commit_count
+                ))
             }
         } else {
             Ok("No hay versiones anteriores encontradas".to_string())
@@ -260,7 +283,7 @@ impl App {
         let has_semantic_release_dep = package_json.contains("semantic-release");
 
         let mut config_info = Vec::new();
-        
+
         if has_semantic_release_dep {
             config_info.push("✅ semantic-release en package.json");
         } else {
@@ -297,4 +320,4 @@ impl App {
 
         Ok(config_info.join(", "))
     }
-} 
+}

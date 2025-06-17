@@ -30,4 +30,4 @@ pub fn log_success(component: &str, message: &str) {
 /// Log an info message to the debug.log file with a component prefix
 pub fn log_info(component: &str, message: &str) {
     log_debug(component, &format!("🔍 {}", message));
-} 
+}

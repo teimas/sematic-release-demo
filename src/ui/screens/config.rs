@@ -23,8 +23,12 @@ pub fn draw_config_screen(f: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from("Press 'q' to go back to main menu."),
     ])
-    .block(Block::default().borders(Borders::ALL).title("Configuration"))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Configuration"),
+    )
     .wrap(Wrap { trim: true });
 
     f.render_widget(content, area);
-} 
+}

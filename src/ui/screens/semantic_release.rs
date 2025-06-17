@@ -2,7 +2,10 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Wrap,
+    },
     Frame,
 };
 
@@ -34,7 +37,15 @@ pub fn draw_semantic_release_screen(
         .unwrap_or(false);
 
     if has_results {
-        draw_with_results(f, area, ui_state, config, current_state, message, semantic_release_state.unwrap());
+        draw_with_results(
+            f,
+            area,
+            ui_state,
+            config,
+            current_state,
+            message,
+            semantic_release_state.unwrap(),
+        );
     } else {
         draw_without_results(f, area, ui_state, config, current_state, message);
     }
@@ -75,17 +86,21 @@ fn draw_without_results(
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Length(4),  // Description
-            Constraint::Min(10),    // Options
-            Constraint::Length(4),  // Instructions
-            Constraint::Length(3),  // Status
+            Constraint::Length(3), // Title
+            Constraint::Length(4), // Description
+            Constraint::Min(10),   // Options
+            Constraint::Length(4), // Instructions
+            Constraint::Length(3), // Status
         ])
         .split(area);
 
     // Title
     let title = Paragraph::new("🚀 Semantic Release")
-        .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(title, chunks[0]);
@@ -108,27 +123,27 @@ fn draw_without_results(
         .block(Block::default().borders(Borders::ALL).title("Options"))
         .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black))
         .highlight_symbol("► ");
-    f.render_stateful_widget(options_list, chunks[2], &mut ratatui::widgets::ListState::default().with_selected(Some(ui_state.selected_tab)));
+    f.render_stateful_widget(
+        options_list,
+        chunks[2],
+        &mut ratatui::widgets::ListState::default().with_selected(Some(ui_state.selected_tab)),
+    );
 
     // Instructions
     let instructions_text = if matches!(current_state, AppState::Loading) {
-        vec![
-            Line::from(vec![
-                Span::styled("Processing... ", Style::default().fg(Color::Yellow)),
-                Span::styled("Please wait", Style::default().fg(Color::White)),
-            ]),
-        ]
+        vec![Line::from(vec![
+            Span::styled("Processing... ", Style::default().fg(Color::Yellow)),
+            Span::styled("Please wait", Style::default().fg(Color::White)),
+        ])]
     } else {
-        vec![
-            Line::from(vec![
-                Span::styled("Tab/Shift+Tab: ", Style::default().fg(Color::Green)),
-                Span::styled("Navigate options  ", Style::default().fg(Color::White)),
-                Span::styled("Enter: ", Style::default().fg(Color::Green)),
-                Span::styled("Execute  ", Style::default().fg(Color::White)),
-                Span::styled("q/Esc: ", Style::default().fg(Color::Red)),
-                Span::styled("Back", Style::default().fg(Color::White)),
-            ]),
-        ]
+        vec![Line::from(vec![
+            Span::styled("Tab/Shift+Tab: ", Style::default().fg(Color::Green)),
+            Span::styled("Navigate options  ", Style::default().fg(Color::White)),
+            Span::styled("Enter: ", Style::default().fg(Color::Green)),
+            Span::styled("Execute  ", Style::default().fg(Color::White)),
+            Span::styled("q/Esc: ", Style::default().fg(Color::Red)),
+            Span::styled("Back", Style::default().fg(Color::White)),
+        ])]
     };
     let instructions = Paragraph::new(instructions_text)
         .style(Style::default())
@@ -142,39 +157,32 @@ fn draw_without_results(
             // Simple loading animation without importing create_loading_animation
             let animation_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
             let animation = animation_chars[ui_state.animation_frame % animation_chars.len()];
-            vec![
-                Line::from(vec![
-                    Span::styled(animation, Style::default().fg(Color::Yellow)),
-                    Span::styled(" ", Style::default()),
-                    Span::styled(
-                        message.unwrap_or("Processing..."),
-                        Style::default().fg(Color::Yellow),
-                    ),
-                ]),
-            ]
+            vec![Line::from(vec![
+                Span::styled(animation, Style::default().fg(Color::Yellow)),
+                Span::styled(" ", Style::default()),
+                Span::styled(
+                    message.unwrap_or("Processing..."),
+                    Style::default().fg(Color::Yellow),
+                ),
+            ])]
         }
         AppState::Error(error) => {
-            vec![
-                Line::from(vec![
-                    Span::styled("❌ Error: ", Style::default().fg(Color::Red)),
-                    Span::styled(error, Style::default().fg(Color::White)),
-                ]),
-            ]
+            vec![Line::from(vec![
+                Span::styled("❌ Error: ", Style::default().fg(Color::Red)),
+                Span::styled(error, Style::default().fg(Color::White)),
+            ])]
         }
         _ => {
             if let Some(msg) = message {
-                vec![
-                    Line::from(vec![
-                        Span::styled("💡 ", Style::default().fg(Color::Blue)),
-                        Span::styled(msg, Style::default().fg(Color::White)),
-                    ]),
-                ]
+                vec![Line::from(vec![
+                    Span::styled("💡 ", Style::default().fg(Color::Blue)),
+                    Span::styled(msg, Style::default().fg(Color::White)),
+                ])]
             } else {
-                vec![
-                    Line::from(vec![
-                        Span::styled("Ready to execute semantic-release operations", Style::default().fg(Color::Green)),
-                    ]),
-                ]
+                vec![Line::from(vec![Span::styled(
+                    "Ready to execute semantic-release operations",
+                    Style::default().fg(Color::Green),
+                )])]
             }
         }
     };
@@ -196,15 +204,19 @@ fn draw_options_panel(
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(8),     // Options
-            Constraint::Length(4),  // Instructions
+            Constraint::Length(3), // Title
+            Constraint::Min(8),    // Options
+            Constraint::Length(4), // Instructions
         ])
         .split(area);
 
     // Title
     let title = Paragraph::new("🚀 Options")
-        .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(title, chunks[0]);
@@ -212,10 +224,18 @@ fn draw_options_panel(
     // Options
     let options = create_semantic_release_options(ui_state.selected_tab, config);
     let options_list = List::new(options)
-        .block(Block::default().borders(Borders::ALL).title("Available Operations"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Available Operations"),
+        )
         .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black))
         .highlight_symbol("► ");
-    f.render_stateful_widget(options_list, chunks[1], &mut ratatui::widgets::ListState::default().with_selected(Some(ui_state.selected_tab)));
+    f.render_stateful_widget(
+        options_list,
+        chunks[1],
+        &mut ratatui::widgets::ListState::default().with_selected(Some(ui_state.selected_tab)),
+    );
 
     // Instructions
     let instructions_text = vec![
@@ -249,15 +269,27 @@ fn draw_results_panel(
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(5),     // Results content
+            Constraint::Length(3), // Title
+            Constraint::Min(5),    // Results content
         ])
         .split(area);
 
     // Get status and result
-    let status = semantic_release_state.status.lock().map(|s| s.clone()).unwrap_or("Unknown".to_string());
-    let success = semantic_release_state.success.lock().map(|s| *s).unwrap_or(false);
-    let result = semantic_release_state.result.lock().map(|r| r.clone()).unwrap_or("No output available".to_string());
+    let status = semantic_release_state
+        .status
+        .lock()
+        .map(|s| s.clone())
+        .unwrap_or("Unknown".to_string());
+    let success = semantic_release_state
+        .success
+        .lock()
+        .map(|s| *s)
+        .unwrap_or(false);
+    let result = semantic_release_state
+        .result
+        .lock()
+        .map(|r| r.clone())
+        .unwrap_or("No output available".to_string());
 
     // Title with status indicator
     let (title_text, title_color) = if success {
@@ -267,7 +299,11 @@ fn draw_results_panel(
     };
 
     let title = Paragraph::new(title_text)
-        .style(Style::default().fg(title_color).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(title_color)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(title, chunks[0]);
@@ -275,12 +311,15 @@ fn draw_results_panel(
     // Results content with scrolling
     let result_lines: Vec<Line> = result
         .lines()
-        .enumerate()
-        .map(|(_i, line)| {
+        .map(|line| {
             // Color code different types of output
-            let style = if line.contains("error") || line.contains("Error") || line.contains("ERROR") {
+            let style = if line.contains("error")
+                || line.contains("Error")
+                || line.contains("ERROR")
+            {
                 Style::default().fg(Color::Red)
-            } else if line.contains("warning") || line.contains("Warning") || line.contains("WARN") {
+            } else if line.contains("warning") || line.contains("Warning") || line.contains("WARN")
+            {
                 Style::default().fg(Color::Yellow)
             } else if line.contains("success") || line.contains("Success") || line.contains("✓") {
                 Style::default().fg(Color::Green)
@@ -289,14 +328,18 @@ fn draw_results_panel(
             } else {
                 Style::default().fg(Color::White)
             };
-            
+
             Line::from(vec![Span::styled(line, style)])
         })
         .collect();
 
     let results_paragraph = Paragraph::new(result_lines)
         .style(Style::default())
-        .block(Block::default().borders(Borders::ALL).title(format!("Output: {}", status)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Output: {}", status)),
+        )
         .wrap(Wrap { trim: false })
         .scroll((ui_state.scroll_offset as u16, 0));
 
@@ -312,7 +355,7 @@ fn draw_results_panel(
             .content_length(result.lines().count())
             .viewport_content_length(chunks[1].height as usize - 2)
             .position(ui_state.scroll_offset);
-        
+
         f.render_stateful_widget(
             scrollbar,
             chunks[1].inner(ratatui::layout::Margin {
@@ -326,10 +369,26 @@ fn draw_results_panel(
 
 fn create_semantic_release_options(selected: usize, _config: &AppConfig) -> Vec<ListItem> {
     let options = vec![
-        ("🔍 Dry Run", "Check what would be released without making changes", check_prerequisites()),
-        ("🚀 Release", "Execute semantic-release and publish new version", check_prerequisites()),
-        ("📦 Last Release", "View information about the last release", true),
-        ("⚙️ Configuration", "Check semantic-release configuration status", true),
+        (
+            "🔍 Dry Run",
+            "Check what would be released without making changes",
+            check_prerequisites(),
+        ),
+        (
+            "🚀 Release",
+            "Execute semantic-release and publish new version",
+            check_prerequisites(),
+        ),
+        (
+            "📦 Last Release",
+            "View information about the last release",
+            true,
+        ),
+        (
+            "⚙️ Configuration",
+            "Check semantic-release configuration status",
+            true,
+        ),
     ];
 
     options
@@ -350,12 +409,11 @@ fn create_semantic_release_options(selected: usize, _config: &AppConfig) -> Vec<
 
             let status_indicator = if enabled { "✅" } else { "❌" };
             let content = vec![
-                Line::from(vec![
-                    Span::styled(format!("{} {}", status_indicator, title), style.add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled(format!("   {}", description), style),
-                ]),
+                Line::from(vec![Span::styled(
+                    format!("{} {}", status_indicator, title),
+                    style.add_modifier(Modifier::BOLD),
+                )]),
+                Line::from(vec![Span::styled(format!("   {}", description), style)]),
             ];
 
             ListItem::new(content).style(style)
@@ -366,14 +424,14 @@ fn create_semantic_release_options(selected: usize, _config: &AppConfig) -> Vec<
 fn check_prerequisites() -> bool {
     // Check if we have the basic requirements for semantic-release
     // This is a simple check - the actual verification happens when running
-    
+
     // Check if package.json exists (basic Node.js project requirement)
     let has_package_json = std::path::Path::new("package.json").exists();
-    
+
     // Check if we're in a git repository
     let is_git_repo = std::path::Path::new(".git").exists();
-    
+
     // For now, just check these basic requirements
     // More detailed checks happen in the actual operations
     has_package_json && is_git_repo
-} 
+}

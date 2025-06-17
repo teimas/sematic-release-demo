@@ -61,23 +61,26 @@ impl GitRepo {
         Ok(commits)
     }
 
-    fn build_git_commit_from_raw(&self, oid: git2::Oid, commit: &git2::Commit) -> Result<GitCommit> {
-            let message = commit.message().unwrap_or("");
-            let lines: Vec<&str> = message.lines().collect();
-            let subject = lines.first().unwrap_or(&"").to_string();
-            let body = if lines.len() > 1 {
-                lines[1..].join("\n")
-            } else {
-                String::new()
-            };
+    fn build_git_commit_from_raw(
+        &self,
+        oid: git2::Oid,
+        commit: &git2::Commit,
+    ) -> Result<GitCommit> {
+        let message = commit.message().unwrap_or("");
+        let lines: Vec<&str> = message.lines().collect();
+        let subject = lines.first().unwrap_or(&"").to_string();
+        let body = if lines.len() > 1 {
+            lines[1..].join("\n")
+        } else {
+            String::new()
+        };
 
-            let author = commit.author();
-            let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
-            let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
+        let author = commit.author();
+        let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
+        let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
 
-            let commit_time = author.when();
-            let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0)
-                .unwrap_or(Utc::now());
+        let commit_time = author.when();
+        let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0).unwrap_or(Utc::now());
 
         let monday_task_mentions = CommitParser::extract_monday_task_mentions(&body);
         let monday_tasks = CommitParser::extract_monday_tasks(&body);
@@ -212,9 +215,7 @@ impl GitRepo {
         }
 
         // Get modified files
-        let modified_output = Command::new("git")
-            .args(["diff", "--name-only"])
-            .output()?;
+        let modified_output = Command::new("git").args(["diff", "--name-only"]).output()?;
 
         if modified_output.status.success() {
             status.modified = String::from_utf8_lossy(&modified_output.stdout)
@@ -250,9 +251,7 @@ impl GitRepo {
         let mut changes = String::new();
 
         // Get staged changes with diff
-        let staged_output = Command::new("git")
-            .args(["diff", "--cached"])
-            .output()?;
+        let staged_output = Command::new("git").args(["diff", "--cached"]).output()?;
 
         if staged_output.status.success() {
             let staged_diff = String::from_utf8_lossy(&staged_output.stdout);
@@ -264,9 +263,7 @@ impl GitRepo {
         }
 
         // Get unstaged changes with diff
-        let unstaged_output = Command::new("git")
-            .args(["diff"])
-            .output()?;
+        let unstaged_output = Command::new("git").args(["diff"]).output()?;
 
         if unstaged_output.status.success() {
             let unstaged_diff = String::from_utf8_lossy(&unstaged_output.stdout);
@@ -311,7 +308,8 @@ struct CommitParser;
 
 impl CommitParser {
     fn extract_commit_type(subject: &str) -> Option<String> {
-        let re = Regex::new(r"^(feat|fix|docs|style|refactor|perf|test|chore|revert)(\(.+\))?:").unwrap();
+        let re = Regex::new(r"^(feat|fix|docs|style|refactor|perf|test|chore|revert)(\(.+\))?:")
+            .unwrap();
         if let Some(captures) = re.captures(subject) {
             captures.get(1).map(|m| m.as_str().to_string())
         } else {
@@ -349,18 +347,22 @@ impl CommitParser {
 
         for (i, line) in lines.iter().enumerate() {
             if line.starts_with("BREAKING CHANGE:") || line.starts_with("BREAKING-CHANGE:") {
-                let mut change = line.replace("BREAKING CHANGE:", "").replace("BREAKING-CHANGE:", "").trim().to_string();
-                
+                let mut change = line
+                    .replace("BREAKING CHANGE:", "")
+                    .replace("BREAKING-CHANGE:", "")
+                    .trim()
+                    .to_string();
+
                 // Collect continuation lines
-                for j in (i + 1)..lines.len() {
-                    let next_line = lines[j].trim();
+                for next_line in lines.iter().skip(i + 1) {
+                    let next_line = next_line.trim();
                     if next_line.is_empty() || next_line.contains(":") {
                         break;
                     }
                     change.push(' ');
                     change.push_str(next_line);
                 }
-                
+
                 if !change.is_empty() {
                     changes.push(change);
                 }
@@ -387,7 +389,7 @@ impl CommitParser {
 
     fn extract_security(body: &str) -> Option<String> {
         let re = Regex::new(r"(?i)^security:\s*(.+)$").unwrap();
-        
+
         for line in body.lines() {
             if let Some(captures) = re.captures(line.trim()) {
                 if let Some(security) = captures.get(1) {
@@ -398,8 +400,6 @@ impl CommitParser {
 
         None
     }
-
-
 }
 
 // =============================================================================
@@ -409,10 +409,10 @@ impl CommitParser {
 impl CommitParser {
     fn extract_monday_tasks(body: &str) -> Vec<String> {
         let mut tasks = Vec::new();
-        
+
         // Look for Monday task references in various formats
         let re = Regex::new(r"(?i)(?:monday|task|item)[:\s]*([0-9]+)").unwrap();
-        
+
         for line in body.lines() {
             for captures in re.captures_iter(line) {
                 if let Some(task_id) = captures.get(1) {
@@ -438,30 +438,31 @@ impl CommitParser {
 
     fn extract_monday_task_mentions(body: &str) -> Vec<MondayTaskMention> {
         let mut mentions = Vec::new();
-        
+
         // Look for "MONDAY TASKS:" section in the body
         if let Some(monday_section_start) = body.find("MONDAY TASKS:") {
             let monday_section = &body[monday_section_start..];
-            
+
             // Find the end of the monday tasks section (next double newline or end of string)
             let monday_text = if let Some(end) = monday_section.find("\n\n") {
                 &monday_section[..end]
             } else {
                 monday_section
             };
-            
+
             // Extract task lines
-            for line in monday_text.lines().skip(1) { // Skip the "MONDAY TASKS:" line
+            for line in monday_text.lines().skip(1) {
+                // Skip the "MONDAY TASKS:" line
                 let clean_line = line.trim().trim_start_matches('-').trim();
-                
+
                 // Look for pattern: "Title (ID: 123456789, URL: url)"
                 if let Some(id_start) = clean_line.find("(ID: ") {
                     if let Some(id_end) = clean_line[id_start + 5..].find(',') {
                         let id = &clean_line[id_start + 5..id_start + 5 + id_end];
-                        
+
                         // Extract title (everything before the (ID: part)
                         let title = clean_line[..id_start].trim();
-                        
+
                         mentions.push(MondayTaskMention {
                             id: id.to_string(),
                             title: title.to_string(),
@@ -470,7 +471,7 @@ impl CommitParser {
                 }
             }
         }
-        
+
         mentions
     }
 }
@@ -482,10 +483,10 @@ impl CommitParser {
 impl CommitParser {
     fn extract_jira_tasks(body: &str) -> Vec<String> {
         let mut tasks = Vec::new();
-        
+
         // Look for JIRA issue keys (PROJECT-123 format)
         let re = Regex::new(r"(?i)\b([A-Z]{2,10}-\d+)\b").unwrap();
-        
+
         for line in body.lines() {
             for captures in re.captures_iter(line) {
                 if let Some(issue_key) = captures.get(1) {
@@ -501,30 +502,31 @@ impl CommitParser {
 
     fn extract_jira_task_mentions(body: &str) -> Vec<crate::types::JiraTaskMention> {
         let mut mentions = Vec::new();
-        
+
         // Look for "JIRA TASKS:" section in the body
         if let Some(jira_section_start) = body.find("JIRA TASKS:") {
             let jira_section = &body[jira_section_start..];
-            
+
             // Find the end of the jira tasks section (next double newline or end of string)
             let jira_text = if let Some(end) = jira_section.find("\n\n") {
                 &jira_section[..end]
             } else {
                 jira_section
             };
-            
+
             // Extract task lines
-            for line in jira_text.lines().skip(1) { // Skip the "JIRA TASKS:" line
+            for line in jira_text.lines().skip(1) {
+                // Skip the "JIRA TASKS:" line
                 let clean_line = line.trim().trim_start_matches('-').trim();
-                
+
                 // Look for pattern: "Title (KEY: PROJECT-123)"
                 if let Some(key_start) = clean_line.find("(KEY: ") {
                     if let Some(key_end) = clean_line[key_start + 6..].find(')') {
                         let key = &clean_line[key_start + 6..key_start + 6 + key_end];
-                        
+
                         // Extract title (everything before the (KEY: part)
                         let title = clean_line[..key_start].trim();
-                        
+
                         mentions.push(crate::types::JiraTaskMention {
                             key: key.to_string(),
                             summary: title.to_string(),
@@ -533,7 +535,7 @@ impl CommitParser {
                 }
             }
         }
-        
+
         mentions
     }
 }
@@ -551,15 +553,15 @@ pub fn get_next_version() -> Result<String> {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let re = Regex::new(r"The next release version is (\d+\.\d+\.\d+)").unwrap();
-            
+
             if let Some(captures) = re.captures(&stdout) {
                 if let Some(version) = captures.get(1) {
                     return Ok(version.as_str().to_string());
                 }
             }
-            
+
             Ok("next version".to_string())
         }
         Err(_) => Ok("next version".to_string()),
     }
-} 
+}

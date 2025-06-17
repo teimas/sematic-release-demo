@@ -37,10 +37,16 @@ impl GeminiClient {
 impl GeminiClient {
     async fn call_gemini_with_fallback(&self, prompt: &str) -> Result<String> {
         // Try Gemini 2.5 Pro Preview first (most advanced), then fallback to 2.0 Flash
-        match self.call_gemini_api(prompt, "gemini-2.5-pro-preview-06-05").await {
+        match self
+            .call_gemini_api(prompt, "gemini-2.5-pro-preview-06-05")
+            .await
+        {
             Ok(response) => Ok(response),
             Err(_) => {
-                utils::log_info("GEMINI", "Gemini 2.5 Pro Preview failed, trying 2.0 Flash...");
+                utils::log_info(
+                    "GEMINI",
+                    "Gemini 2.5 Pro Preview failed, trying 2.0 Flash...",
+                );
                 self.call_gemini_api(prompt, "gemini-2.0-flash").await
             }
         }
@@ -68,25 +74,18 @@ impl GeminiClient {
         // This method sends the complete structured document to Gemini for processing
         // (like the Node.js script's processWithGemini function)
         self.call_gemini_with_fallback(document).await
-        }
     }
+}
 
 // =============================================================================
 // COMMIT ANALYSIS FEATURE
 // =============================================================================
 
 impl GeminiClient {
-
-
-
-
-
-
-
-
-
-
-    pub async fn generate_comprehensive_commit_analysis(&self, changes: &str) -> Result<serde_json::Value> {
+    pub async fn generate_comprehensive_commit_analysis(
+        &self,
+        changes: &str,
+    ) -> Result<serde_json::Value> {
         let prompt = format!(
             r#"Eres un desarrollador experto y especialista en semantic release que debe analizar cambios de código de forma EXHAUSTIVA y generar un análisis completo de commit.
 
@@ -183,28 +182,29 @@ VALIDACIONES:
         );
 
         let response = self.call_gemini_with_fallback(&prompt).await?;
-        
+
         // Clean the response - remove markdown code blocks and extra text
         let cleaned_response = self.extract_json_from_response(&response);
-        
+
         // Try to parse the JSON response
         match serde_json::from_str::<serde_json::Value>(&cleaned_response) {
             Ok(json) => {
                 // Validate that all required fields are present
-                if json.get("title").is_some() && 
-                   json.get("commitType").is_some() && 
-                   json.get("description").is_some() && 
-                   json.get("scope").is_some() && 
-                   json.get("securityAnalysis").is_some() && 
-                   json.get("breakingChanges").is_some() {
+                if json.get("title").is_some()
+                    && json.get("commitType").is_some()
+                    && json.get("description").is_some()
+                    && json.get("scope").is_some()
+                    && json.get("securityAnalysis").is_some()
+                    && json.get("breakingChanges").is_some()
+                {
                     Ok(json)
-                        } else { 
+                } else {
                     utils::log_warning("GEMINI", "JSON response missing required fields");
                     utils::log_debug("GEMINI", &format!("Parsed JSON: {}", json));
                     // Return a fallback JSON structure
                     Ok(serde_json::json!({
                         "title": "cambios realizados en el código",
-                        "commitType": "chore", 
+                        "commitType": "chore",
                         "description": "Se realizaron cambios en el código del proyecto. Respuesta de Gemini incompleta.",
                         "scope": "general",
                         "securityAnalysis": "",
@@ -216,11 +216,11 @@ VALIDACIONES:
                 utils::log_error("GEMINI", &e);
                 utils::log_debug("GEMINI", &format!("Raw response: {}", response));
                 utils::log_debug("GEMINI", &format!("Cleaned response: {}", cleaned_response));
-                
+
                 // Return a fallback JSON structure
                 Ok(serde_json::json!({
                     "title": "cambios realizados en el código",
-                    "commitType": "chore", 
+                    "commitType": "chore",
                     "description": "Se realizaron cambios en el código del proyecto. No se pudo generar un análisis detallado automáticamente.",
                     "scope": "general",
                     "securityAnalysis": "",
@@ -233,7 +233,7 @@ VALIDACIONES:
     // Helper method to extract JSON from Gemini response that might be wrapped in markdown
     fn extract_json_from_response(&self, response: &str) -> String {
         let response = response.trim();
-        
+
         // Case 1: Response is wrapped in markdown code blocks
         if let Some(start) = response.find("```json") {
             // Look for the closing ``` after the opening ```json
@@ -248,7 +248,7 @@ VALIDACIONES:
                 }
             }
         }
-        
+
         // Case 2: Response is wrapped in regular code blocks
         if let Some(start) = response.find("```") {
             let search_start = start + 3; // Skip past "```"
@@ -262,7 +262,7 @@ VALIDACIONES:
                 }
             }
         }
-        
+
         // Case 3: Response contains JSON between braces
         if let Some(start) = response.find('{') {
             if let Some(end) = response.rfind('}') {
@@ -271,17 +271,11 @@ VALIDACIONES:
                 }
             }
         }
-        
+
         // Case 4: Return as-is if no special formatting detected
         response.to_string()
     }
 }
-
-
-
-
-
-
 
 // =============================================================================
 // PUBLIC UTILITY FUNCTIONS
@@ -289,11 +283,19 @@ VALIDACIONES:
 
 pub async fn test_gemini_connection(config: &AppConfig) -> Result<String> {
     let client = GeminiClient::new(config)?;
-    
-    let test_prompt = "Responde con 'Conexión exitosa con Google Gemini' si puedes leer este mensaje.";
-    
-    match client.call_gemini_api(test_prompt, "gemini-2.5-pro-preview-06-05").await {
+
+    let test_prompt =
+        "Responde con 'Conexión exitosa con Google Gemini' si puedes leer este mensaje.";
+
+    match client
+        .call_gemini_api(test_prompt, "gemini-2.5-pro-preview-06-05")
+        .await
+    {
         Ok(response) => Ok(response),
-        Err(_) => client.call_gemini_api(test_prompt, "gemini-2.0-flash").await,
+        Err(_) => {
+            client
+                .call_gemini_api(test_prompt, "gemini-2.0-flash")
+                .await
+        }
     }
-} 
+}
