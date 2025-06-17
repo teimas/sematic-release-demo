@@ -1,11 +1,19 @@
 # Semantic Release Tool
 
-Este repositorio proporciona **dos implementaciones** de una herramienta de semantic release con integración de Monday.com y generación de notas de versión con IA:
+Este repositorio proporciona **dos implementaciones** de una herramienta de semantic release con integración de **Monday.com**, **JIRA** y generación de notas de versión con IA:
 
 1. **🟨 Versión Node.js** - Script original con interfaz de línea de comandos
 2. **🦀 Versión Rust TUI** - Interfaz de usuario de terminal interactiva y moderna
 
 Ambas versiones están configuradas con semantic-release y commitizen para mensajes de commit estandarizados, versionado automático y generación de notas de versión enriquecidas con IA.
+
+## ✨ Nuevas Funcionalidades
+
+- **🎯 Integración JIRA** - Soporte completo para JIRA además de Monday.com
+- **🔧 Debug Logging Centralizado** - Todos los errores se registran en `debug.log`
+- **📋 Configuración Simplificada** - Archivo `.env.example` con ejemplos completos
+- **🔍 UI Limpia** - Sin mensajes de error en pantalla, solo en logs
+- **⚙️ Sistema de Tareas Flexible** - Soporta Monday.com, JIRA o ninguno
 
 ## Tabla de Contenidos
 
@@ -34,8 +42,9 @@ Test Details:
 
 Security: Análisis de seguridad o NA
 
-MONDAY TASKS:
-- Título de tarea (ID: 123456789) - Estado
+RELATED TASKS:
+- [Monday] Título de tarea (ID: 123456789) - Estado
+- [JIRA] SMP-123: Título de issue JIRA - Estado
 ```
 
 **Ejemplo:**
@@ -53,8 +62,8 @@ Test Details:
 
 Security: Validación de tokens VERIFACTU implementada
 
-MONDAY TASKS:
-- [PE.25.002] VERIFACTU - Registros de facturación (ID: 8816791718) - Done
+RELATED TASKS:
+- [Monday] [PE.25.002] VERIFACTU - Registros de facturación (ID: 8816791718) - Done
 ```
 
 ### 📝 Plantilla Git de Commit
@@ -315,6 +324,9 @@ cargo run -- search "nombre de tarea"
 # Probar conexión Monday.com
 cargo run -- debug monday
 
+# Probar conexión JIRA
+cargo run -- debug jira
+
 # Probar conexión Gemini AI
 cargo run -- debug gemini
 
@@ -379,42 +391,140 @@ cargo run -- debug commit
 
 Ambas versiones comparten la misma configuración almacenada en `.env`.
 
-### Configuración Inicial
+### 🚀 Configuración Rápida
 
-**Node.js:**
-```bash
-npm run config
-```
+1. **Copia el archivo de ejemplo:**
+   ```bash
+   cp .env.example .env
+   ```
 
-**Rust TUI:**
-```bash
-cargo run -- config
-```
+2. **Edita `.env` con tus valores reales**
 
-**Variables configuradas:**
-- `MONDAY_API_KEY` - Token de API de Monday.com
-- `MONDAY_ACCOUNT_SLUG` - Subdominio de Monday.com
+3. **Configura automáticamente:**
+   ```bash
+   # Node.js
+   npm run config
+   
+   # Rust TUI
+   cargo run -- config
+   ```
+
+### 📋 Variables de Entorno
+
+#### Obligatorias
+- `GEMINI_TOKEN` - Token de API de Google Gemini (requerido para IA)
+
+#### Sistema de Tareas (Opcional - elige uno)
+**Monday.com:**
+- `MONDAY_API_TOKEN` - Token de API de Monday.com
 - `MONDAY_BOARD_ID` - ID del tablero principal (opcional)
-- `GEMINI_TOKEN` - Token de API de Google Gemini
 
-### Obtener Claves API
+**JIRA:**
+- `JIRA_URL` - URL de tu instancia JIRA (sin slash final)
+- `JIRA_USERNAME` - Tu nombre de usuario JIRA (email)
+- `JIRA_API_TOKEN` - Token de API de JIRA
+- `JIRA_PROJECT_KEY` - Clave del proyecto JIRA (ej: SMP, PROJ)
 
-#### Monday.com API Key
-1. Ve a https://youraccount.monday.com/admin/integrations/api
-2. Genera un nuevo token
-3. Copia el token generado
+#### Configuración Avanzada (Opcional)
+- `DEBUG` - Habilitar logging debug (true/false)
+- `LOG_LEVEL` - Nivel de logging (error, warn, info, debug, trace)
+- `RELEASE_NOTES_TEMPLATE` - Ruta a plantilla personalizada
 
-#### Google Gemini API Key
+### 🎯 Escenarios de Configuración
+
+#### Escenario 1: Solo Gemini AI (mínimo)
+```bash
+GEMINI_TOKEN=tu_token_gemini_aqui
+```
+
+#### Escenario 2: Gemini + Monday.com
+```bash
+GEMINI_TOKEN=tu_token_gemini_aqui
+MONDAY_API_TOKEN=tu_token_monday_aqui
+MONDAY_BOARD_ID=1234567890
+```
+
+#### Escenario 3: Gemini + JIRA
+```bash
+GEMINI_TOKEN=tu_token_gemini_aqui
+JIRA_URL=https://tuempresa.atlassian.net
+JIRA_USERNAME=tu.email@empresa.com
+JIRA_API_TOKEN=tu_token_jira_aqui
+JIRA_PROJECT_KEY=TU_PROYECTO
+```
+
+#### Escenario 4: Configuración completa
+```bash
+# Nota: Si ambos están configurados, JIRA tiene prioridad
+GEMINI_TOKEN=tu_token_gemini_aqui
+MONDAY_API_TOKEN=tu_token_monday_aqui
+MONDAY_BOARD_ID=1234567890
+JIRA_URL=https://tuempresa.atlassian.net
+JIRA_USERNAME=tu.email@empresa.com
+JIRA_API_TOKEN=tu_token_jira_aqui
+JIRA_PROJECT_KEY=TU_PROYECTO
+```
+
+### 🔑 Obtener Claves API
+
+#### Google Gemini API Key (Obligatorio)
 1. Ve a https://makersuite.google.com/app/apikey
 2. Crea un nuevo proyecto o selecciona uno existente
 3. Genera una API key
 4. Copia la clave generada
 
+#### Monday.com API Key (Opcional)
+1. Ve a https://youraccount.monday.com/admin/integrations/api
+2. Genera un nuevo token
+3. Copia el token generado
+
+#### JIRA API Token (Opcional)
+1. Ve a https://id.atlassian.com/manage-profile/security/api-tokens
+2. Crea un nuevo token de API
+3. Copia el token generado
+4. Usa tu email como username
+
+### 🐛 Debug y Troubleshooting
+
+#### Sistema de Logging Centralizado
+Todos los errores y mensajes de debug se escriben en `debug.log`:
+
+```bash
+# Ver logs en tiempo real
+tail -f debug.log
+
+# Ver logs específicos de un componente
+grep "\[JIRA\]" debug.log
+grep "\[GEMINI\]" debug.log
+grep "\[RELEASE-NOTES\]" debug.log
+```
+
+#### Problemas Comunes
+
+**JIRA:**
+- ✅ URL sin slash final: `https://empresa.atlassian.net`
+- ✅ Project key en mayúsculas: `SMP`, `PROJ`
+- ✅ Username debe ser tu email
+- ✅ API token válido y con permisos
+
+**Monday.com:**
+- ✅ Board ID debe ser solo números
+- ✅ API token con permisos de lectura
+- ✅ Cuenta debe tener acceso al board
+
+**Gemini:**
+- ✅ API key válida y activa
+- ✅ Cuotas de API disponibles
+- ✅ Conexión a internet estable
+
 ---
 
 ## 🔗 Integración con APIs
 
-### Monday.com API
+### Gestión de Tareas (Opcional)
+La herramienta soporta **múltiples sistemas de gestión de tareas**:
+
+#### Monday.com API
 - **Búsqueda global**: Busca en todos los tableros accesibles
 - **Búsqueda específica**: Busca en tablero específico si está configurado
 - **Detalles de tareas**: Información completa incluyendo:
@@ -422,6 +532,22 @@ cargo run -- config
   - Información de tableros y URLs
   - Actualizaciones y actividad
   - Valores de columnas personalizadas
+
+#### JIRA API
+- **Búsqueda con JQL**: Consultas avanzadas con JIRA Query Language
+- **Filtrado por proyecto**: Búsqueda automática en el proyecto configurado
+- **Información completa de issues**:
+  - Título, descripción y estado
+  - Tipo de issue, prioridad y asignado
+  - Componentes, etiquetas y fechas
+  - Reporter y proyecto asociado
+- **Soporte para issue keys**: SMP-123, PROJ-456, etc.
+
+#### Sistema Flexible
+- **Sin sistema**: Funciona perfectamente sin configurar tareas
+- **Prioridad JIRA**: Si ambos están configurados, JIRA tiene prioridad
+- **Detección automática**: La herramienta detecta qué sistema usar
+- **Fallbacks elegantes**: Si un sistema falla, continúa funcionando
 
 ### Google Gemini API
 - **Soporte dual de modelos**:
@@ -431,6 +557,7 @@ cargo run -- config
 - **Parsing robusto de respuestas JSON**
 - **Recuperación de errores** con fallbacks automáticos
 - **Análisis de seguridad** comprensivo
+- **Debug logging**: Errores detallados en `debug.log`
 
 ---
 
@@ -462,9 +589,9 @@ cargo run -- config
 | `cargo run -- commit` | Commit directo |
 | `cargo run -- --autocommit` | Auto-commit con IA |
 | `cargo run -- release-notes` | Generar notas de versión |
-| `cargo run -- search "query"` | Buscar tareas |
+| `cargo run -- search "query"` | Buscar tareas (Monday.com/JIRA) |
 | `cargo run -- setup-template` | Configurar plantilla git de commits |
-| `cargo run -- debug [monday\|gemini\|git\|commit]` | Debug específico |
+| `cargo run -- debug [monday\|gemini\|git\|commit\|jira]` | Debug específico |
 | `cargo run -- config` | Configurar APIs |
 
 ---
@@ -478,6 +605,9 @@ cargo run -- config
 | **Experiencia de Usuario** | Funcional | Rica e intuitiva |
 | **Análisis IA** | Básico | Avanzado con JSON |
 | **Gestión de Tareas** | Secuencial | Visual con multi-selección |
+| **Soporte JIRA** | No | ✅ Completo |
+| **Soporte Monday.com** | ✅ Completo | ✅ Completo |
+| **Debug Logging** | Básico | ✅ Centralizado |
 | **Background Processing** | No | Sí, con progress |
 | **Configuración** | Compartida | Compartida |
 | **Mantenimiento** | JavaScript | Rust (type-safe) |
@@ -487,9 +617,11 @@ cargo run -- config
 
 ## 🗂️ Archivos de Configuración
 
+- `.env.example` - **Plantilla de configuración con ejemplos completos**
+- `.env` - Variables de entorno (APIs) - **NO incluir en git**
+- `debug.log` - **Logs centralizados de errores y debug**
 - `.cz-config.js` - Configuración de Commitizen
 - `.releaserc.json` - Configuración de Semantic-release  
-- `.env` - Variables de entorno (APIs)
 - `Cargo.toml` - Configuración del proyecto Rust
 - `package.json` - Configuración del proyecto Node.js
 

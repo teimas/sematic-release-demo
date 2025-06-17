@@ -12,6 +12,7 @@ use crate::{
     services::MondayClient,
     services::GeminiClient,
     types::{AppState, ReleaseNotesAnalysisState, MondayTask, AppConfig},
+    utils,
 };
 
 pub trait ReleaseNotesOperations {
@@ -103,7 +104,7 @@ impl App {
         });
     }
 
-    pub fn generate_raw_release_notes(&self, version: &str, commits: &[crate::types::GitCommit], monday_tasks: &[crate::types::MondayTask], responsible_person: &str) -> String {
+    pub fn generate_raw_release_notes(&self, version: &str, commits: &[crate::types::GitCommit], monday_tasks: &[crate::types::MondayTask], jira_tasks: &[crate::types::JiraTask], responsible_person: &str) -> String {
         use std::collections::HashMap;
         use std::fs;
         
@@ -126,7 +127,19 @@ impl App {
         document.push_str(&format!("- **Fecha**: {}\n", 
             chrono::Utc::now().format("%d/%m/%Y")));
         document.push_str(&format!("- **Total de Commits**: {}\n", commits.len()));
+        
+        // Add task counts based on configured system
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
         document.push_str(&format!("- **Tareas de Monday relacionadas**: {}\n\n", monday_tasks.len()));
+            }
+            crate::types::TaskSystem::Jira => {
+                document.push_str(&format!("- **Tareas de JIRA relacionadas**: {}\n\n", jira_tasks.len()));
+            }
+            crate::types::TaskSystem::None => {
+                document.push_str("- **Tareas relacionadas**: 0 (sin sistema configurado)\n\n");
+            }
+        }
         
         // Instructions for Gemini
         document.push_str("## Instrucciones CRÍTICAS\n\n");
@@ -134,7 +147,19 @@ impl App {
         document.push_str("NO crees un resumen o documento libre. COPIA la estructura de la plantilla y RELLENA cada sección. ");
         document.push_str("OBLIGATORIO: \n");
         document.push_str(&format!("1. El responsable del despliegue es: {} - úsalo en la sección 'Responsable despliegue'.\n", responsible_person));
+        
+        // Add system-specific instructions
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
         document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
+            }
+            crate::types::TaskSystem::Jira => {
+                document.push_str("2. Para las tareas de JIRA, usa SIEMPRE el formato del issue key (ej: SMP-123).\n");
+            }
+            crate::types::TaskSystem::None => {
+                document.push_str("2. No hay sistema de tareas configurado para este proyecto.\n");
+            }
+        }
         document.push_str("3. En la tabla 'Información para N1', incluye TODAS las tareas BUG con SupportBee links.\n");
         document.push_str("4. Para las secciones Correcciones y Proyectos especiales, usa solo las tareas con labels BUG y PE.\n");
         document.push_str("5. En las tablas de validación, incluye descripciones específicas basadas en el título de cada tarea.\n");
@@ -149,8 +174,19 @@ impl App {
         // Add breaking changes section
         self.add_breaking_changes_to_document(&mut document, commits);
         
-        // Add Monday tasks section
-        self.add_monday_tasks_to_document(&mut document, monday_tasks, commits, &task_details_map);
+        // Add task details section based on configured system
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                self.add_monday_tasks_to_document(&mut document, monday_tasks, commits, &task_details_map);
+            }
+            crate::types::TaskSystem::Jira => {
+                self.add_jira_tasks_to_document(&mut document, jira_tasks, commits);
+            }
+            crate::types::TaskSystem::None => {
+                document.push_str("## Tareas Relacionadas\n\n");
+                document.push_str("No hay sistema de tareas configurado para este proyecto.\n\n");
+            }
+        }
         
         // Add detailed commits section
         self.add_detailed_commits_to_document(&mut document, commits, &task_details_map);
@@ -245,9 +281,54 @@ impl App {
                     
                 for breaking_change in &commit.breaking_changes {
                     document.push_str(&format!("  - Detalles: {}\n", breaking_change));
-                }
+            }
             }
             document.push('\n');
+        }
+    }
+
+    fn add_jira_tasks_to_document(&self, document: &mut String, jira_tasks: &[crate::types::JiraTask], commits: &[crate::types::GitCommit]) {
+        if !jira_tasks.is_empty() {
+            document.push_str("## Detalles de Tareas de JIRA\n\n");
+            
+            for task in jira_tasks {
+                document.push_str(&format!("### {} (Key: {})\n\n", task.summary, task.key));
+                document.push_str(&format!("- **Estado**: {}\n", task.status));
+                document.push_str(&format!("- **Tipo**: {}\n", task.issue_type));
+                document.push_str(&format!("- **Proyecto**: {}\n", task.project_name));
+                
+                if let Some(priority) = &task.priority {
+                    document.push_str(&format!("- **Prioridad**: {}\n", priority));
+                }
+                
+                if let Some(assignee) = &task.assignee {
+                    document.push_str(&format!("- **Asignado a**: {}\n", assignee));
+                }
+                
+                if let Some(description) = &task.description {
+                    if !description.is_empty() {
+                        document.push_str(&format!("- **Descripción**: {}\n", self.format_multiline_text(description)));
+                    }
+                }
+                
+                // Add components and labels
+                if let Some(components) = &task.components {
+                    if !components.is_empty() {
+                        document.push_str(&format!("- **Componentes**: {}\n", components.join(", ")));
+                    }
+                }
+                
+                if let Some(labels) = &task.labels {
+                    if !labels.is_empty() {
+                        document.push_str(&format!("- **Labels**: {}\n", labels.join(", ")));
+                    }
+                }
+                
+                // Add related commits for JIRA tasks
+                self.add_jira_related_commits_to_document(document, task, commits);
+                
+                document.push('\n');
+            }
         }
     }
 
@@ -278,7 +359,7 @@ impl App {
                 
                 // Add updates
                 self.add_task_updates_to_document(document, task);
-                
+        
                 // Add related commits
                 self.add_related_commits_to_document(document, task, commits);
                 
@@ -307,12 +388,12 @@ impl App {
                 let date = &update.created_at;
                 let author = if let Some(creator) = &update.creator {
                     &creator.name
-                } else {
+        } else {
                     "Unknown"
                 };
                 let body_preview = if update.body.len() > 100 {
                     format!("{}...", &update.body[..100])
-                } else {
+                    } else {
                     update.body.clone()
                 };
                 document.push_str(&format!("  - {} por {}: {}\n", date, author, body_preview));
@@ -338,6 +419,39 @@ impl App {
                 
                 // Check monday_task_mentions
                 commit.monday_task_mentions.iter().any(|mention| mention.id == task.id)
+            })
+            .collect();
+
+        if !related_commits.is_empty() {
+            document.push_str("- **Commits Relacionados**:\n");
+            for commit in related_commits {
+                let commit_type = commit.commit_type.as_deref().unwrap_or("other");
+                let description = &commit.description;
+                
+                document.push_str(&format!("  - {}: {} [{:.7}]\n", 
+                    commit_type, description, commit.hash));
+            }
+        }
+    }
+
+    fn add_jira_related_commits_to_document(&self, document: &mut String, task: &crate::types::JiraTask, commits: &[crate::types::GitCommit]) {
+        let related_commits: Vec<&crate::types::GitCommit> = commits
+            .iter()
+            .filter(|commit| {
+                // Check if task key is in commit scope
+                if let Some(scope) = &commit.scope {
+                    if scope.split('|').any(|key| key == task.key) {
+                        return true;
+                    }
+                }
+                
+                // Check if task key is in jira_tasks
+                if commit.jira_tasks.contains(&task.key) {
+                    return true;
+                }
+                
+                // Check jira_task_mentions
+                commit.jira_task_mentions.iter().any(|mention| mention.key == task.key)
             })
             .collect();
 
@@ -428,7 +542,7 @@ impl App {
                 if let Some(task) = task_details_map.get(task_id) {
                     document.push_str(&format!("- {} (ID: {}, Estado: {})\n", 
                         task.title, task.id, task.state));
-                } else {
+                        } else {
                     document.push_str(&format!("- Task ID: {} (Detalles no disponibles)\n", task_id));
                 }
             }
@@ -645,35 +759,89 @@ impl TempAppForBackground {
             *status = format!("📊 Se encontraron {} commits para analizar", commits.len());
         }
         
-        // Extract Monday.com task IDs from commits
-        if let Ok(mut status) = status_clone.lock() {
-            *status = "🔍 Extrayendo IDs de tareas de Monday.com...".to_string();
-        }
-        
+        // Extract task IDs from commits based on configured system
+        let task_system = self.config.get_task_system();
         let mut monday_task_ids = HashSet::new();
-        for commit in &commits {
-            // Check scope for task IDs
-            if let Some(scope) = &commit.scope {
-                for id in scope.split('|') {
-                    if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
-                        monday_task_ids.insert(id.to_string());
+        let mut jira_task_keys = HashSet::new();
+        
+        match task_system {
+            crate::types::TaskSystem::Monday => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "🔍 Extrayendo IDs de tareas de Monday.com...".to_string();
+                }
+                
+                for commit in &commits {
+                    // Check scope for task IDs
+                    if let Some(scope) = &commit.scope {
+                        for id in scope.split('|') {
+                            if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
+                                monday_task_ids.insert(id.to_string());
+                            }
+                        }
+                    }
+                    
+                    // Check monday task mentions
+                    for mention in &commit.monday_task_mentions {
+                        monday_task_ids.insert(mention.id.clone());
+                    }
+                    
+                    // Check monday_tasks field
+                    for task_id in &commit.monday_tasks {
+                        monday_task_ids.insert(task_id.clone());
                     }
                 }
             }
-            
-            // Check monday task mentions
-            for mention in &commit.monday_task_mentions {
-                monday_task_ids.insert(mention.id.clone());
+            crate::types::TaskSystem::Jira => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "🔍 Extrayendo claves de tareas de JIRA...".to_string();
+                }
+                
+                for commit in &commits {
+                    // Check scope for JIRA keys
+                    if let Some(scope) = &commit.scope {
+                        for key in scope.split('|') {
+                            // JIRA keys are in format PROJECT-123
+                            if key.contains('-') && key.chars().any(|c| c.is_alphabetic()) {
+                                jira_task_keys.insert(key.to_uppercase());
+                            }
+                        }
+                    }
+                    
+                    // Check jira task mentions
+                    for mention in &commit.jira_task_mentions {
+                        jira_task_keys.insert(mention.key.clone());
+                    }
+                    
+                    // Check jira_tasks field
+                    for task_key in &commit.jira_tasks {
+                        jira_task_keys.insert(task_key.clone());
+                    }
+                }
             }
-            
-            // Check monday_tasks field
-            for task_id in &commit.monday_tasks {
-                monday_task_ids.insert(task_id.clone());
+            crate::types::TaskSystem::None => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "ℹ️ No hay sistema de tareas configurado...".to_string();
+                }
             }
         }
         
-        if let Ok(mut status) = status_clone.lock() {
-            *status = format!("🔍 Obteniendo detalles de {} tareas de Monday.com...", monday_task_ids.len());
+        // Update status based on task system
+        match task_system {
+            crate::types::TaskSystem::Monday => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("🔍 Obteniendo detalles de {} tareas de Monday.com...", monday_task_ids.len());
+                }
+            }
+            crate::types::TaskSystem::Jira => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = format!("🔍 Obteniendo detalles de {} tareas de JIRA...", jira_task_keys.len());
+                }
+            }
+            crate::types::TaskSystem::None => {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "ℹ️ Sin tareas para procesar...".to_string();
+                }
+            }
         }
         
         // Extract responsible person from most recent commit author
@@ -683,8 +851,13 @@ impl TempAppForBackground {
             "".to_string()
         };
         
-        // Get Monday.com task details
-        let mut monday_tasks = if !monday_task_ids.is_empty() {
+        // Get task details based on configured system
+        let mut monday_tasks = Vec::new();
+        let mut jira_tasks = Vec::new();
+        
+        match task_system {
+            crate::types::TaskSystem::Monday => {
+                monday_tasks = if !monday_task_ids.is_empty() {
             match MondayClient::new(&self.config) {
                 Ok(client) => {
                     let task_ids: Vec<String> = monday_task_ids.iter().cloned().collect();
@@ -696,13 +869,13 @@ impl TempAppForBackground {
                             tasks
                         },
                         Err(e) => {
-                            eprintln!("⚠️ Error obteniendo detalles de Monday.com: {}", e);
+                            utils::log_error("RELEASE-NOTES", &e);
                             Vec::new()
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Error conectando con Monday.com: {}", e);
+                                                utils::log_error("RELEASE-NOTES", &e);
                     Vec::new()
                 }
             }
@@ -751,6 +924,90 @@ impl TempAppForBackground {
                 monday_tasks.push(placeholder_task);
             }
         }
+            }
+            crate::types::TaskSystem::Jira => {
+                jira_tasks = if !jira_task_keys.is_empty() {
+                    use crate::services::jira::JiraClient;
+                    match JiraClient::new(&self.config) {
+                        Ok(client) => {
+                            let task_keys: Vec<String> = jira_task_keys.iter().cloned().collect();
+                            match client.get_task_details(&task_keys).await {
+                                Ok(tasks) => {
+                                    if let Ok(mut status) = status_clone.lock() {
+                                        *status = format!("✅ Obtenidos detalles de {} tareas de JIRA", tasks.len());
+                                    }
+                                    tasks
+                                },
+                                Err(e) => {
+                                    // Log JIRA errors to debug file instead of screen
+                                    utils::log_error("RELEASE-NOTES", &e);
+                                    Vec::new()
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // Log JIRA connection errors to debug file instead of screen
+                            utils::log_error("RELEASE-NOTES", &e);
+                            Vec::new()
+                        }
+                    }
+                } else {
+                    Vec::new()
+                };
+                
+                // Create placeholder tasks for keys that couldn't be fetched from JIRA API
+                let found_task_keys: HashSet<String> = jira_tasks.iter().map(|task| task.key.clone()).collect();
+                for task_key in &jira_task_keys {
+                    if !found_task_keys.contains(task_key) {
+                        let mut summary = "Task not found in JIRA API".to_string();
+                        
+                        // Try to extract summary from commits that mention this task
+                        for commit in &commits {
+                            let task_mentioned = if let Some(scope) = &commit.scope {
+                                scope.split('|').any(|key| key == task_key)
+                            } else {
+                                false
+                            } || commit.jira_task_mentions.iter().any(|mention| &mention.key == task_key)
+                              || commit.jira_tasks.contains(task_key);
+                            
+                            if task_mentioned {
+                                for mention in &commit.jira_task_mentions {
+                                    if &mention.key == task_key {
+                                        summary = mention.summary.clone();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Create placeholder JIRA task
+                        use crate::types::JiraTask;
+                        let placeholder_task = JiraTask {
+                            id: task_key.clone(),
+                            key: task_key.clone(),
+                            summary,
+                            description: None,
+                            issue_type: "Unknown".to_string(),
+                            status: "Unknown".to_string(),
+                            priority: None,
+                            assignee: None,
+                            reporter: None,
+                            created: None,
+                            updated: None,
+                            project_key: "".to_string(),
+                            project_name: "".to_string(),
+                            components: None,
+                            labels: None,
+                        };
+                        
+                        jira_tasks.push(placeholder_task);
+                    }
+                }
+            }
+            crate::types::TaskSystem::None => {
+                // No tasks to fetch
+            }
+        }
         
         // Get version and create tag format
         if let Ok(mut status) = status_clone.lock() {
@@ -794,11 +1051,11 @@ impl TempAppForBackground {
         
         // Generate the structured document
         let temp_app_helper = App::new_for_background(&self.config);
-        let structured_document = temp_app_helper.generate_raw_release_notes(&version, &commits, &monday_tasks, &responsible_person);
+        let structured_document = temp_app_helper.generate_raw_release_notes(&version, &commits, &monday_tasks, &jira_tasks, &responsible_person);
         
         // Create output directory
         if let Err(e) = fs::create_dir_all("release-notes") {
-            eprintln!("Warning: Could not create release-notes directory: {}", e);
+                            utils::log_warning("RELEASE-NOTES", &format!("Could not create release-notes directory: {}", e));
         }
         
         // Generate filenames
@@ -839,7 +1096,7 @@ impl TempAppForBackground {
                         
                         // Save the Gemini-processed version
                         if let Err(e) = fs::write(&gemini_filename, &gemini_response) {
-                            eprintln!("⚠️ Error guardando respuesta de Gemini: {}", e);
+                            utils::log_error("RELEASE-NOTES", &e);
                             if let Ok(mut status) = status_clone.lock() {
                                 *status = format!(
                                     "✅ Documento estructurado generado: {}\n⚠️ Error guardando versión de Gemini",
@@ -856,7 +1113,7 @@ impl TempAppForBackground {
                         }
                     }
                     Err(e) => {
-                        eprintln!("⚠️ Error procesando con Gemini: {}", e);
+                        utils::log_error("RELEASE-NOTES", &e);
                         if let Ok(mut status) = status_clone.lock() {
                             *status = format!(
                                 "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Ejecuta el script de Node.js para procesamiento con Gemini",
@@ -867,7 +1124,7 @@ impl TempAppForBackground {
                 }
             }
             Err(e) => {
-                eprintln!("⚠️ Error configurando Gemini: {}", e);
+                utils::log_error("RELEASE-NOTES", &e);
                 if let Ok(mut status) = status_clone.lock() {
                     *status = format!(
                         "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Configura el token de Gemini para procesamiento IA",

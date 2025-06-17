@@ -1310,6 +1310,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jira_query"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fcfcbb67c0c7076e2c8f02413a8ff1a6b9ab01b6bf1e9928ef24bbf1c619877"
+dependencies = [
+ "chrono",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "jobserver"
 version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2167,6 +2181,7 @@ dependencies = [
  "env_logger",
  "genai",
  "git2",
+ "jira_query",
  "log",
  "ratatui",
  "regex",

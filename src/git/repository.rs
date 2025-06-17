@@ -82,6 +82,9 @@ impl GitRepo {
         let monday_task_mentions = CommitParser::extract_monday_task_mentions(&body);
         let monday_tasks = CommitParser::extract_monday_tasks(&body);
 
+        let jira_task_mentions = CommitParser::extract_jira_task_mentions(&body);
+        let jira_tasks = CommitParser::extract_jira_tasks(&body);
+
         Ok(GitCommit {
             hash: oid.to_string(),
             body: body.clone(),
@@ -96,6 +99,8 @@ impl GitRepo {
             security: CommitParser::extract_security(&body),
             monday_tasks,
             monday_task_mentions,
+            jira_tasks,
+            jira_task_mentions,
         })
     }
 }
@@ -460,6 +465,69 @@ impl CommitParser {
                         mentions.push(MondayTaskMention {
                             id: id.to_string(),
                             title: title.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        
+        mentions
+    }
+}
+
+// =============================================================================
+// JIRA TASK INTEGRATION
+// =============================================================================
+
+impl CommitParser {
+    fn extract_jira_tasks(body: &str) -> Vec<String> {
+        let mut tasks = Vec::new();
+        
+        // Look for JIRA issue keys (PROJECT-123 format)
+        let re = Regex::new(r"(?i)\b([A-Z]{2,10}-\d+)\b").unwrap();
+        
+        for line in body.lines() {
+            for captures in re.captures_iter(line) {
+                if let Some(issue_key) = captures.get(1) {
+                    tasks.push(issue_key.as_str().to_uppercase());
+                }
+            }
+        }
+
+        tasks.sort();
+        tasks.dedup();
+        tasks
+    }
+
+    fn extract_jira_task_mentions(body: &str) -> Vec<crate::types::JiraTaskMention> {
+        let mut mentions = Vec::new();
+        
+        // Look for "JIRA TASKS:" section in the body
+        if let Some(jira_section_start) = body.find("JIRA TASKS:") {
+            let jira_section = &body[jira_section_start..];
+            
+            // Find the end of the jira tasks section (next double newline or end of string)
+            let jira_text = if let Some(end) = jira_section.find("\n\n") {
+                &jira_section[..end]
+            } else {
+                jira_section
+            };
+            
+            // Extract task lines
+            for line in jira_text.lines().skip(1) { // Skip the "JIRA TASKS:" line
+                let clean_line = line.trim().trim_start_matches('-').trim();
+                
+                // Look for pattern: "Title (KEY: PROJECT-123)"
+                if let Some(key_start) = clean_line.find("(KEY: ") {
+                    if let Some(key_end) = clean_line[key_start + 6..].find(')') {
+                        let key = &clean_line[key_start + 6..key_start + 6 + key_end];
+                        
+                        // Extract title (everything before the (KEY: part)
+                        let title = clean_line[..key_start].trim();
+                        
+                        mentions.push(crate::types::JiraTaskMention {
+                            key: key.to_string(),
+                            summary: title.to_string(),
                         });
                     }
                 }

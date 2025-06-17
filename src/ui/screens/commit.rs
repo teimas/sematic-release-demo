@@ -200,7 +200,7 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
             "🔤 EDITING SINGLE LINE - Type text, Tab/arrows to save & move, Esc to cancel"
         }
     } else {
-        "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' to search tasks, 't' for comprehensive AI analysis, 'm' to manage tasks, 'c' to commit, 'q' to quit"
+        "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' Monday.com/'j' JIRA search, 't' AI analysis, 'm' manage tasks, 'c' commit, 'q' quit"
     };
     let instructions_widget = Paragraph::new(instructions)
         .block(Block::default().borders(Borders::ALL).title("Instructions"))
@@ -208,27 +208,40 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
         .wrap(Wrap { trim: true });
     f.render_widget(instructions_widget, chunks[9]);
 
-    // Selected Tasks
-    let task_items: Vec<ListItem> = commit_form
-        .selected_tasks
-        .iter()
-        .enumerate()
-        .map(|(i, task)| {
-            let is_focused = ui_state.task_management_mode && i == ui_state.selected_tab;
-            let style = if is_focused {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            let prefix = if is_focused { "→ " } else { "  " };
-            ListItem::new(format!("{}{} (ID: {})", prefix, task.title, task.id)).style(style)
-        })
-        .collect();
+    // Selected Tasks - show both Monday and JIRA tasks
+    let mut task_items: Vec<ListItem> = Vec::new();
+    let mut task_index = 0;
+    
+    // Add Monday tasks
+    for task in &commit_form.selected_monday_tasks {
+        let is_focused = ui_state.task_management_mode && task_index == ui_state.selected_tab;
+        let style = if is_focused {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        let prefix = if is_focused { "→ " } else { "  " };
+        task_items.push(ListItem::new(format!("{}{} (Monday ID: {})", prefix, task.title, task.id)).style(style));
+        task_index += 1;
+    }
+    
+    // Add JIRA tasks
+    for task in &commit_form.selected_jira_tasks {
+        let is_focused = ui_state.task_management_mode && task_index == ui_state.selected_tab;
+        let style = if is_focused {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        let prefix = if is_focused { "→ " } else { "  " };
+        task_items.push(ListItem::new(format!("{}{} (JIRA Key: {})", prefix, task.summary, task.key)).style(style));
+        task_index += 1;
+    }
 
     let tasks_title = if ui_state.task_management_mode {
-        "Selected Monday.com Tasks (Task Management Mode - Use Up/Down, Delete/Space to remove, 'm' to exit)"
+        "Selected Tasks (Task Management Mode - Use Up/Down, Delete/Space to remove, 'm' to exit)"
     } else {
-        "Selected Monday.com Tasks (Press Enter to manage tasks)"
+        "Selected Tasks (Press Enter to manage tasks)"
     };
 
     let tasks_list = List::new(task_items)

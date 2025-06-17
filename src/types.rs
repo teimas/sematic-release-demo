@@ -36,6 +36,64 @@ pub struct MondayUser {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JiraTask {
+    pub id: String,
+    pub key: String,
+    pub summary: String,
+    pub description: Option<String>,
+    pub issue_type: String,
+    pub status: String,
+    pub priority: Option<String>,
+    pub assignee: Option<String>,
+    pub reporter: Option<String>,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub project_key: String,
+    pub project_name: String,
+    pub components: Option<Vec<String>>,
+    pub labels: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JiraUser {
+    pub account_id: String,
+    pub display_name: String,
+    pub email_address: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JiraTaskMention {
+    pub key: String,
+    pub summary: String,
+}
+
+// Unified task interface
+pub trait TaskLike {
+    fn get_id(&self) -> &str;
+    fn get_title(&self) -> &str;
+}
+
+impl TaskLike for MondayTask {
+    fn get_id(&self) -> &str {
+        &self.id
+    }
+    
+    fn get_title(&self) -> &str {
+        &self.title
+    }
+}
+
+impl TaskLike for JiraTask {
+    fn get_id(&self) -> &str {
+        &self.id
+    }
+    
+    fn get_title(&self) -> &str {
+        &self.summary
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GitCommit {
     pub hash: String,
@@ -51,6 +109,8 @@ pub struct GitCommit {
     pub security: Option<String>,
     pub monday_tasks: Vec<String>,
     pub monday_task_mentions: Vec<MondayTaskMention>,
+    pub jira_tasks: Vec<String>,
+    pub jira_task_mentions: Vec<JiraTaskMention>,
 }
 
 #[derive(Debug, Clone)]
@@ -123,7 +183,38 @@ pub struct AppConfig {
     pub monday_account_slug: Option<String>,
     pub monday_board_id: Option<String>,
     pub monday_url_template: Option<String>,
+    pub jira_url: Option<String>,
+    pub jira_username: Option<String>,
+    pub jira_api_token: Option<String>,
+    pub jira_project_key: Option<String>,
     pub gemini_token: Option<String>,
+}
+
+impl AppConfig {
+    pub fn is_monday_configured(&self) -> bool {
+        self.monday_api_key.is_some() && self.monday_account_slug.is_some()
+    }
+    
+    pub fn is_jira_configured(&self) -> bool {
+        self.jira_url.is_some() && self.jira_username.is_some() && self.jira_api_token.is_some()
+    }
+    
+    pub fn get_task_system(&self) -> TaskSystem {
+        if self.is_monday_configured() {
+            TaskSystem::Monday
+        } else if self.is_jira_configured() {
+            TaskSystem::Jira
+        } else {
+            TaskSystem::None
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TaskSystem {
+    Monday,
+    Jira,
+    None,
 }
 
 
@@ -139,7 +230,9 @@ pub struct CommitForm {
     pub security: String,
     pub migraciones_lentas: String,
     pub partes_a_ejecutar: String,
-    pub selected_tasks: Vec<MondayTask>,
+    pub selected_tasks: Vec<MondayTask>, // Unified interface for now
+    pub selected_monday_tasks: Vec<MondayTask>,
+    pub selected_jira_tasks: Vec<JiraTask>,
 }
 
 
