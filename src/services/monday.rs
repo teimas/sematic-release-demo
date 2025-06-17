@@ -48,34 +48,7 @@ impl MondayClient {
         self.parse_search_results(result)
     }
 
-    pub async fn comprehensive_search(&self, query: &str) -> Result<Vec<MondayTask>> {
-        // First do the regular search
-        let mut tasks = self.search_tasks(query).await?;
-        
-        // If no results found, try a broader search with different casing
-        if tasks.is_empty() {
-            let lower_query = query.to_lowercase();
-            let upper_query = query.to_uppercase();
-            
-            // Try lowercase
-            if let Ok(lower_tasks) = self.search_tasks(&lower_query).await {
-                tasks.extend(lower_tasks);
-            }
-            
-            // Try uppercase if still no results
-            if tasks.is_empty() {
-                if let Ok(upper_tasks) = self.search_tasks(&upper_query).await {
-                    tasks.extend(upper_tasks);
-                }
-            }
-        }
-        
-        // Deduplicate tasks by ID
-        tasks.sort_by(|a, b| a.id.cmp(&b.id));
-        tasks.dedup_by(|a, b| a.id == b.id);
-        
-        Ok(tasks)
-    }
+
 
     fn build_search_query(&self, query: &str) -> Value {
         if let Some(board_id) = &self.board_id {

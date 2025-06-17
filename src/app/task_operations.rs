@@ -28,7 +28,7 @@ impl TaskOperations for App {
         let client = MondayClient::new(&self.config)?;
         writeln!(debug_file, "DEBUG: MondayClient created successfully").ok();
         
-        let result = client.comprehensive_search(query).await;
+        let result = client.search_tasks(query).await;
         match &result {
             Ok(tasks) => {
                 writeln!(debug_file, "DEBUG: Search returned {} tasks", tasks.len()).ok();
@@ -57,7 +57,7 @@ impl TaskOperations for App {
         let client = JiraClient::new(&self.config)?;
         writeln!(debug_file, "DEBUG: JiraClient created successfully").ok();
         
-        let result = client.comprehensive_search(query).await;
+        let result = client.search_tasks(query).await;
         match &result {
             Ok(tasks) => {
                 writeln!(debug_file, "DEBUG: JIRA Search returned {} tasks", tasks.len()).ok();

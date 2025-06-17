@@ -72,7 +72,6 @@ pub struct JiraTaskMention {
 pub trait TaskLike {
     fn get_id(&self) -> &str;
     fn get_title(&self) -> &str;
-    fn get_display_info(&self) -> String;
 }
 
 impl TaskLike for MondayTask {
@@ -83,13 +82,6 @@ impl TaskLike for MondayTask {
     fn get_title(&self) -> &str {
         &self.title
     }
-    
-    fn get_display_info(&self) -> String {
-        format!("ID: {} | Board: {} | State: {}", 
-            self.id, 
-            self.board_name.as_deref().unwrap_or("Unknown"),
-            self.state)
-    }
 }
 
 impl TaskLike for JiraTask {
@@ -99,13 +91,6 @@ impl TaskLike for JiraTask {
     
     fn get_title(&self) -> &str {
         &self.summary
-    }
-    
-    fn get_display_info(&self) -> String {
-        format!("Key: {} | Status: {} | Type: {}", 
-            self.key,
-            self.status,
-            self.issue_type)
     }
 }
 

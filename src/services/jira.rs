@@ -42,13 +42,9 @@ impl JiraClient {
             config: config.clone(),
             jira_instance,
         })
-    }
+        }
 
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<JiraTask>> {
-        self.comprehensive_search(query).await
-    }
-
-    pub async fn comprehensive_search(&self, query: &str) -> Result<Vec<JiraTask>> {
         let instance = self.jira_instance.as_ref()
             .ok_or_else(|| anyhow::anyhow!("JIRA not configured properly"))?;
 
@@ -145,7 +141,7 @@ impl JiraClient {
         }
     }
 
-    // =============================================================================
+        // =============================================================================
     // HELPER METHODS
     // =============================================================================
 
