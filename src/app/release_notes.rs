@@ -245,7 +245,7 @@ impl App {
                     
                 for breaking_change in &commit.breaking_changes {
                     document.push_str(&format!("  - Detalles: {}\n", breaking_change));
-                }
+            }
             }
             document.push('\n');
         }
@@ -278,7 +278,7 @@ impl App {
                 
                 // Add updates
                 self.add_task_updates_to_document(document, task);
-                
+        
                 // Add related commits
                 self.add_related_commits_to_document(document, task, commits);
                 
@@ -307,12 +307,12 @@ impl App {
                 let date = &update.created_at;
                 let author = if let Some(creator) = &update.creator {
                     &creator.name
-                } else {
+        } else {
                     "Unknown"
                 };
                 let body_preview = if update.body.len() > 100 {
                     format!("{}...", &update.body[..100])
-                } else {
+                    } else {
                     update.body.clone()
                 };
                 document.push_str(&format!("  - {} por {}: {}\n", date, author, body_preview));
@@ -428,7 +428,7 @@ impl App {
                 if let Some(task) = task_details_map.get(task_id) {
                     document.push_str(&format!("- {} (ID: {}, Estado: {})\n", 
                         task.title, task.id, task.state));
-                } else {
+                        } else {
                     document.push_str(&format!("- Task ID: {} (Detalles no disponibles)\n", task_id));
                 }
             }

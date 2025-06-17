@@ -9,6 +9,99 @@ use crate::{
 };
 
 impl App {
+    // Helper methods to work with the appropriate task collections based on configuration
+    fn get_current_tasks_count(&self) -> usize {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => self.monday_tasks.len(),
+            crate::types::TaskSystem::Jira => self.jira_tasks.len(),
+            crate::types::TaskSystem::None => 0,
+        }
+    }
+
+    fn get_current_selected_tasks_count(&self) -> usize {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => self.selected_monday_tasks.len(),
+            crate::types::TaskSystem::Jira => self.selected_jira_tasks.len(),
+            crate::types::TaskSystem::None => 0,
+        }
+    }
+
+    fn get_current_task_id(&self, index: usize) -> Option<String> {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => self.monday_tasks.get(index).map(|t| t.id.clone()),
+            crate::types::TaskSystem::Jira => self.jira_tasks.get(index).map(|t| t.id.clone()),
+            crate::types::TaskSystem::None => None,
+        }
+    }
+
+    fn is_task_selected(&self, task_id: &str) -> bool {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                self.selected_monday_tasks.iter().any(|t| t.id == task_id)
+            }
+            crate::types::TaskSystem::Jira => {
+                self.selected_jira_tasks.iter().any(|t| t.id == task_id)
+            }
+            crate::types::TaskSystem::None => false,
+        }
+    }
+
+    fn add_task_to_selection(&mut self, index: usize) {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                if let Some(task) = self.monday_tasks.get(index) {
+                    self.selected_monday_tasks.push(task.clone());
+                }
+            }
+            crate::types::TaskSystem::Jira => {
+                if let Some(task) = self.jira_tasks.get(index) {
+                    self.selected_jira_tasks.push(task.clone());
+                }
+            }
+            crate::types::TaskSystem::None => {}
+        }
+    }
+
+    fn remove_task_from_selection(&mut self, task_id: &str) {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                if let Some(pos) = self.selected_monday_tasks.iter().position(|t| t.id == task_id) {
+                    self.selected_monday_tasks.remove(pos);
+                }
+            }
+            crate::types::TaskSystem::Jira => {
+                if let Some(pos) = self.selected_jira_tasks.iter().position(|t| t.id == task_id) {
+                    self.selected_jira_tasks.remove(pos);
+                }
+            }
+            crate::types::TaskSystem::None => {}
+        }
+    }
+
+    fn remove_selected_task_at_index(&mut self, index: usize) {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                if index < self.selected_monday_tasks.len() {
+                    self.selected_monday_tasks.remove(index);
+                }
+            }
+            crate::types::TaskSystem::Jira => {
+                if index < self.selected_jira_tasks.len() {
+                    self.selected_jira_tasks.remove(index);
+                }
+            }
+            crate::types::TaskSystem::None => {}
+        }
+    }
+
+    fn clear_current_tasks(&mut self) {
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => self.monday_tasks.clear(),
+            crate::types::TaskSystem::Jira => self.jira_tasks.clear(),
+            crate::types::TaskSystem::None => {}
+        }
+    }
+
     pub async fn handle_input_mode(&mut self, key: KeyEvent) -> Result<()> {
         // Handle CommitPreview screen differently - it's just a text editor
         if self.current_screen == AppScreen::CommitPreview {
@@ -74,16 +167,38 @@ impl App {
             self.message = Some(format!("DEBUG: Starting search with query: '{}'", self.ui_state.current_input));
             if !self.ui_state.current_input.is_empty() {
                 self.current_state = AppState::Loading;
-                match self.search_monday_tasks(&self.ui_state.current_input).await {
-                    Ok(tasks) => {
-                        self.tasks = tasks;
-                        self.ui_state.selected_tab = 0;
-                        self.current_state = AppState::Normal;
-                        self.ui_state.input_mode = InputMode::Normal;
-                        self.message = Some(format!("DEBUG: Search completed! Found {} tasks", self.tasks.len()));
+                
+                match self.config.get_task_system() {
+                    crate::types::TaskSystem::Monday => {
+                        match self.search_monday_tasks(&self.ui_state.current_input).await {
+                            Ok(tasks) => {
+                                self.monday_tasks = tasks;
+                                self.ui_state.selected_tab = 0;
+                                self.current_state = AppState::Normal;
+                                self.ui_state.input_mode = InputMode::Normal;
+                                self.message = Some(format!("DEBUG: Monday search completed! Found {} tasks", self.monday_tasks.len()));
+                            }
+                            Err(e) => {
+                                self.current_state = AppState::Error(format!("DEBUG: Monday search failed: {}", e));
+                            }
+                        }
                     }
-                    Err(e) => {
-                        self.current_state = AppState::Error(format!("DEBUG: Search failed: {}", e));
+                    crate::types::TaskSystem::Jira => {
+                        match self.search_jira_tasks(&self.ui_state.current_input).await {
+                            Ok(tasks) => {
+                                self.jira_tasks = tasks;
+                                self.ui_state.selected_tab = 0;
+                                self.current_state = AppState::Normal;
+                                self.ui_state.input_mode = InputMode::Normal;
+                                self.message = Some(format!("DEBUG: JIRA search completed! Found {} tasks", self.jira_tasks.len()));
+                            }
+                            Err(e) => {
+                                self.current_state = AppState::Error(format!("DEBUG: JIRA search failed: {}", e));
+                            }
+                        }
+                    }
+                    crate::types::TaskSystem::None => {
+                        self.current_state = AppState::Error("No task management system configured".to_string());
                     }
                 }
             } else {
@@ -451,16 +566,38 @@ impl App {
                 self.message = Some(format!("DEBUG: Starting search with query: '{}'", self.ui_state.current_input));
                 if !self.ui_state.current_input.is_empty() {
                     self.current_state = AppState::Loading;
-                    match self.search_monday_tasks(&self.ui_state.current_input).await {
-                        Ok(tasks) => {
-                            self.tasks = tasks;
-                            self.ui_state.selected_tab = 0;
-                            self.current_state = AppState::Normal;
-                            self.ui_state.input_mode = InputMode::Normal;
-                            self.message = Some(format!("DEBUG: Search completed! Found {} tasks", self.tasks.len()));
+                    
+                    match self.config.get_task_system() {
+                        crate::types::TaskSystem::Monday => {
+                            match self.search_monday_tasks(&self.ui_state.current_input).await {
+                                Ok(tasks) => {
+                                    self.monday_tasks = tasks;
+                                    self.ui_state.selected_tab = 0;
+                                    self.current_state = AppState::Normal;
+                                    self.ui_state.input_mode = InputMode::Normal;
+                                    self.message = Some(format!("DEBUG: Monday search completed! Found {} tasks", self.monday_tasks.len()));
+                                }
+                                Err(e) => {
+                                    self.current_state = AppState::Error(format!("DEBUG: Monday search failed: {}", e));
+                                }
+                            }
                         }
-                        Err(e) => {
-                            self.current_state = AppState::Error(format!("DEBUG: Search failed: {}", e));
+                        crate::types::TaskSystem::Jira => {
+                            match self.search_jira_tasks(&self.ui_state.current_input).await {
+                                Ok(tasks) => {
+                                    self.jira_tasks = tasks;
+                                    self.ui_state.selected_tab = 0;
+                                    self.current_state = AppState::Normal;
+                                    self.ui_state.input_mode = InputMode::Normal;
+                                    self.message = Some(format!("DEBUG: JIRA search completed! Found {} tasks", self.jira_tasks.len()));
+                                }
+                                Err(e) => {
+                                    self.current_state = AppState::Error(format!("DEBUG: JIRA search failed: {}", e));
+                                }
+                            }
+                        }
+                        crate::types::TaskSystem::None => {
+                            self.current_state = AppState::Error("No task management system configured".to_string());
                         }
                     }
                 } else {
@@ -486,7 +623,7 @@ impl App {
                 self.current_screen = AppScreen::Commit;
             }
             KeyCode::Esc => {
-                self.tasks.clear();
+                self.clear_current_tasks();
                 self.ui_state.current_input.clear();
                 self.ui_state.focused_search_index = 0;
                 self.message = Some("Search cleared".to_string());
@@ -498,15 +635,36 @@ impl App {
             KeyCode::Enter => {
                 if !self.ui_state.current_input.is_empty() {
                     self.current_state = AppState::Loading;
-                    match self.search_monday_tasks(&self.ui_state.current_input).await {
-                        Ok(tasks) => {
-                            self.tasks = tasks;
-                            self.ui_state.selected_tab = 0;
-                            self.current_state = AppState::Normal;
-                            self.message = Some(format!("Found {} tasks", self.tasks.len()));
+                    
+                    match self.config.get_task_system() {
+                        crate::types::TaskSystem::Monday => {
+                            match self.search_monday_tasks(&self.ui_state.current_input).await {
+                                Ok(tasks) => {
+                                    self.monday_tasks = tasks;
+                                    self.ui_state.selected_tab = 0;
+                                    self.current_state = AppState::Normal;
+                                    self.message = Some(format!("Found {} Monday tasks", self.monday_tasks.len()));
+                                }
+                                Err(e) => {
+                                    self.current_state = AppState::Error(e.to_string());
+                                }
+                            }
                         }
-                        Err(e) => {
-                            self.current_state = AppState::Error(e.to_string());
+                        crate::types::TaskSystem::Jira => {
+                            match self.search_jira_tasks(&self.ui_state.current_input).await {
+                                Ok(tasks) => {
+                                    self.jira_tasks = tasks;
+                                    self.ui_state.selected_tab = 0;
+                                    self.current_state = AppState::Normal;
+                                    self.message = Some(format!("Found {} JIRA tasks", self.jira_tasks.len()));
+                                }
+                                Err(e) => {
+                                    self.current_state = AppState::Error(e.to_string());
+                                }
+                            }
+                        }
+                        crate::types::TaskSystem::None => {
+                            self.current_state = AppState::Error("No task management system configured".to_string());
                         }
                     }
                 } else {
@@ -530,7 +688,7 @@ impl App {
             }
             KeyCode::Backspace => {
                 self.ui_state.current_input.clear();
-                self.tasks.clear();
+                self.clear_current_tasks();
             }
             _ => {}
         }
@@ -538,11 +696,11 @@ impl App {
     }
 
     fn handle_search_up_navigation(&mut self) {
-        if !self.tasks.is_empty() {
+        if self.get_current_tasks_count() > 0 {
             if self.ui_state.focused_search_index > 0 {
                 self.ui_state.focused_search_index -= 1;
             }
-        } else if !self.selected_tasks.is_empty() {
+        } else if self.get_current_selected_tasks_count() > 0 {
             if self.ui_state.selected_tab > 0 {
                 self.ui_state.selected_tab -= 1;
             }
@@ -550,12 +708,12 @@ impl App {
     }
 
     fn handle_search_down_navigation(&mut self) {
-        if !self.tasks.is_empty() {
-            if self.ui_state.focused_search_index < self.tasks.len().saturating_sub(1) {
+        if self.get_current_tasks_count() > 0 {
+            if self.ui_state.focused_search_index < self.get_current_tasks_count().saturating_sub(1) {
                 self.ui_state.focused_search_index += 1;
             }
-        } else if !self.selected_tasks.is_empty() {
-            if self.ui_state.selected_tab < self.selected_tasks.len().saturating_sub(1) {
+        } else if self.get_current_selected_tasks_count() > 0 {
+            if self.ui_state.selected_tab < self.get_current_selected_tasks_count().saturating_sub(1) {
                 self.ui_state.selected_tab += 1;
             }
         }
@@ -564,48 +722,58 @@ impl App {
     fn handle_search_task_removal(&mut self) {
         use crate::app::task_operations::TaskOperations;
 
-        if !self.tasks.is_empty() {
-            if let Some(task) = self.tasks.get(self.ui_state.focused_search_index) {
-                if let Some(pos) = self.selected_tasks.iter().position(|t| t.id == task.id) {
-                    self.selected_tasks.remove(pos);
+        if self.get_current_tasks_count() > 0 {
+            if let Some(task_id) = self.get_current_task_id(self.ui_state.focused_search_index) {
+                if self.is_task_selected(&task_id) {
+                    self.remove_task_from_selection(&task_id);
                     self.update_task_selection();
                     self.message = Some("Task removed from selection".to_string());
                 } else {
                     self.message = Some("Task is not selected".to_string());
                 }
             }
-        } else if !self.selected_tasks.is_empty() && self.ui_state.selected_tab < self.selected_tasks.len() {
-            self.selected_tasks.remove(self.ui_state.selected_tab);
+        } else {
+            let selected_tab = self.ui_state.selected_tab;
+            let selected_tasks_len = self.get_current_selected_tasks_count();
             
-            if self.ui_state.selected_tab >= self.selected_tasks.len() && !self.selected_tasks.is_empty() {
-                self.ui_state.selected_tab = self.selected_tasks.len() - 1;
+            if selected_tasks_len > 0 && selected_tab < selected_tasks_len {
+                self.remove_selected_task_at_index(selected_tab);
+                
+                let new_len = self.get_current_selected_tasks_count();
+                if selected_tab >= new_len && new_len > 0 {
+                    self.ui_state.selected_tab = new_len - 1;
+                }
+                
+                self.update_task_selection();
+                self.message = Some("Task removed from selection".to_string());
             }
-            
-            self.update_task_selection();
-            self.message = Some("Task removed from selection".to_string());
         }
     }
 
     fn handle_search_task_toggle(&mut self) {
         use crate::app::task_operations::TaskOperations;
 
-        if !self.tasks.is_empty() {
-            if let Some(task) = self.tasks.get(self.ui_state.focused_search_index) {
-                if let Some(pos) = self.selected_tasks.iter().position(|t| t.id == task.id) {
-                    self.selected_tasks.remove(pos);
+        if self.get_current_tasks_count() > 0 {
+            if let Some(task_id) = self.get_current_task_id(self.ui_state.focused_search_index) {
+                if self.is_task_selected(&task_id) {
+                    self.remove_task_from_selection(&task_id);
                     self.message = Some("Task deselected".to_string());
                 } else {
-                    self.selected_tasks.push(task.clone());
+                    self.add_task_to_selection(self.ui_state.focused_search_index);
                     self.message = Some("Task selected".to_string());
                 }
                 self.update_task_selection();
             }
-        } else if !self.selected_tasks.is_empty() {
-            if self.ui_state.selected_tab < self.selected_tasks.len() {
-                self.selected_tasks.remove(self.ui_state.selected_tab);
+        } else {
+            let selected_tab = self.ui_state.selected_tab;
+            let selected_tasks_len = self.get_current_selected_tasks_count();
+            
+            if selected_tasks_len > 0 && selected_tab < selected_tasks_len {
+                self.remove_selected_task_at_index(selected_tab);
                 
-                if self.ui_state.selected_tab >= self.selected_tasks.len() && !self.selected_tasks.is_empty() {
-                    self.ui_state.selected_tab = self.selected_tasks.len() - 1;
+                let new_len = self.get_current_selected_tasks_count();
+                if selected_tab >= new_len && new_len > 0 {
+                    self.ui_state.selected_tab = new_len - 1;
                 }
                 
                 self.update_task_selection();
@@ -618,11 +786,12 @@ impl App {
         use crate::app::task_operations::TaskOperations;
 
         let index = if c == '0' { 9 } else { (c as usize) - ('1' as usize) };
-        if let Some(task) = self.tasks.get(index) {
-            if let Some(pos) = self.selected_tasks.iter().position(|t| t.id == task.id) {
-                self.selected_tasks.remove(pos);
+        
+        if let Some(task_id) = self.get_current_task_id(index) {
+            if self.is_task_selected(&task_id) {
+                self.remove_task_from_selection(&task_id);
             } else {
-                self.selected_tasks.push(task.clone());
+                self.add_task_to_selection(index);
             }
             self.update_task_selection();
         }

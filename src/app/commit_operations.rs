@@ -83,15 +83,33 @@ impl CommitOperations for App {
             message.push_str("N/A");
         }
         
-        // Monday.com tasks
-        message.push_str("\n\nMONDAY TASKS: ");
-        if !self.commit_form.selected_tasks.is_empty() {
-            message.push('\n');
-            for task in &self.commit_form.selected_tasks {
-                message.push_str(&format!("- {} (ID: {}) - {}\n", task.title, task.id, task.state));
+        // Task system section - dynamic based on configuration
+        match self.config.get_task_system() {
+            crate::types::TaskSystem::Monday => {
+                message.push_str("\n\nMONDAY TASKS: ");
+                if !self.commit_form.selected_monday_tasks.is_empty() {
+                    message.push('\n');
+                    for task in &self.commit_form.selected_monday_tasks {
+                        message.push_str(&format!("- {} (ID: {}) - {}\n", task.title, task.id, task.state));
+                    }
+                } else {
+                    message.push_str("N/A");
+                }
             }
-        } else {
-            message.push_str("N/A");
+            crate::types::TaskSystem::Jira => {
+                message.push_str("\n\nJIRA TASKS: ");
+                if !self.commit_form.selected_jira_tasks.is_empty() {
+                    message.push('\n');
+                    for task in &self.commit_form.selected_jira_tasks {
+                        message.push_str(&format!("- {} (Key: {}) - {}\n", task.summary, task.key, task.status));
+                    }
+                } else {
+                    message.push_str("N/A");
+                }
+            }
+            crate::types::TaskSystem::None => {
+                message.push_str("\n\nRELATED TASKS: N/A");
+            }
         }
         
         message

@@ -47,6 +47,10 @@ fn load_config_from_env_vars() -> Result<AppConfig> {
         monday_account_slug: env::var("ACCOUNT_SLUG").ok(),
         monday_board_id: env::var("MONDAY_BOARD_ID").ok(),
         monday_url_template: env::var("MONDAY_URL_TEMPLATE").ok(),
+        jira_url: env::var("JIRA_URL").ok(),
+        jira_username: env::var("JIRA_USERNAME").ok(),
+        jira_api_token: env::var("JIRA_API_TOKEN").ok(),
+        jira_project_key: env::var("JIRA_PROJECT_KEY").ok(),
         gemini_token: env::var("GEMINI_TOKEN").ok(),
     })
 }
@@ -71,6 +75,10 @@ fn save_config_to_env(env_path: &Path, config: &AppConfig) -> Result<()> {
             !line.starts_with("ACCOUNT_SLUG=") &&
             !line.starts_with("MONDAY_BOARD_ID=") &&
             !line.starts_with("MONDAY_URL_TEMPLATE=") &&
+            !line.starts_with("JIRA_URL=") &&
+            !line.starts_with("JIRA_USERNAME=") &&
+            !line.starts_with("JIRA_API_TOKEN=") &&
+            !line.starts_with("JIRA_PROJECT_KEY=") &&
             !line.starts_with("GEMINI_TOKEN=")
         });
         
@@ -97,6 +105,22 @@ fn save_config_to_env(env_path: &Path, config: &AppConfig) -> Result<()> {
         env_content.push_str(&format!("MONDAY_URL_TEMPLATE={}\n", url_template));
     }
     
+    if let Some(jira_url) = &config.jira_url {
+        env_content.push_str(&format!("JIRA_URL={}\n", jira_url));
+    }
+    
+    if let Some(jira_username) = &config.jira_username {
+        env_content.push_str(&format!("JIRA_USERNAME={}\n", jira_username));
+    }
+    
+    if let Some(jira_api_token) = &config.jira_api_token {
+        env_content.push_str(&format!("JIRA_API_TOKEN={}\n", jira_api_token));
+    }
+    
+    if let Some(jira_project_key) = &config.jira_project_key {
+        env_content.push_str(&format!("JIRA_PROJECT_KEY={}\n", jira_project_key));
+    }
+
     if let Some(gemini_token) = &config.gemini_token {
         env_content.push_str(&format!("GEMINI_TOKEN={}\n", gemini_token));
     }
@@ -111,36 +135,121 @@ pub async fn run_config() -> Result<()> {
     
     let current_config = load_config().unwrap_or_default();
     
-    let monday_api_key = if current_config.monday_api_key.is_some() {
-        let update: bool = dialoguer::Confirm::new()
-            .with_prompt("Monday.com API key is already configured. Update it?")
-            .default(false)
-            .interact()?;
-            
-        if update {
-            Some(Password::new()
-                .with_prompt("Enter your Monday.com API key")
-                .interact()?)
-        } else {
-            current_config.monday_api_key
-        }
-    } else {
-        Some(Password::new()
-            .with_prompt("Enter your Monday.com API key")
-            .interact()?)
+    // Determine which task system to configure
+    let task_system_options = vec![
+        "Monday.com",
+        "JIRA",
+    ];
+    
+    let current_system = current_config.get_task_system();
+    let default_selection = match current_system {
+        crate::types::TaskSystem::Monday => 0,
+        crate::types::TaskSystem::Jira => 1,
+        crate::types::TaskSystem::None => 0, // Default to Monday
     };
     
-    let monday_account_slug = Input::new()
-        .with_prompt("Monday.com account slug (subdomain)")
-        .default(current_config.monday_account_slug.unwrap_or_default())
-        .interact_text()?;
+    let selection = Select::new()
+        .with_prompt("Choose task management system (Monday.com and JIRA are mutually exclusive):")
+        .items(&task_system_options)
+        .default(default_selection)
+        .interact()?;
     
-    let monday_board_id = Input::new()
-        .with_prompt("Monday.com board ID (optional)")
-        .default(current_config.monday_board_id.unwrap_or_default())
-        .allow_empty(true)
-        .interact_text()?;
+    let mut config = AppConfig::default();
     
+    match selection {
+        0 => {
+            // Monday.com configuration
+            println!("\n🔵 Configuring Monday.com integration...");
+            
+            let monday_api_key = if current_config.monday_api_key.is_some() {
+                let update: bool = dialoguer::Confirm::new()
+                    .with_prompt("Monday.com API key is already configured. Update it?")
+                    .default(false)
+                    .interact()?;
+                    
+                if update {
+                    Some(Password::new()
+                        .with_prompt("Enter your Monday.com API key")
+                        .interact()?)
+                } else {
+                    current_config.monday_api_key
+                }
+            } else {
+                Some(Password::new()
+                    .with_prompt("Enter your Monday.com API key")
+                    .interact()?)
+            };
+            
+            let monday_account_slug = Input::new()
+                .with_prompt("Monday.com account slug (subdomain)")
+                .default(current_config.monday_account_slug.unwrap_or_default())
+                .interact_text()?;
+            
+            let monday_board_id = Input::new()
+                .with_prompt("Monday.com board ID (optional)")
+                .default(current_config.monday_board_id.unwrap_or_default())
+                .allow_empty(true)
+                .interact_text()?;
+            
+            let monday_url_template = if !monday_account_slug.is_empty() {
+                Some(format!("https://{}.monday.com/boards/{{board_id}}/pulses/{{item_id}}", monday_account_slug))
+            } else {
+                None
+            };
+            
+            config.monday_api_key = monday_api_key;
+            config.monday_account_slug = if monday_account_slug.is_empty() { None } else { Some(monday_account_slug) };
+            config.monday_board_id = if monday_board_id.is_empty() { None } else { Some(monday_board_id) };
+            config.monday_url_template = monday_url_template;
+        }
+        1 => {
+            // JIRA configuration
+            println!("\n🟦 Configuring JIRA integration...");
+            
+            let jira_url = Input::new()
+                .with_prompt("JIRA instance URL (e.g., https://yourcompany.atlassian.net)")
+                .default(current_config.jira_url.unwrap_or_default())
+                .interact_text()?;
+            
+            let jira_username = Input::new()
+                .with_prompt("JIRA username/email")
+                .default(current_config.jira_username.unwrap_or_default())
+                .interact_text()?;
+            
+            let jira_api_token = if current_config.jira_api_token.is_some() {
+                let update: bool = dialoguer::Confirm::new()
+                    .with_prompt("JIRA API token is already configured. Update it?")
+                    .default(false)
+                    .interact()?;
+                    
+                if update {
+                    Some(Password::new()
+                        .with_prompt("Enter your JIRA API token")
+                        .interact()?)
+                } else {
+                    current_config.jira_api_token
+                }
+            } else {
+                Some(Password::new()
+                    .with_prompt("Enter your JIRA API token")
+                    .interact()?)
+            };
+            
+            let jira_project_key = Input::new()
+                .with_prompt("JIRA project key (optional, leave empty for global search)")
+                .default(current_config.jira_project_key.unwrap_or_default())
+                .allow_empty(true)
+                .interact_text()?;
+            
+            config.jira_url = if jira_url.is_empty() { None } else { Some(jira_url) };
+            config.jira_username = if jira_username.is_empty() { None } else { Some(jira_username) };
+            config.jira_api_token = jira_api_token;
+            config.jira_project_key = if jira_project_key.is_empty() { None } else { Some(jira_project_key) };
+        }
+        _ => unreachable!(),
+    }
+    
+    // Configure Gemini AI (common for both)
     let gemini_token = if current_config.gemini_token.is_some() {
         let update: bool = dialoguer::Confirm::new()
             .with_prompt("Google Gemini API token is already configured. Update it?")
@@ -163,30 +272,34 @@ pub async fn run_config() -> Result<()> {
         if token.is_empty() { None } else { Some(token) }
     };
     
-    let monday_url_template = if !monday_account_slug.is_empty() {
-        Some(format!("https://{}.monday.com/boards/{{board_id}}/pulses/{{item_id}}", monday_account_slug))
-    } else {
-        None
-    };
-    
-    let config = AppConfig {
-        monday_api_key,
-        monday_account_slug: if monday_account_slug.is_empty() { None } else { Some(monday_account_slug) },
-        monday_board_id: if monday_board_id.is_empty() { None } else { Some(monday_board_id) },
-        monday_url_template,
-        gemini_token,
-    };
+    config.gemini_token = gemini_token;
     
     save_config(&config)?;
     
     println!("✅ Configuration saved successfully!");
     
-    // Test Monday.com connection
-    if config.monday_api_key.is_some() {
-        println!("🔍 Testing Monday.com connection...");
-        match test_monday_connection(&config).await {
-            Ok(user_info) => println!("✅ Monday.com connection successful! Welcome, {}", user_info),
-            Err(e) => println!("⚠️  Monday.com connection test failed: {}", e),
+    // Test connections based on chosen system
+    match config.get_task_system() {
+        crate::types::TaskSystem::Monday => {
+            if config.monday_api_key.is_some() {
+                println!("🔍 Testing Monday.com connection...");
+                match test_monday_connection(&config).await {
+                    Ok(user_info) => println!("✅ Monday.com connection successful! Welcome, {}", user_info),
+                    Err(e) => println!("⚠️  Monday.com connection test failed: {}", e),
+                }
+            }
+        }
+        crate::types::TaskSystem::Jira => {
+            if config.is_jira_configured() {
+                println!("🔍 Testing JIRA connection...");
+                match test_jira_connection(&config).await {
+                    Ok(response) => println!("✅ JIRA connection successful! {}", response),
+                    Err(e) => println!("⚠️  JIRA connection test failed: {}", e),
+                }
+            }
+        }
+        crate::types::TaskSystem::None => {
+            println!("⚠️  No task management system configured");
         }
     }
     
@@ -219,6 +332,13 @@ async fn test_monday_connection(config: &AppConfig) -> Result<String> {
     } else {
         Err(anyhow::anyhow!("No Monday.com API key configured"))
     }
+}
+
+async fn test_jira_connection(config: &AppConfig) -> Result<String> {
+    use crate::services::JiraClient;
+    
+    let client = JiraClient::new(config)?;
+    client.test_connection().await
 }
 
 pub async fn setup_commit_template() -> Result<()> {
@@ -265,10 +385,11 @@ Migraciones Lentas:
 # List deployment steps or N/A if none
 Partes a Ejecutar: 
 
-# Monday Tasks
-# List related Monday.com tasks or N/A if none
-# Format: - Task Title (ID: task_id) - Status
-MONDAY TASKS: 
+# Related Tasks  
+# List related Monday.com or JIRA tasks or N/A if none
+# Monday format: - Task Title (ID: task_id) - Status
+# JIRA format: - Task Title (Key: PROJ-123) - Status
+RELATED TASKS: 
 
 
 # ────────────────────────────────────────────────────────────────────────────

@@ -24,7 +24,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::types::{AppScreen, AppState, CommitForm, MondayTask};
+use crate::types::{AppScreen, AppState, CommitForm, MondayTask, JiraTask, AppConfig};
 use crate::git::GitStatus;
 
 // Main drawing orchestrator function
@@ -34,7 +34,9 @@ pub fn draw(
     app_state: &AppState,
     ui_state: &mut UIState,
     commit_form: &CommitForm,
-    tasks: &[MondayTask],
+    monday_tasks: &[MondayTask],
+    jira_tasks: &[JiraTask],
+    config: &AppConfig,
     message: Option<&str>,
     git_status: Option<&GitStatus>,
 ) {
@@ -53,7 +55,7 @@ pub fn draw(
         AppScreen::Commit => draw_commit_screen(f, chunks[1], ui_state, commit_form),
         AppScreen::CommitPreview => draw_commit_preview_screen(f, chunks[1], ui_state),
         AppScreen::ReleaseNotes => draw_release_notes_screen(f, chunks[1]),
-        AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, tasks, commit_form),
+        AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, monday_tasks, jira_tasks, config, commit_form),
     }
 
     // Status bar
