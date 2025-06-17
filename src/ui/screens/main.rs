@@ -10,7 +10,7 @@ use crate::ui::state::UIState;
 use crate::git::GitStatus;
 
 pub fn draw_main_screen(f: &mut Frame, area: Rect, ui_state: &mut UIState, git_status: Option<&GitStatus>) {
-    let tabs = Tabs::new(vec!["💾 Commit", "📝 Release Notes", "⚙️ Config", "📋 Help"])
+    let tabs = Tabs::new(vec!["💾 Commit", "📝 Release Notes", "🚀 Semantic Release", "⚙️ Config", "📋 Help"])
         .block(Block::default().borders(Borders::ALL).title("Menu"))
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
