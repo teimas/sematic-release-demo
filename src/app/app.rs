@@ -14,7 +14,7 @@ use crate::{
     config::load_config,
     git::GitRepo,
     types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, SemanticReleaseState, MondayTask, JiraTask},
-    ui::{self, UIState},
+    ui::UIState,
 };
 
 pub struct App {
@@ -223,18 +223,12 @@ impl App {
                 let is_finished = release_state.finished.lock().map(|f| *f).unwrap_or(false);
                 
                 if is_finished {
-                    let success = release_state.success.lock().map(|s| *s).unwrap_or(false);
-                    if success {
-                        self.current_state = AppState::Normal;
-                        let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Completado".to_string());
-                        self.message = Some(status);
-                        self.current_screen = AppScreen::Main;
-                    } else {
-                        let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Error desconocido".to_string());
-                        self.current_state = AppState::Error(format!("Error en semantic-release: {}", status));
-                    }
-                    
-                    self.semantic_release_state = None;
+                    let _success = release_state.success.lock().map(|s| *s).unwrap_or(false);
+                    // Stay on semantic release screen to show results
+                    self.current_state = AppState::Normal;
+                    let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Completado".to_string());
+                    self.message = Some(status);
+                    // Don't clear the state or change screen - keep results visible
                 } else {
                     // Update status message if it changed
                     if let Ok(status) = release_state.status.lock() {
@@ -254,7 +248,7 @@ impl App {
             };
 
             terminal.draw(|f| {
-                ui::draw(
+                crate::ui::draw(
                     f,
                     &self.current_screen,
                     &self.current_state,
@@ -265,7 +259,8 @@ impl App {
                     &self.config,
                     self.message.as_deref(),
                     git_status.as_ref(),
-                )
+                    self.semantic_release_state.as_ref(),
+                );
             })?;
 
             if self.should_quit {

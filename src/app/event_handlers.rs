@@ -231,6 +231,29 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.current_screen = AppScreen::Main;
             }
+            KeyCode::Char('r') => {
+                // Clear results and go back to normal view
+                self.semantic_release_state = None;
+                self.ui_state.scroll_offset = 0;
+                self.message = Some("Results cleared".to_string());
+            }
+            KeyCode::Up => {
+                // Scroll up in results if we have results
+                if self.semantic_release_state.is_some() && self.ui_state.scroll_offset > 0 {
+                    self.ui_state.scroll_offset -= 1;
+                }
+            }
+            KeyCode::Down => {
+                // Scroll down in results if we have results
+                if let Some(state) = &self.semantic_release_state {
+                    if let Ok(result) = state.result.lock() {
+                        let line_count = result.lines().count();
+                        if self.ui_state.scroll_offset < line_count.saturating_sub(10) {
+                            self.ui_state.scroll_offset += 1;
+                        }
+                    }
+                }
+            }
             KeyCode::Tab => {
                 self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 4;
             }
