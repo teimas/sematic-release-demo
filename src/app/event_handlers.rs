@@ -5,6 +5,7 @@ use crate::{
     app::App,
     types::{AppScreen, AppState, CommitType},
     ui::{InputMode, CommitField},
+    app::semantic_release_operations::SemanticReleaseOperations,
 };
 
 pub trait EventHandlers {
@@ -43,6 +44,9 @@ impl EventHandlers for App {
             }
             (AppScreen::ReleaseNotes, _) => {
                 self.handle_release_notes_screen(key.code).await?;
+            }
+            (AppScreen::SemanticRelease, _) => {
+                self.handle_semantic_release_screen(key.code).await?;
             }
             (AppScreen::TaskSearch, _) => {
                 self.handle_task_search_screen(key.code).await?;
@@ -85,11 +89,11 @@ impl App {
                 self.should_quit = true;
             }
             KeyCode::Tab => {
-                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 4;
+                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 5;
             }
             KeyCode::BackTab => {
                 self.ui_state.selected_tab = if self.ui_state.selected_tab == 0 {
-                    3
+                    4
                 } else {
                     self.ui_state.selected_tab - 1
                 };
@@ -98,8 +102,9 @@ impl App {
                 match self.ui_state.selected_tab {
                     0 => self.current_screen = AppScreen::Commit,
                     1 => self.current_screen = AppScreen::ReleaseNotes,
-                    2 => self.current_screen = AppScreen::Config,
-                    3 => {}, // Help - stay here
+                    2 => self.current_screen = AppScreen::SemanticRelease,
+                    3 => self.current_screen = AppScreen::Config,
+                    4 => {}, // Help - stay here
                     _ => {}
                 }
             }
@@ -215,6 +220,70 @@ impl App {
             }
             KeyCode::Char('o') => {
                 self.generate_release_notes_with_npm_wrapper().await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn handle_semantic_release_screen(&mut self, key: KeyCode) -> Result<()> {
+        match key {
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.current_screen = AppScreen::Main;
+            }
+            KeyCode::Char('r') => {
+                // Clear results and go back to normal view
+                self.semantic_release_state = None;
+                self.ui_state.scroll_offset = 0;
+                self.message = Some("Results cleared".to_string());
+            }
+            KeyCode::Up => {
+                // Scroll up in results if we have results
+                if self.semantic_release_state.is_some() && self.ui_state.scroll_offset > 0 {
+                    self.ui_state.scroll_offset -= 1;
+                }
+            }
+            KeyCode::Down => {
+                // Scroll down in results if we have results
+                if let Some(state) = &self.semantic_release_state {
+                    if let Ok(result) = state.result.lock() {
+                        let line_count = result.lines().count();
+                        if self.ui_state.scroll_offset < line_count.saturating_sub(10) {
+                            self.ui_state.scroll_offset += 1;
+                        }
+                    }
+                }
+            }
+            KeyCode::Tab => {
+                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 4;
+            }
+            KeyCode::BackTab => {
+                self.ui_state.selected_tab = if self.ui_state.selected_tab == 0 {
+                    3
+                } else {
+                    self.ui_state.selected_tab - 1
+                };
+            }
+            KeyCode::Enter => {
+                match self.ui_state.selected_tab {
+                    0 => {
+                        // Dry run - check what would be released
+                        self.execute_semantic_release(true).await?;
+                    }
+                    1 => {
+                        // Execute semantic release
+                        self.execute_semantic_release(false).await?;
+                    }
+                    2 => {
+                        // View last release info
+                        self.view_last_release_info().await?;
+                    }
+                    3 => {
+                        // View semantic-release config
+                        self.view_semantic_release_config().await?;
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }

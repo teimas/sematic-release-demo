@@ -24,8 +24,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::types::{AppScreen, AppState, CommitForm, MondayTask, JiraTask, AppConfig};
+use crate::types::{AppScreen, AppState, CommitForm, MondayTask, JiraTask, AppConfig, SemanticReleaseState};
 use crate::git::GitStatus;
+use crate::ui::screens::semantic_release::draw_semantic_release_screen;
 
 // Main drawing orchestrator function
 pub fn draw(
@@ -39,6 +40,7 @@ pub fn draw(
     config: &AppConfig,
     message: Option<&str>,
     git_status: Option<&GitStatus>,
+    semantic_release_state: Option<&SemanticReleaseState>,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -55,6 +57,7 @@ pub fn draw(
         AppScreen::Commit => draw_commit_screen(f, chunks[1], ui_state, commit_form),
         AppScreen::CommitPreview => draw_commit_preview_screen(f, chunks[1], ui_state),
         AppScreen::ReleaseNotes => draw_release_notes_screen(f, chunks[1]),
+        AppScreen::SemanticRelease => draw_semantic_release_screen(f, chunks[1], ui_state, config, app_state, message, semantic_release_state),
         AppScreen::TaskSearch => draw_task_search_screen(f, chunks[1], ui_state, monday_tasks, jira_tasks, config, commit_form),
     }
 

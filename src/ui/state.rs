@@ -11,6 +11,7 @@ pub struct UIState {
     pub focused_search_index: usize,
     pub task_management_mode: bool,
     pub animation_frame: usize,
+    pub scroll_offset: usize,
     // Field-specific scroll offsets for multiline fields
     pub field_scroll_offsets: HashMap<CommitField, u16>,
 }
@@ -47,6 +48,7 @@ impl Default for UIState {
             focused_search_index: 0,
             task_management_mode: false,
             animation_frame: 0,
+            scroll_offset: 0,
             field_scroll_offsets: HashMap::new(),
         }
     }

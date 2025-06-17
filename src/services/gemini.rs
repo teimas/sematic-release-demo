@@ -68,8 +68,8 @@ impl GeminiClient {
         // This method sends the complete structured document to Gemini for processing
         // (like the Node.js script's processWithGemini function)
         self.call_gemini_with_fallback(document).await
+        }
     }
-}
 
 // =============================================================================
 // COMMIT ANALYSIS FEATURE
@@ -198,7 +198,7 @@ VALIDACIONES:
                    json.get("securityAnalysis").is_some() && 
                    json.get("breakingChanges").is_some() {
                     Ok(json)
-                } else {
+                        } else { 
                     utils::log_warning("GEMINI", "JSON response missing required fields");
                     utils::log_debug("GEMINI", &format!("Parsed JSON: {}", json));
                     // Return a fallback JSON structure

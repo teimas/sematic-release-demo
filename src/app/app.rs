@@ -13,8 +13,8 @@ use std::io;
 use crate::{
     config::load_config,
     git::GitRepo,
-    types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, MondayTask, JiraTask},
-    ui::{self, UIState},
+    types::{AppConfig, AppScreen, AppState, CommitForm, ReleaseNotesAnalysisState, ComprehensiveAnalysisState, SemanticReleaseState, MondayTask, JiraTask},
+    ui::UIState,
 };
 
 pub struct App {
@@ -32,6 +32,7 @@ pub struct App {
     pub preview_commit_message: String,
     pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
     pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
+    pub semantic_release_state: Option<SemanticReleaseState>,
 }
 
 impl App {
@@ -53,6 +54,7 @@ impl App {
             preview_commit_message: String::new(),
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
+            semantic_release_state: None,
         })
     }
 
@@ -72,6 +74,7 @@ impl App {
             preview_commit_message: String::new(),
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
+            semantic_release_state: None,
         }
     }
 
@@ -215,6 +218,28 @@ impl App {
                 }
             }
             
+            // Check for completed Semantic Release operation
+            if let Some(release_state) = &self.semantic_release_state {
+                let is_finished = release_state.finished.lock().map(|f| *f).unwrap_or(false);
+                
+                if is_finished {
+                    let _success = release_state.success.lock().map(|s| *s).unwrap_or(false);
+                    // Stay on semantic release screen to show results
+                    self.current_state = AppState::Normal;
+                    let status = release_state.status.lock().map(|s| s.clone()).unwrap_or("Completado".to_string());
+                    self.message = Some(status);
+                    // Don't clear the state or change screen - keep results visible
+                } else {
+                    // Update status message if it changed
+                    if let Ok(status) = release_state.status.lock() {
+                        let current_message = self.message.as_deref().unwrap_or("");
+                        if *status != current_message {
+                            self.message = Some(status.clone());
+                        }
+                    }
+                }
+            }
+            
             // Get git status for help screen
             let git_status = if self.current_screen == AppScreen::Main {
                 GitRepo::new().ok().and_then(|repo| repo.get_status().ok())
@@ -223,7 +248,7 @@ impl App {
             };
 
             terminal.draw(|f| {
-                ui::draw(
+                crate::ui::draw(
                     f,
                     &self.current_screen,
                     &self.current_state,
@@ -234,7 +259,8 @@ impl App {
                     &self.config,
                     self.message.as_deref(),
                     git_status.as_ref(),
-                )
+                    self.semantic_release_state.as_ref(),
+                );
             })?;
 
             if self.should_quit {
