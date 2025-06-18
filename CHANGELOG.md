@@ -1,3 +1,10 @@
+# [4.3.0](https://github.com/teimas/sematic-release-demo/compare/v4.2.0...v4.3.0) (2025-06-18)
+
+
+### Features
+
+* **config, ci:** Mejora la configuración inicial de proyectos Node.js ([1d29c96](https://github.com/teimas/sematic-release-demo/commit/1d29c961e3d418ce0304b50d1134f56daa979ad9))
+
 # [4.2.0](https://github.com/teimas/sematic-release-demo/compare/v4.1.0...v4.2.0) (2025-06-18)
 
 
