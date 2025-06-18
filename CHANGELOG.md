@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/teimas/sematic-release-demo/compare/v4.0.1...v4.1.0) (2025-06-18)
+
+
+### Features
+
+* **config:** Añade creación automática de plantilla de release ([ae2d44a](https://github.com/teimas/sematic-release-demo/commit/ae2d44a425ed60239a45c2f2f327772506e59b6a))
+
 ## [4.0.1](https://github.com/teimas/sematic-release-demo/compare/v4.0.0...v4.0.1) (2025-06-18)
 
 
