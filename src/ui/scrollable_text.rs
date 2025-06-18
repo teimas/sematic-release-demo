@@ -92,4 +92,3 @@ fn get_cursor_line(text: &str, cursor_pos: usize, field_width: u16) -> usize {
 
     line
 }
- 

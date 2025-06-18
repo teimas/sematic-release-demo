@@ -126,23 +126,26 @@ async fn main() -> Result<()> {
                 Ok(version_info) => {
                     println!("\n📦 VERSION INFORMATION");
                     println!("{}", "=".repeat(50));
-                    
+
                     if let Some(current) = &version_info.current_version {
                         println!("🏷️  Current version: {}", current);
                     } else {
                         println!("🏷️  Current version: No previous versions");
                     }
-                    
+
                     println!("🚀 Next version: {}", version_info.next_version);
                     println!("📊 Release type: {}", version_info.version_type);
-                    println!("📈 Commits since last version: {}", version_info.commit_count);
-                    
+                    println!(
+                        "📈 Commits since last version: {}",
+                        version_info.commit_count
+                    );
+
                     if version_info.has_unreleased_changes {
                         println!("✅ Has changes to release");
                     } else {
                         println!("⚠️  No changes to release");
                     }
-                    
+
                     println!("\n🔍 DETAILED ANALYSIS");
                     println!("{}", "=".repeat(50));
                     println!("{}", version_info.dry_run_output);
