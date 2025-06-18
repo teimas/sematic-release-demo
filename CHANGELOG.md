@@ -1,3 +1,10 @@
+# [4.2.0](https://github.com/teimas/sematic-release-demo/compare/v4.1.0...v4.2.0) (2025-06-18)
+
+
+### Features
+
+* **semantic-release, ui, config:** Añade configuración automática de GitHub Actions ([0c066fe](https://github.com/teimas/sematic-release-demo/commit/0c066fe3c8ce9dc1309578ca42f7423c20329e15))
+
 # [4.1.0](https://github.com/teimas/sematic-release-demo/compare/v4.0.1...v4.1.0) (2025-06-18)
 
 
