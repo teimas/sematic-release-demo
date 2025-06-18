@@ -1,3 +1,25 @@
+# [3.0.0](https://github.com/teimas/sematic-release-demo/compare/v2.0.0...v3.0.0) (2025-06-18)
+
+
+### chore
+
+* **ci:** Limpia logs de depuración en workflow de release ([a0064f7](https://github.com/teimas/sematic-release-demo/commit/a0064f71e994715ef3d8ff33268f57f6f035fd1d))
+
+
+### BREAKING CHANGES
+
+* **ci:** N/A
+
+Test Details: N/A
+
+Security: El código anterior presentaba un riesgo de 'Exposición de Información Confidencial'. Las líneas `echo "GITHUB_TOKEN: $GITHUB_TOKEN"` y `echo $GITHUB_TOKEN` en el archivo `.github/workflows/release.yml` imprimían explícitamente un token de acceso (`GITHUB_TOKEN`) en los logs de ejecución. Aunque GitHub Actions enmascara los secretos, esta práctica es intrínsecamente insegura, ya que el enmascaramiento podría fallar o ser eludido, exponiendo el token. Un token expuesto podría permitir a un actor malicioso realizar acciones no autorizadas en el repositorio, como inyectar código o eliminar ramas. Este commit mitiga directamente este riesgo al eliminar la impresión del token, adhiriéndose a las mejores prácticas de manejo seguro de credenciales.
+
+Migraciones Lentas: N/A
+
+Partes a Ejecutar: N/A
+
+JIRA TASKS: N/A
+
 # [2.0.0](https://github.com/teimas/sematic-release-demo/compare/v1.0.0...v2.0.0) (2025-06-18)
 
 
