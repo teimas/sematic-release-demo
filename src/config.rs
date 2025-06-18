@@ -312,6 +312,9 @@ pub async fn run_config() -> Result<()> {
 
     println!("✅ Configuration saved successfully!");
 
+    // Ensure .env is in .gitignore to prevent committing sensitive data
+    ensure_env_in_gitignore()?;
+
     // Check and create plantilla.md file if it doesn't exist
     ensure_plantilla_template_exists()?;
 
@@ -586,6 +589,58 @@ fn setup_git_config_local(template_path: &Path) -> Result<()> {
 
     println!("✅ Local git commit template configured");
     println!("💡 This will apply only to the current repository");
+
+    Ok(())
+}
+
+fn ensure_env_in_gitignore() -> Result<()> {
+    use std::fs;
+    use std::path::Path;
+
+    let gitignore_path = Path::new(".gitignore");
+
+    // Read existing .gitignore or create empty string if it doesn't exist
+    let mut gitignore_content = if gitignore_path.exists() {
+        fs::read_to_string(gitignore_path)?
+    } else {
+        String::new()
+    };
+
+    // Check if .env is already in .gitignore
+    let lines: Vec<&str> = gitignore_content.lines().collect();
+    let env_patterns = [".env", "*.env", ".env*"];
+
+    let has_env_rule = lines.iter().any(|line| {
+        let trimmed = line.trim();
+        env_patterns.iter().any(|pattern| {
+            trimmed == *pattern ||
+            trimmed.starts_with(&format!("{}#", pattern)) || // with comment
+            trimmed == format!("{}*", pattern.trim_end_matches('*')) // variations
+        })
+    });
+
+    if !has_env_rule {
+        println!("🔒 Adding .env to .gitignore to protect sensitive data...");
+
+        // Add a section for environment files if not already present
+        if !gitignore_content.is_empty() && !gitignore_content.ends_with('\n') {
+            gitignore_content.push('\n');
+        }
+
+        // Add a comment and the .env rule
+        gitignore_content
+            .push_str("\n# Environment variables (contains sensitive API keys and tokens)\n");
+        gitignore_content.push_str(".env\n");
+        gitignore_content.push_str(".env.local\n");
+        gitignore_content.push_str(".env.*.local\n");
+
+        // Write the updated .gitignore
+        fs::write(gitignore_path, gitignore_content)?;
+
+        println!("✅ Updated .gitignore to include .env files");
+    } else {
+        println!("✅ .gitignore already protects .env files");
+    }
 
     Ok(())
 }

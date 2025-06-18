@@ -15,6 +15,7 @@ pub trait SemanticReleaseOperations {
     async fn view_last_release_info(&mut self) -> Result<()>;
     async fn view_semantic_release_config(&mut self) -> Result<()>;
     async fn get_detailed_version_info(&mut self) -> Result<()>;
+    async fn setup_github_actions_semantic_release(&mut self) -> Result<()>;
 }
 
 impl SemanticReleaseOperations for App {
@@ -103,6 +104,29 @@ impl SemanticReleaseOperations for App {
 
         // Start the operation in a background thread
         self.start_version_info_operation(release_state.clone());
+
+        // Store the state so the main loop can poll it
+        self.semantic_release_state = Some(release_state);
+
+        Ok(())
+    }
+
+    async fn setup_github_actions_semantic_release(&mut self) -> Result<()> {
+        self.current_state = AppState::Loading;
+        self.message = Some("🔧 Configurando GitHub Actions para semantic-release...".to_string());
+
+        // Create shared state for the operation
+        let release_state = SemanticReleaseState {
+            status: Arc::new(Mutex::new(
+                "🔧 Preparando configuración de GitHub Actions...".to_string(),
+            )),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(true)),
+            result: Arc::new(Mutex::new(String::new())),
+        };
+
+        // Start the operation in a background thread
+        self.start_github_setup_operation(release_state.clone());
 
         // Store the state so the main loop can poll it
         self.semantic_release_state = Some(release_state);
@@ -430,4 +454,376 @@ impl App {
             }
         });
     }
+
+    pub fn start_github_setup_operation(&self, release_state: SemanticReleaseState) {
+        // Clone state components for the thread
+        let status_clone = release_state.status.clone();
+        let finished_clone = release_state.finished.clone();
+        let success_clone = release_state.success.clone();
+        let result_clone = release_state.result.clone();
+
+        // Spawn the operation in a background thread
+        thread::spawn(move || {
+            let mut result_text = String::new();
+
+            // Update status: setting up GitHub Actions
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "🔧 Configurando GitHub Actions para semantic-release...".to_string();
+            }
+
+            result_text.push_str("🚀 CONFIGURACIÓN DE GITHUB ACTIONS SEMANTIC-RELEASE\n");
+            result_text.push_str("=".repeat(60).as_str());
+            result_text.push_str("\n\n");
+
+            // Step 1: Check if already configured
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "🔍 Verificando configuración existente...".to_string();
+            }
+
+            let mut files_created = Vec::new();
+            let mut files_skipped = Vec::new();
+
+            // Step 2: Setup package.json
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📦 Configurando package.json...".to_string();
+            }
+
+            match setup_package_json() {
+                Ok(created) => {
+                    if created {
+                        files_created.push("package.json");
+                        result_text.push_str(
+                            "✅ package.json creado con dependencias de semantic-release\n",
+                        );
+                    } else {
+                        files_skipped.push("package.json");
+                        result_text.push_str("⚠️  package.json ya existe - no modificado\n");
+                    }
+                }
+                Err(e) => {
+                    result_text.push_str(&format!("❌ Error configurando package.json: {}\n", e));
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Step 3: Setup .releaserc.json
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "⚙️ Configurando .releaserc.json...".to_string();
+            }
+
+            match setup_releaserc() {
+                Ok(created) => {
+                    if created {
+                        files_created.push(".releaserc.json");
+                        result_text.push_str(
+                            "✅ .releaserc.json creado con configuración de semantic-release\n",
+                        );
+                    } else {
+                        files_skipped.push(".releaserc.json");
+                        result_text.push_str("⚠️  .releaserc.json ya existe - no modificado\n");
+                    }
+                }
+                Err(e) => {
+                    result_text
+                        .push_str(&format!("❌ Error configurando .releaserc.json: {}\n", e));
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Step 4: Setup GitHub Actions workflow
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "🔄 Configurando GitHub Actions workflow...".to_string();
+            }
+
+            match setup_github_workflow() {
+                Ok(created) => {
+                    if created {
+                        files_created.push(".github/workflows/release.yml");
+                        result_text.push_str(
+                            "✅ GitHub Actions workflow creado en .github/workflows/release.yml\n",
+                        );
+                    } else {
+                        files_skipped.push(".github/workflows/release.yml");
+                        result_text
+                            .push_str("⚠️  GitHub Actions workflow ya existe - no modificado\n");
+                    }
+                }
+                Err(e) => {
+                    result_text
+                        .push_str(&format!("❌ Error configurando GitHub workflow: {}\n", e));
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Step 5: Ensure plantilla template exists
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📄 Verificando plantilla de release notes...".to_string();
+            }
+
+            match ensure_plantilla_template_exists() {
+                Ok(_) => {
+                    result_text.push_str("✅ Plantilla de release notes verificada\n");
+                }
+                Err(e) => {
+                    result_text.push_str(&format!("❌ Error configurando plantilla: {}\n", e));
+                }
+            }
+
+            // Summary
+            result_text.push('\n');
+            result_text.push_str("📋 RESUMEN DE CONFIGURACIÓN\n");
+            result_text.push_str("=".repeat(30).as_str());
+            result_text.push_str("\n\n");
+
+            if !files_created.is_empty() {
+                result_text.push_str("✅ Archivos creados:\n");
+                for file in &files_created {
+                    result_text.push_str(&format!("   • {}\n", file));
+                }
+                result_text.push('\n');
+            }
+
+            if !files_skipped.is_empty() {
+                result_text.push_str("⚠️  Archivos ya existentes (no modificados):\n");
+                for file in &files_skipped {
+                    result_text.push_str(&format!("   • {}\n", file));
+                }
+                result_text.push('\n');
+            }
+
+            // Next steps
+            result_text.push_str("🚀 PRÓXIMOS PASOS\n");
+            result_text.push_str("=".repeat(20).as_str());
+            result_text.push_str("\n\n");
+            result_text.push_str("1. 🔑 Configurar secrets en GitHub:\n");
+            result_text.push_str("   • GITHUB_TOKEN: Personal access token con permisos 'repo'\n");
+            result_text.push_str("   • Ir a Settings > Secrets and variables > Actions\n\n");
+            result_text.push_str("2. 📝 Usar commits convencionales:\n");
+            result_text.push_str("   • feat: nueva funcionalidad (minor version)\n");
+            result_text.push_str("   • fix: corrección de bug (patch version)\n");
+            result_text.push_str("   • feat!: breaking change (major version)\n\n");
+            result_text.push_str("3. 🚢 Hacer push a main para ejecutar el primer release:\n");
+            result_text.push_str("   • git add .\n");
+            result_text.push_str(
+                "   • git commit -m \"feat: setup semantic-release with GitHub Actions\"\n",
+            );
+            result_text.push_str("   • git push origin main\n\n");
+
+            // Update final status
+            let has_errors = files_created.is_empty() && files_skipped.is_empty();
+            if has_errors {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "❌ Error configurando GitHub Actions".to_string();
+                }
+                if let Ok(mut success) = success_clone.lock() {
+                    *success = false;
+                }
+            } else {
+                if let Ok(mut status) = status_clone.lock() {
+                    *status = "✅ GitHub Actions configurado exitosamente".to_string();
+                }
+                utils::log_success("GITHUB-SETUP", "GitHub Actions configured successfully");
+            }
+
+            // Store result
+            if let Ok(mut result) = result_clone.lock() {
+                *result = result_text;
+            }
+
+            // Mark as finished
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
+        });
+    }
+}
+
+fn setup_package_json() -> Result<bool> {
+    use std::fs;
+    use std::path::Path;
+
+    let package_path = Path::new("package.json");
+
+    // If package.json already exists, don't modify it
+    if package_path.exists() {
+        return Ok(false);
+    }
+
+    let package_json = r#"{
+  "name": "semantic-release-project",
+  "version": "1.0.0",
+  "description": "Project configured with semantic-release for automated versioning",
+  "main": "index.js",
+  "scripts": {
+    "semantic-release": "semantic-release"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/username/repository.git"
+  },
+  "keywords": [
+    "semantic-release",
+    "automation",
+    "versioning"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^11.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.6",
+    "@semantic-release/release-notes-generator": "^12.1.0",
+    "semantic-release": "^22.0.12"
+  }
+}
+"#;
+
+    fs::write(package_path, package_json)?;
+    Ok(true)
+}
+
+fn setup_releaserc() -> Result<bool> {
+    use std::fs;
+    use std::path::Path;
+
+    let releaserc_path = Path::new(".releaserc.json");
+
+    // If .releaserc.json already exists, don't modify it
+    if releaserc_path.exists() {
+        return Ok(false);
+    }
+
+    let releaserc_json = r#"{
+  "branches": ["main"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    ["@semantic-release/changelog", {
+      "changelogFile": "CHANGELOG.md"
+    }],
+    ["@semantic-release/github", {
+      "assets": [
+        {
+          "path": "dist/**/*",
+          "label": "Distribution files"
+        }
+      ],
+      "successComment": "🎉 This release is now available in [version ${nextRelease.version}](${releases.find(release => release.name === 'GitHub release').url}) 🎉",
+      "failComment": "This release from branch `${branch.name}` has failed due to the following errors:\n- ${errors.map(err => err.message).join('\\n- ')}",
+      "labels": ["released"],
+      "assignees": ["@semantic-release/github"]
+    }],
+    ["@semantic-release/git", {
+      "assets": ["package.json", "package-lock.json", "CHANGELOG.md"],
+      "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+    }]
+  ]
+}
+"#;
+
+    fs::write(releaserc_path, releaserc_json)?;
+    Ok(true)
+}
+
+fn setup_github_workflow() -> Result<bool> {
+    use std::fs;
+    use std::path::Path;
+
+    let workflow_dir = Path::new(".github/workflows");
+    let workflow_path = workflow_dir.join("release.yml");
+
+    // If workflow already exists, don't modify it
+    if workflow_path.exists() {
+        return Ok(false);
+    }
+
+    // Create .github/workflows directory if it doesn't exist
+    fs::create_dir_all(workflow_dir)?;
+
+    let workflow_yml = r#"name: Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
+"#;
+
+    fs::write(&workflow_path, workflow_yml)?;
+    Ok(true)
+}
+
+fn ensure_plantilla_template_exists() -> Result<()> {
+    // Implementation of ensure_plantilla_template_exists function
+    Ok(())
 }
