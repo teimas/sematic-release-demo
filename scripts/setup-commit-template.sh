@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# TEIMAS Semantic Release - Git Commit Template Setup
+# TEIMAS Release Committer (TERCO) - Git Commit Template Setup
 # This script sets up the git commit template for consistent commit messages
 
-echo "🚀 TEIMAS Semantic Release - Git Commit Template Setup"
+echo "🚀 TEIMAS Release Committer (TERCO) - Git Commit Template Setup"
 echo "======================================================"
 
 # Define the template path
@@ -140,7 +140,7 @@ echo "📋 How to use:"
 echo "• Run 'git commit' (without -m) to open editor with template"
 echo "• Fill in the template fields, replacing placeholders with actual content"
 echo "• Use 'N/A' for fields that don't apply"
-echo "• The TEIMAS Semantic Release TUI will also follow this same structure"
+echo "• The TEIMAS Release Committer (TERCO) will also follow this same structure"
 echo ""
 echo "🔧 To disable template:"
 echo "• Global: git config --global --unset commit.template"
