@@ -3,6 +3,10 @@ name = "semantic-release-tui"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+vendored-openssl = ["openssl/vendored"]
+
 [dependencies]
 ratatui = "0.29"
 crossterm = "0.28"
@@ -24,4 +28,5 @@ toml = "0.8"
 dotenv = "0.15"
 log = "0.4"
 env_logger = "0.11"
-jira_query = "1.6.0" 
+jira_query = "1.6.0"
+openssl = "0.10" 
