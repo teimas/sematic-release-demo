@@ -47,13 +47,13 @@ impl ReleaseNotesOperations for App {
 
         // Store the analysis state so the main loop can poll it
         self.release_notes_analysis_state = Some(analysis_state);
-
+        
         Ok(())
     }
 
     async fn generate_release_notes_with_npm_wrapper(&mut self) -> Result<()> {
         self.current_state = crate::types::AppState::Loading;
-
+        
         if let Err(e) = self.generate_release_notes_with_npm().await {
             self.current_state = crate::types::AppState::Error(e.to_string());
         } else {
@@ -61,7 +61,7 @@ impl ReleaseNotesOperations for App {
             self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
             self.current_screen = crate::types::AppScreen::Main;
         }
-
+        
         Ok(())
     }
 }
@@ -118,24 +118,24 @@ impl App {
     ) -> String {
         use std::collections::HashMap;
         use std::fs;
-
+        
         // Create a mapping of task ID to task details for quick lookup
         let task_details_map: HashMap<String, &crate::types::MondayTask> = monday_tasks
             .iter()
             .map(|task| (task.id.clone(), task))
             .collect();
-
+        
         // Group commits by type
         let commits_by_type = self.group_commits_by_type(commits);
-
+        
         let mut document = String::new();
-
+        
         // Header
         document.push_str(&format!(
             "# Datos para Generación de Notas de Versión {}\n\n",
             version
         ));
-
+        
         // General Information
         document.push_str("## Información General\n\n");
         document.push_str(&format!("- **Versión**: {}\n", version));
@@ -163,7 +163,7 @@ impl App {
                 document.push_str("- **Tareas relacionadas**: 0 (sin sistema configurado)\n\n");
             }
         }
-
+        
         // Instructions for Gemini
         document.push_str("## Instrucciones CRÍTICAS\n\n");
         document.push_str(
@@ -176,7 +176,7 @@ impl App {
         // Add system-specific instructions
         match self.config.get_task_system() {
             crate::types::TaskSystem::Monday => {
-                document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
+        document.push_str("2. Para las tareas de Monday.com, usa SIEMPRE el formato 'm' + ID (ej: m8817155664).\n");
             }
             crate::types::TaskSystem::Jira => {
                 document.push_str("2. Para las tareas de JIRA, usa SIEMPRE el formato del issue key (ej: SMP-123).\n");
@@ -225,10 +225,10 @@ impl App {
 
         // Add detailed commits section
         self.add_detailed_commits_to_document(&mut document, commits, &task_details_map);
-
+        
         // Read and include template
         document.push_str("La plantilla a utilizar para generar el documento tiene que ser la siguiente. Fijate en todo lo que hay y emúlalo por completo.");
-
+        
         match fs::read_to_string("scripts/plantilla.md") {
             Ok(plantilla_content) => {
                 document.push_str(&format!("\n\n{}", plantilla_content));
@@ -242,10 +242,10 @@ impl App {
                 document.push_str("\n\nPor favor, utiliza el formato estándar de notas de versión de Teixo que incluye las secciones de Información para N1, Información técnica, Correcciones, Novedades (por categorías), Validación en Sandbox, Pruebas y Referencia commits.");
             }
         }
-
+        
         document
     }
-
+    
     // Helper methods for release notes generation
     fn group_commits_by_type<'a>(
         &self,
@@ -253,7 +253,7 @@ impl App {
     ) -> std::collections::HashMap<String, Vec<&'a crate::types::GitCommit>> {
         use std::collections::HashMap;
         let mut groups = HashMap::new();
-
+        
         for commit in commits {
             let commit_type = commit.commit_type.as_deref().unwrap_or("other").to_string();
             groups
@@ -261,7 +261,7 @@ impl App {
                 .or_insert_with(Vec::new)
                 .push(commit);
         }
-
+        
         groups
     }
 
@@ -834,7 +834,7 @@ impl TempAppForBackground {
         if let Ok(mut status) = status_clone.lock() {
             *status = "📋 Obteniendo commits desde la última versión...".to_string();
         }
-
+        
         // Get git repository
         let git_repo = match GitRepo::new() {
             Ok(repo) => repo,
@@ -851,7 +851,7 @@ impl TempAppForBackground {
                 return;
             }
         };
-
+        
         // Get last tag and commits since then
         if let Ok(mut status) = status_clone.lock() {
             *status = "🏷️ Obteniendo última etiqueta del repositorio...".to_string();
@@ -892,7 +892,7 @@ impl TempAppForBackground {
                 return;
             }
         };
-
+        
         if commits.is_empty() {
             if let Ok(mut status) = status_clone.lock() {
                 *status = "⚠️ No se encontraron commits desde la última versión".to_string();
@@ -918,26 +918,26 @@ impl TempAppForBackground {
                     *status = "🔍 Extrayendo IDs de tareas de Monday.com...".to_string();
                 }
 
-                for commit in &commits {
-                    // Check scope for task IDs
-                    if let Some(scope) = &commit.scope {
-                        for id in scope.split('|') {
-                            if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
-                                monday_task_ids.insert(id.to_string());
-                            }
-                        }
-                    }
-
-                    // Check monday task mentions
-                    for mention in &commit.monday_task_mentions {
-                        monday_task_ids.insert(mention.id.clone());
-                    }
-
-                    // Check monday_tasks field
-                    for task_id in &commit.monday_tasks {
-                        monday_task_ids.insert(task_id.clone());
+        for commit in &commits {
+            // Check scope for task IDs
+            if let Some(scope) = &commit.scope {
+                for id in scope.split('|') {
+                    if id.chars().all(|c| c.is_ascii_digit()) && !id.is_empty() {
+                        monday_task_ids.insert(id.to_string());
                     }
                 }
+            }
+            
+            // Check monday task mentions
+            for mention in &commit.monday_task_mentions {
+                monday_task_ids.insert(mention.id.clone());
+            }
+            
+            // Check monday_tasks field
+            for task_id in &commit.monday_tasks {
+                monday_task_ids.insert(task_id.clone());
+            }
+        }
             }
             crate::types::TaskSystem::Jira => {
                 if let Ok(mut status) = status_clone.lock() {
@@ -997,14 +997,14 @@ impl TempAppForBackground {
                 }
             }
         }
-
+        
         // Extract responsible person from most recent commit author
         let responsible_person = if !commits.is_empty() {
             commits[0].author_name.clone()
         } else {
             "".to_string()
         };
-
+        
         // Get task details based on configured system
         let mut monday_tasks = Vec::new();
         let mut jira_tasks = Vec::new();
@@ -1012,10 +1012,10 @@ impl TempAppForBackground {
         match task_system {
             crate::types::TaskSystem::Monday => {
                 monday_tasks = if !monday_task_ids.is_empty() {
-                    match MondayClient::new(&self.config) {
-                        Ok(client) => {
-                            let task_ids: Vec<String> = monday_task_ids.iter().cloned().collect();
-                            match client.get_task_details(&task_ids).await {
+            match MondayClient::new(&self.config) {
+                Ok(client) => {
+                    let task_ids: Vec<String> = monday_task_ids.iter().cloned().collect();
+                    match client.get_task_details(&task_ids).await {
                                 Ok(tasks) => {
                                     if let Ok(mut status) = status_clone.lock() {
                                         *status = format!(
@@ -1025,64 +1025,64 @@ impl TempAppForBackground {
                                     }
                                     tasks
                                 }
-                                Err(e) => {
-                                    utils::log_error("RELEASE-NOTES", &e);
-                                    Vec::new()
-                                }
-                            }
-                        }
                         Err(e) => {
-                            utils::log_error("RELEASE-NOTES", &e);
+                                    utils::log_error("RELEASE-NOTES", &e);
                             Vec::new()
                         }
                     }
-                } else {
+                }
+                Err(e) => {
+                            utils::log_error("RELEASE-NOTES", &e);
                     Vec::new()
-                };
-
-                // Create placeholder tasks for IDs that couldn't be fetched from Monday API
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        
+        // Create placeholder tasks for IDs that couldn't be fetched from Monday API
                 let found_task_ids: HashSet<String> =
                     monday_tasks.iter().map(|task| task.id.clone()).collect();
-                for task_id in &monday_task_ids {
-                    if !found_task_ids.contains(task_id) {
-                        let mut title = "Task not found in Monday API".to_string();
-
-                        // Try to extract title from commits that mention this task
-                        for commit in &commits {
-                            let task_mentioned = if let Some(scope) = &commit.scope {
-                                scope.split('|').any(|id| id == task_id)
-                            } else {
-                                false
+        for task_id in &monday_task_ids {
+            if !found_task_ids.contains(task_id) {
+                let mut title = "Task not found in Monday API".to_string();
+                
+                // Try to extract title from commits that mention this task
+                for commit in &commits {
+                    let task_mentioned = if let Some(scope) = &commit.scope {
+                        scope.split('|').any(|id| id == task_id)
+                    } else {
+                        false
                             } || commit
                                 .monday_task_mentions
                                 .iter()
                                 .any(|mention| &mention.id == task_id)
-                                || commit.monday_tasks.contains(task_id);
-
-                            if task_mentioned {
-                                for mention in &commit.monday_task_mentions {
-                                    if &mention.id == task_id {
-                                        title = mention.title.clone();
-                                        break;
-                                    }
-                                }
+                      || commit.monday_tasks.contains(task_id);
+                    
+                    if task_mentioned {
+                        for mention in &commit.monday_task_mentions {
+                            if &mention.id == task_id {
+                                title = mention.title.clone();
+                                break;
                             }
                         }
-
-                        // Create placeholder Monday task
-                        let placeholder_task = MondayTask {
-                            id: task_id.clone(),
-                            title,
-                            board_id: Some("".to_string()),
-                            board_name: Some("".to_string()),
-                            url: "".to_string(),
-                            state: "active".to_string(),
-                            updates: Vec::new(),
-                            group_title: Some("".to_string()),
-                            column_values: Vec::new(),
-                        };
-
-                        monday_tasks.push(placeholder_task);
+                    }
+                }
+                
+                // Create placeholder Monday task
+                let placeholder_task = MondayTask {
+                    id: task_id.clone(),
+                    title,
+                    board_id: Some("".to_string()),
+                    board_name: Some("".to_string()),
+                    url: "".to_string(),
+                    state: "active".to_string(),
+                    updates: Vec::new(),
+                    group_title: Some("".to_string()),
+                    column_values: Vec::new(),
+                };
+                
+                monday_tasks.push(placeholder_task);
                     }
                 }
             }
@@ -1176,7 +1176,7 @@ impl TempAppForBackground {
                 // No tasks to fetch
             }
         }
-
+        
         // Get version and create tag format
         if let Ok(mut status) = status_clone.lock() {
             *status = "🏷️ Generando información de versión...".to_string();
@@ -1219,7 +1219,7 @@ impl TempAppForBackground {
                 version
             );
         }
-
+        
         // Generate the structured document
         let temp_app_helper = App::new_for_background(&self.config);
         let structured_document = temp_app_helper.generate_raw_release_notes(
@@ -1229,7 +1229,7 @@ impl TempAppForBackground {
             &jira_tasks,
             &responsible_person,
         );
-
+        
         // Create output directory
         if let Err(e) = fs::create_dir_all("release-notes") {
             utils::log_warning(
@@ -1237,7 +1237,7 @@ impl TempAppForBackground {
                 &format!("Could not create release-notes directory: {}", e),
             );
         }
-
+        
         // Generate filenames
         let date_str = Utc::now().format("%Y-%m-%d").to_string();
         let structured_filename = format!(
@@ -1245,7 +1245,7 @@ impl TempAppForBackground {
             date_str
         );
         let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
-
+        
         // Save the structured document first
         if let Ok(mut status) = status_clone.lock() {
             *status = "💾 Guardando documento estructurado...".to_string();
@@ -1267,7 +1267,7 @@ impl TempAppForBackground {
         if let Ok(mut status) = status_clone.lock() {
             *status = "🤖 Enviando documento a Google Gemini API...".to_string();
         }
-
+        
         // Try to process with Gemini
         match GeminiClient::new(&self.config) {
             Ok(gemini_client) => {
@@ -1300,8 +1300,8 @@ impl TempAppForBackground {
                         utils::log_error("RELEASE-NOTES", &e);
                         if let Ok(mut status) = status_clone.lock() {
                             *status = format!(
-                                "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Ejecuta el script de Node.js para procesamiento con Gemini",
-                                structured_filename
+                            "⚠️ Gemini falló, pero se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Ejecuta el script de Node.js para procesamiento con Gemini",
+                            structured_filename
                             );
                         }
                     }
@@ -1311,16 +1311,16 @@ impl TempAppForBackground {
                 utils::log_error("RELEASE-NOTES", &e);
                 if let Ok(mut status) = status_clone.lock() {
                     *status = format!(
-                        "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Configura el token de Gemini para procesamiento IA",
-                        structured_filename
+                    "⚠️ Gemini no configurado, solo se generó el documento estructurado:\n📄 Documento estructurado: {}\n💡 Configura el token de Gemini para procesamiento IA",
+                    structured_filename
                     );
+                    }
                 }
             }
-        }
-
-        // Mark as finished
-        if let Ok(mut finished) = finished_clone.lock() {
-            *finished = true;
-        }
+            
+            // Mark as finished
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
     }
 }
