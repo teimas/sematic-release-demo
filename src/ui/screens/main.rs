@@ -171,7 +171,7 @@ pub fn draw_main_screen(
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("                           Semantic Release TUI - Terminal Interface", Style::default().fg(Color::Cyan).add_modifier(Modifier::ITALIC)),
+            Span::styled("                           TEIMAS Release Committer (TERCO) - Terminal Interface", Style::default().fg(Color::Cyan).add_modifier(Modifier::ITALIC)),
         ]),
         Line::from(""),
     ];
@@ -442,7 +442,7 @@ pub fn draw_main_screen(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("TEIMAS Semantic Release"),
+                .title("TEIMAS Release Committer (TERCO)"),
         )
         .wrap(Wrap { trim: true });
 

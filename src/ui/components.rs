@@ -8,7 +8,7 @@ use ratatui::{
 use crate::types::AppState;
 
 pub fn draw_title_bar(f: &mut Frame, area: Rect) {
-    let title = Paragraph::new("🚀 Semantic Release TUI")
+    let title = Paragraph::new("🚀 TEIMAS Release Committer (TERCO)")
         .style(
             Style::default()
                 .fg(Color::Cyan)

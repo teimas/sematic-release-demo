@@ -382,7 +382,7 @@ async fn test_jira_connection(config: &AppConfig) -> Result<String> {
 }
 
 pub async fn setup_commit_template() -> Result<()> {
-    println!("🚀 TEIMAS Semantic Release - Git Commit Template Setup");
+    println!("🚀 TEIMAS Release Committer (TERCO) - Git Commit Template Setup");
     println!("======================================================");
     println!();
 
@@ -526,7 +526,7 @@ RELATED TASKS:
     println!("• Run 'git commit' (without -m) to open editor with template");
     println!("• Fill in the template fields, replacing placeholders with actual content");
     println!("• Use 'N/A' for fields that don't apply");
-    println!("• The TEIMAS Semantic Release TUI will also follow this same structure");
+    println!("• The TEIMAS Release Committer (TERCO) will also follow this same structure");
     println!();
     println!("🔧 To disable template:");
     println!("• Global: git config --global --unset commit.template");

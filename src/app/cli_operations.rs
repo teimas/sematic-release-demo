@@ -5,7 +5,7 @@ use crate::{app::App, git::GitRepo, services::MondayClient};
 impl App {
     // CLI methods for direct command usage
     pub async fn commit_flow(&self) -> Result<()> {
-        println!("🚀 Semantic Release TUI - Opening Commit Interface...");
+        println!("🚀 TEIMAS Release Committer (TERCO) - Opening Commit Interface...");
         println!("💡 TIP: Use 't' for comprehensive AI analysis");
         println!("📋 Press 'q' to quit, 'Tab' to navigate between fields");
 
@@ -22,7 +22,7 @@ impl App {
     }
 
     pub async fn autocommit_flow(&self) -> Result<()> {
-        println!("🚀 Semantic Release TUI - Auto-commit Flow");
+        println!("🚀 TEIMAS Release Committer (TERCO) - Auto-commit Flow");
         println!("🧠 Running comprehensive AI analysis...");
 
         // Run comprehensive analysis directly without TUI state management
