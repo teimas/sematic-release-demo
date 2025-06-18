@@ -3,12 +3,13 @@ use std::thread;
 
 use crate::{
     app::App,
-    git::GitRepo,
-    services::GeminiClient,
+    git::repository::GitRepo,
+    services::gemini::GeminiClient,
     types::{AppState, ComprehensiveAnalysisState},
     utils,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait BackgroundOperations {
     async fn start_comprehensive_analysis_wrapper(&mut self);
 }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     app::semantic_release_operations::SemanticReleaseOperations,
@@ -8,6 +8,7 @@ use crate::{
     ui::{CommitField, InputMode},
 };
 
+#[allow(async_fn_in_trait)]
 pub trait EventHandlers {
     async fn handle_key_event_impl(&mut self, key: KeyEvent) -> Result<()>;
 }

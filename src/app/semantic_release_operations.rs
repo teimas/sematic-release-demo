@@ -9,6 +9,7 @@ use crate::{
     utils,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait SemanticReleaseOperations {
     async fn execute_semantic_release(&mut self, dry_run: bool) -> Result<()>;
     async fn view_last_release_info(&mut self) -> Result<()>;

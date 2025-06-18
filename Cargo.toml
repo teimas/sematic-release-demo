@@ -3,6 +3,14 @@ name = "semantic-release-tui"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "semantic_release_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "semantic-release-tui"
+path = "src/main.rs"
+
 [features]
 default = []
 vendored-openssl = ["openssl/vendored"]

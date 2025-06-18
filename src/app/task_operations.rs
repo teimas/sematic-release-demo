@@ -4,10 +4,12 @@ use std::io::Write;
 
 use crate::{
     app::App,
-    services::{JiraClient, MondayClient},
-    types::{JiraTask, MondayTask},
+    services::{jira::JiraClient, monday::MondayClient},
+    types::{JiraTask, MondayTask, TaskSystem},
+    utils,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait TaskOperations {
     async fn search_monday_tasks(&self, query: &str) -> Result<Vec<MondayTask>>;
     async fn search_jira_tasks(&self, query: &str) -> Result<Vec<JiraTask>>;

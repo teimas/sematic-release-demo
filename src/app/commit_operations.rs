@@ -1,8 +1,9 @@
 use anyhow::Result;
 use log::{debug, error, info};
 
-use crate::{app::App, git::GitRepo};
+use crate::{app::App, git::repository::GitRepo, utils};
 
+#[allow(async_fn_in_trait)]
 pub trait CommitOperations {
     fn build_commit_message(&self) -> String;
     async fn create_commit_with_message(&self, message: &str) -> Result<()>;
