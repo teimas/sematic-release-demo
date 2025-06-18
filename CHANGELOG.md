@@ -1,3 +1,65 @@
+# [4.0.0](https://github.com/teimas/sematic-release-demo/compare/v3.0.0...v4.0.0) (2025-06-18)
+
+
+### Bug Fixes
+
+* clean up unused imports ([772763a](https://github.com/teimas/sematic-release-demo/commit/772763a4542d4e855b0bb531b4b53fe6e6b252f3))
+* improve error handling in version detection ([8a36b35](https://github.com/teimas/sematic-release-demo/commit/8a36b35a158b07d73136522cf22bc0dd04898e8c))
+* resolve async trait warnings with allow attributes ([0b95ba6](https://github.com/teimas/sematic-release-demo/commit/0b95ba6ce191f44f925fdc0ab638817e8804dbc0))
+
+
+### Code Refactoring
+
+* **app:** Optimiza adición de carácter de nueva línea ([eddc6ab](https://github.com/teimas/sematic-release-demo/commit/eddc6ab343d32962a744be2d6bf5e78664c7d1fd))
+
+
+### Features
+
+* add enhanced version detection functionality ([122942f](https://github.com/teimas/sematic-release-demo/commit/122942f03b587493c9a0d3ceef5950e220929138))
+* **cli, versioning:** añade comando CLI para mostrar información de versión ([1175470](https://github.com/teimas/sematic-release-demo/commit/1175470a0fbac706219baf3eaa52b4639a1e8ebb))
+
+
+### Styles
+
+* **main, ui:** Ajusta espaciado en salida y código fuente ([553f5f5](https://github.com/teimas/sematic-release-demo/commit/553f5f50bd0c3e04d0e43c0ae90a9ea487d50e5e))
+
+
+### BREAKING CHANGES
+
+* **app:** N/A
+
+Test Details: N/A
+
+Security: N/A
+
+Migraciones Lentas: N/A
+
+Partes a Ejecutar: N/A
+
+JIRA TASKS: N/A
+* **main, ui:** N/A
+
+Test Details: N/A
+
+Security: N/A
+
+Migraciones Lentas: N/A
+
+Partes a Ejecutar: N/A
+
+JIRA TASKS: N/A
+* **cli, versioning:** N/A
+
+Test Details: N/A
+
+Security: N/A
+
+Migraciones Lentas: N/A
+
+Partes a Ejecutar: N/A
+
+JIRA TASKS: N/A
+
 # [3.0.0](https://github.com/teimas/sematic-release-demo/compare/v2.0.0...v3.0.0) (2025-06-18)
 
 
