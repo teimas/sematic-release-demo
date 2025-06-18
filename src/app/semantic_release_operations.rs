@@ -9,10 +9,12 @@ use crate::{
     utils,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait SemanticReleaseOperations {
     async fn execute_semantic_release(&mut self, dry_run: bool) -> Result<()>;
     async fn view_last_release_info(&mut self) -> Result<()>;
     async fn view_semantic_release_config(&mut self) -> Result<()>;
+    async fn get_detailed_version_info(&mut self) -> Result<()>;
 }
 
 impl SemanticReleaseOperations for App {
@@ -81,6 +83,29 @@ impl SemanticReleaseOperations for App {
                 self.current_state = AppState::Error(format!("Error en configuración: {}", e));
             }
         }
+
+        Ok(())
+    }
+
+    async fn get_detailed_version_info(&mut self) -> Result<()> {
+        self.current_state = AppState::Loading;
+        self.message = Some("🔍 Analizando información de versión...".to_string());
+
+        // Create shared state for the operation
+        let release_state = SemanticReleaseState {
+            status: Arc::new(Mutex::new(
+                "🔍 Obteniendo información detallada de versión...".to_string(),
+            )),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(true)),
+            result: Arc::new(Mutex::new(String::new())),
+        };
+
+        // Start the operation in a background thread
+        self.start_version_info_operation(release_state.clone());
+
+        // Store the state so the main loop can poll it
+        self.semantic_release_state = Some(release_state);
 
         Ok(())
     }
@@ -319,5 +344,90 @@ impl App {
         }
 
         Ok(config_info.join(", "))
+    }
+
+    pub fn start_version_info_operation(&self, release_state: SemanticReleaseState) {
+        use crate::git::repository::get_version_info;
+
+        // Clone state components for the thread
+        let status_clone = release_state.status.clone();
+        let finished_clone = release_state.finished.clone();
+        let success_clone = release_state.success.clone();
+        let result_clone = release_state.result.clone();
+
+        // Spawn the operation in a background thread
+        thread::spawn(move || {
+            // Update status: analyzing version
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📊 Analizando información de versión...".to_string();
+            }
+
+            match get_version_info() {
+                Ok(version_info) => {
+                    let mut result_text = String::new();
+
+                    // Current version section
+                    result_text.push_str("📦 INFORMACIÓN DE VERSIÓN\n");
+                    result_text.push_str("=".repeat(50).as_str());
+                    result_text.push_str("\n\n");
+
+                    if let Some(current) = &version_info.current_version {
+                        result_text.push_str(&format!("🏷️  Versión actual: {}\n", current));
+                    } else {
+                        result_text.push_str("🏷️  Versión actual: Sin versiones anteriores\n");
+                    }
+
+                    result_text.push_str(&format!(
+                        "🚀 Próxima versión: {}\n",
+                        version_info.next_version
+                    ));
+                    result_text.push_str(&format!(
+                        "📊 Tipo de release: {}\n",
+                        version_info.version_type
+                    ));
+                    result_text.push_str(&format!(
+                        "📈 Commits desde última versión: {}\n",
+                        version_info.commit_count
+                    ));
+
+                    if version_info.has_unreleased_changes {
+                        result_text.push_str("✅ Hay cambios para publicar\n");
+                    } else {
+                        result_text.push_str("⚠️  No hay cambios para publicar\n");
+                    }
+
+                    result_text.push_str("\n");
+                    result_text.push_str("🔍 ANÁLISIS DETALLADO\n");
+                    result_text.push_str("=".repeat(50).as_str());
+                    result_text.push_str("\n\n");
+                    result_text.push_str(&version_info.dry_run_output);
+
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = "✅ Análisis de versión completado".to_string();
+                    }
+                    if let Ok(mut result) = result_clone.lock() {
+                        *result = result_text;
+                    }
+                    utils::log_success("VERSION-INFO", "Version analysis completed successfully");
+                }
+                Err(e) => {
+                    utils::log_error("VERSION-INFO", &e);
+                    if let Ok(mut status) = status_clone.lock() {
+                        *status = format!("❌ Error analizando versión: {}", e);
+                    }
+                    if let Ok(mut result) = result_clone.lock() {
+                        *result = format!("Error: {}", e);
+                    }
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Mark as finished
+            if let Ok(mut finished) = finished_clone.lock() {
+                *finished = true;
+            }
+        });
     }
 }

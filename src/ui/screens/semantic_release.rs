@@ -380,6 +380,11 @@ fn create_semantic_release_options(selected: usize, _config: &AppConfig) -> Vec<
             check_prerequisites(),
         ),
         (
+            "📊 Version Info",
+            "Get detailed version analysis and prediction",
+            check_prerequisites(),
+        ),
+        (
             "📦 Last Release",
             "View information about the last release",
             true,

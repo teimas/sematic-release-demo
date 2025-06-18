@@ -273,3 +273,34 @@ pub struct SemanticReleaseState {
     pub success: Arc<Mutex<bool>>,
     pub result: Arc<Mutex<String>>,
 }
+
+#[derive(Debug, Clone)]
+pub struct VersionInfo {
+    pub next_version: String,
+    pub current_version: Option<String>,
+    pub version_type: VersionType,
+    pub commit_count: usize,
+    pub has_unreleased_changes: bool,
+    pub dry_run_output: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum VersionType {
+    Major,
+    Minor,
+    Patch,
+    None,
+    Unknown,
+}
+
+impl std::fmt::Display for VersionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VersionType::Major => write!(f, "Major"),
+            VersionType::Minor => write!(f, "Minor"),
+            VersionType::Patch => write!(f, "Patch"),
+            VersionType::None => write!(f, "No Release"),
+            VersionType::Unknown => write!(f, "Unknown"),
+        }
+    }
+}

@@ -15,6 +15,7 @@ use crate::{
     utils,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait ReleaseNotesOperations {
     async fn handle_release_notes_generation(&mut self) -> Result<()>;
     async fn generate_release_notes_with_npm_wrapper(&mut self) -> Result<()>;

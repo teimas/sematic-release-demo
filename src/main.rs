@@ -47,6 +47,8 @@ enum Commands {
     Search { query: Option<String> },
     /// Setup git commit template for consistent commit messages
     SetupTemplate,
+    /// Get detailed version information using semantic-release
+    VersionInfo,
     /// Debug mode - show detailed error information
     Debug {
         #[command(subcommand)]
@@ -117,6 +119,39 @@ async fn main() -> Result<()> {
         }
         Commands::SetupTemplate => {
             config::setup_commit_template().await?;
+        }
+        Commands::VersionInfo => {
+            println!("🔍 Analyzing version information...");
+            match git::repository::get_version_info() {
+                Ok(version_info) => {
+                    println!("\n📦 VERSION INFORMATION");
+                    println!("{}", "=".repeat(50));
+                    
+                    if let Some(current) = &version_info.current_version {
+                        println!("🏷️  Current version: {}", current);
+                    } else {
+                        println!("🏷️  Current version: No previous versions");
+                    }
+                    
+                    println!("🚀 Next version: {}", version_info.next_version);
+                    println!("📊 Release type: {}", version_info.version_type);
+                    println!("📈 Commits since last version: {}", version_info.commit_count);
+                    
+                    if version_info.has_unreleased_changes {
+                        println!("✅ Has changes to release");
+                    } else {
+                        println!("⚠️  No changes to release");
+                    }
+                    
+                    println!("\n🔍 DETAILED ANALYSIS");
+                    println!("{}", "=".repeat(50));
+                    println!("{}", version_info.dry_run_output);
+                }
+                Err(e) => {
+                    eprintln!("❌ Error analyzing version: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         Commands::Debug { debug_command } => {
             let app = App::new().await?;
