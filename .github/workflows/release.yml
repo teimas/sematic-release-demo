@@ -101,7 +101,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           #NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx semantic-release
+        run: |
+
+          echo "GITHUB_TOKEN: $GITHUB_TOKEN"
+          echo $GITHUB_TOKEN
+          
+          npx semantic-release
 
   build-cross-platform:
     name: Build Cross-Platform
