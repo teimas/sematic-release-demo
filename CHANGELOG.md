@@ -1,3 +1,10 @@
+## [4.0.1](https://github.com/teimas/sematic-release-demo/compare/v4.0.0...v4.0.1) (2025-06-18)
+
+
+### Bug Fixes
+
+* **commit:** Omite pie de página 'BREAKING CHANGE' si no aplica ([56254e4](https://github.com/teimas/sematic-release-demo/commit/56254e4e8250d7344f61c4adfe0cda99788490d6))
+
 # [4.0.0](https://github.com/teimas/sematic-release-demo/compare/v3.0.0...v4.0.0) (2025-06-18)
 
 
