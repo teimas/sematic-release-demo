@@ -561,7 +561,55 @@ impl App {
                 }
             }
 
-            // Step 5: Ensure plantilla template exists
+            // Step 5: Setup package-lock.json
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📦 Configurando package-lock.json...".to_string();
+            }
+
+            match setup_package_lock() {
+                Ok(created) => {
+                    if created {
+                        files_created.push("package-lock.json");
+                        result_text
+                            .push_str("✅ package-lock.json creado para caché de dependencias\n");
+                    } else {
+                        files_skipped.push("package-lock.json");
+                        result_text.push_str("⚠️  package-lock.json ya existe - no modificado\n");
+                    }
+                }
+                Err(e) => {
+                    result_text
+                        .push_str(&format!("❌ Error configurando package-lock.json: {}\n", e));
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Step 6: Setup Node.js .gitignore
+            if let Ok(mut status) = status_clone.lock() {
+                *status = "📁 Configurando .gitignore para Node.js...".to_string();
+            }
+
+            match setup_nodejs_gitignore() {
+                Ok(created) => {
+                    if created {
+                        files_created.push(".gitignore");
+                        result_text.push_str("✅ .gitignore configurado para proyecto Node.js\n");
+                    } else {
+                        files_skipped.push(".gitignore");
+                        result_text.push_str("⚠️  .gitignore ya existe con reglas Node.js\n");
+                    }
+                }
+                Err(e) => {
+                    result_text.push_str(&format!("❌ Error configurando .gitignore: {}\n", e));
+                    if let Ok(mut success) = success_clone.lock() {
+                        *success = false;
+                    }
+                }
+            }
+
+            // Step 7: Ensure plantilla template exists
             if let Ok(mut status) = status_clone.lock() {
                 *status = "📄 Verificando plantilla de release notes...".to_string();
             }
@@ -604,16 +652,23 @@ impl App {
             result_text.push_str("1. 🔑 Configurar secrets en GitHub:\n");
             result_text.push_str("   • GITHUB_TOKEN: Personal access token con permisos 'repo'\n");
             result_text.push_str("   • Ir a Settings > Secrets and variables > Actions\n\n");
-            result_text.push_str("2. 📝 Usar commits convencionales:\n");
+            result_text.push_str("2. 📦 Verificar dependencias (opcional):\n");
+            result_text.push_str("   • Si tienes npm instalado: npm install\n");
+            result_text
+                .push_str("   • Esto actualizará package-lock.json con versiones exactas\n\n");
+            result_text.push_str("3. 📝 Usar commits convencionales:\n");
             result_text.push_str("   • feat: nueva funcionalidad (minor version)\n");
             result_text.push_str("   • fix: corrección de bug (patch version)\n");
             result_text.push_str("   • feat!: breaking change (major version)\n\n");
-            result_text.push_str("3. 🚢 Hacer push a main para ejecutar el primer release:\n");
+            result_text.push_str("4. 🚢 Hacer push a main para ejecutar el primer release:\n");
             result_text.push_str("   • git add .\n");
             result_text.push_str(
                 "   • git commit -m \"feat: setup semantic-release with GitHub Actions\"\n",
             );
             result_text.push_str("   • git push origin main\n\n");
+            result_text.push_str("💡 NOTA: Los scripts de test y build son placeholders.\n");
+            result_text
+                .push_str("   Personaliza package.json según las necesidades de tu proyecto.\n\n");
 
             // Update final status
             let has_errors = files_created.is_empty() && files_skipped.is_empty();
@@ -661,7 +716,10 @@ fn setup_package_json() -> Result<bool> {
   "description": "Project configured with semantic-release for automated versioning",
   "main": "index.js",
   "scripts": {
-    "semantic-release": "semantic-release"
+    "test": "echo \"No tests specified\" && exit 0",
+    "build": "echo \"No build step specified\" && exit 0",
+    "semantic-release": "semantic-release",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -777,10 +835,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'npm'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Run tests
         run: npm test
@@ -804,10 +874,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'npm'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Build
         run: npm run build
@@ -821,6 +903,209 @@ jobs:
 
     fs::write(&workflow_path, workflow_yml)?;
     Ok(true)
+}
+
+fn setup_package_lock() -> Result<bool> {
+    use std::path::Path;
+    use std::process::Command;
+
+    let package_lock_path = Path::new("package-lock.json");
+    let package_json_path = Path::new("package.json");
+
+    // If package-lock.json already exists, don't modify it
+    if package_lock_path.exists() {
+        return Ok(false);
+    }
+
+    // Only create lock file if package.json exists
+    if !package_json_path.exists() {
+        return Ok(false);
+    }
+
+    // Try to run npm install to generate package-lock.json
+    let output = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", "npm install --package-lock-only"])
+            .output()
+    } else {
+        Command::new("npm")
+            .args(["install", "--package-lock-only"])
+            .output()
+    };
+
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                // Check if package-lock.json was created
+                if package_lock_path.exists() {
+                    Ok(true)
+                } else {
+                    // If npm install failed, create a minimal package-lock.json
+                    create_minimal_package_lock()?;
+                    Ok(true)
+                }
+            } else {
+                // If npm install failed, create a minimal package-lock.json
+                create_minimal_package_lock()?;
+                Ok(true)
+            }
+        }
+        Err(_) => {
+            // If npm is not available, create a minimal package-lock.json
+            create_minimal_package_lock()?;
+            Ok(true)
+        }
+    }
+}
+
+fn create_minimal_package_lock() -> Result<()> {
+    let package_lock_json = r#"{
+  "name": "semantic-release-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "semantic-release-project",
+      "version": "1.0.0",
+      "license": "MIT",
+      "devDependencies": {
+        "@semantic-release/changelog": "^6.0.3",
+        "@semantic-release/commit-analyzer": "^11.1.0",
+        "@semantic-release/git": "^10.0.1",
+        "@semantic-release/github": "^9.2.6",
+        "@semantic-release/release-notes-generator": "^12.1.0",
+        "semantic-release": "^22.0.12"
+      }
+    }
+  }
+}
+"#;
+
+    std::fs::write("package-lock.json", package_lock_json)?;
+    Ok(())
+}
+
+fn setup_nodejs_gitignore() -> Result<bool> {
+    use std::fs;
+    use std::path::Path;
+
+    let gitignore_path = Path::new(".gitignore");
+
+    // If .gitignore already exists, don't overwrite it - just ensure it has Node.js rules
+    if gitignore_path.exists() {
+        return ensure_nodejs_gitignore_rules();
+    }
+
+    // Create a comprehensive .gitignore for Node.js/semantic-release projects
+    let gitignore_content = r#"# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+out/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Semantic-release generated files
+CHANGELOG.md
+
+"#;
+
+    fs::write(gitignore_path, gitignore_content)?;
+    Ok(true)
+}
+
+fn ensure_nodejs_gitignore_rules() -> Result<bool> {
+    use std::fs;
+
+    let gitignore_content = fs::read_to_string(".gitignore")?;
+    let mut needs_update = false;
+    let mut updated_content = gitignore_content.clone();
+
+    // Essential Node.js rules to check for
+    let essential_rules = ["node_modules/", ".env"];
+
+    for rule in essential_rules {
+        if !gitignore_content.lines().any(|line| line.trim() == rule) {
+            needs_update = true;
+            if !updated_content.ends_with('\n') {
+                updated_content.push('\n');
+            }
+            updated_content.push_str(&format!("\n# Added by semantic-release setup\n{}\n", rule));
+        }
+    }
+
+    if needs_update {
+        fs::write(".gitignore", updated_content)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 fn ensure_plantilla_template_exists() -> Result<()> {
