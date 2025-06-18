@@ -62,8 +62,10 @@ Improved the CI workflow with:
 ```
 
 #### Smart Build Strategy
+**Unix Systems (Linux/macOS):**
 ```yaml
-- name: Build
+- name: Build (Unix)
+  if: runner.os != 'Windows'
   run: |
     # Try building with system OpenSSL first
     if ! cargo build --release --target ${{ matrix.target }}; then
@@ -72,11 +74,22 @@ Improved the CI workflow with:
     fi
 ```
 
-### 3. 🏗️ **Build Strategy Hierarchy**
-The workflow now follows this fallback strategy:
+**Windows:**
+```yaml
+- name: Build (Windows)
+  if: runner.os == 'Windows'
+  run: cargo build --release --target ${{ matrix.target }} --features vendored-openssl
+```
 
+### 3. 🏗️ **Build Strategy by Platform**
+The workflow uses different strategies per platform:
+
+#### Unix Systems (Linux/macOS)
 1. **Try system OpenSSL** (faster, smaller binary)
 2. **Fallback to vendored OpenSSL** (always works, larger binary)
+
+#### Windows
+1. **Always use vendored OpenSSL** (Windows doesn't have system OpenSSL)
 
 ## Environment Variables Set
 
@@ -137,3 +150,14 @@ cargo build --release --target aarch64-apple-darwin
 ✅ **Use vendored OpenSSL in CI** for reliability
 ✅ **Use system OpenSSL locally** for faster builds
 ✅ **The workflow automatically handles both** scenarios 
+
+## Platform-Specific Notes
+
+### Windows
+- **Always uses vendored OpenSSL** since Windows doesn't ship with OpenSSL
+- **No fallback needed** - vendored is the reliable approach
+- **Avoids shell syntax issues** between PowerShell and bash
+
+### Linux/macOS  
+- **Tries system OpenSSL first** for optimal performance
+- **Automatic fallback** ensures builds always succeed 

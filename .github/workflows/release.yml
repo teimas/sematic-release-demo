@@ -170,13 +170,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      - name: Build
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
         run: |
           # Try building with system OpenSSL first
           if ! cargo build --release --target ${{ matrix.target }}; then
             echo "System OpenSSL build failed, trying with vendored OpenSSL..."
             cargo build --release --target ${{ matrix.target }} --features vendored-openssl
           fi
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cargo build --release --target ${{ matrix.target }} --features vendored-openssl
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
