@@ -41,12 +41,10 @@ impl CommitOperations for App {
             message.push_str("N/A");
         }
 
-        // Breaking changes
-        message.push_str("\n\nBREAKING CHANGE: ");
+        // Breaking changes - only include if there are actual breaking changes
         if !self.commit_form.breaking_change.is_empty() {
+            message.push_str("\n\nBREAKING CHANGE: ");
             message.push_str(&self.commit_form.breaking_change);
-        } else {
-            message.push_str("N/A");
         }
 
         // Test details
