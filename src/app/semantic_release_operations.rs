@@ -93,7 +93,9 @@ impl SemanticReleaseOperations for App {
 
         // Create shared state for the operation
         let release_state = SemanticReleaseState {
-            status: Arc::new(Mutex::new("🔍 Obteniendo información detallada de versión...".to_string())),
+            status: Arc::new(Mutex::new(
+                "🔍 Obteniendo información detallada de versión...".to_string(),
+            )),
             finished: Arc::new(Mutex::new(false)),
             success: Arc::new(Mutex::new(true)),
             result: Arc::new(Mutex::new(String::new())),
@@ -363,10 +365,10 @@ impl App {
             match get_version_info() {
                 Ok(version_info) => {
                     let mut result_text = String::new();
-                    
+
                     // Current version section
                     result_text.push_str("📦 INFORMACIÓN DE VERSIÓN\n");
-                    result_text.push_str("=" .repeat(50).as_str());
+                    result_text.push_str("=".repeat(50).as_str());
                     result_text.push_str("\n\n");
 
                     if let Some(current) = &version_info.current_version {
@@ -375,10 +377,19 @@ impl App {
                         result_text.push_str("🏷️  Versión actual: Sin versiones anteriores\n");
                     }
 
-                    result_text.push_str(&format!("🚀 Próxima versión: {}\n", version_info.next_version));
-                    result_text.push_str(&format!("📊 Tipo de release: {}\n", version_info.version_type));
-                    result_text.push_str(&format!("📈 Commits desde última versión: {}\n", version_info.commit_count));
-                    
+                    result_text.push_str(&format!(
+                        "🚀 Próxima versión: {}\n",
+                        version_info.next_version
+                    ));
+                    result_text.push_str(&format!(
+                        "📊 Tipo de release: {}\n",
+                        version_info.version_type
+                    ));
+                    result_text.push_str(&format!(
+                        "📈 Commits desde última versión: {}\n",
+                        version_info.commit_count
+                    ));
+
                     if version_info.has_unreleased_changes {
                         result_text.push_str("✅ Hay cambios para publicar\n");
                     } else {
@@ -387,7 +398,7 @@ impl App {
 
                     result_text.push_str("\n");
                     result_text.push_str("🔍 ANÁLISIS DETALLADO\n");
-                    result_text.push_str("=" .repeat(50).as_str());
+                    result_text.push_str("=".repeat(50).as_str());
                     result_text.push_str("\n\n");
                     result_text.push_str(&version_info.dry_run_output);
 

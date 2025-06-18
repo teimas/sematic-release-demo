@@ -550,16 +550,16 @@ use crate::types::{VersionInfo, VersionType};
 pub fn get_version_info() -> Result<VersionInfo> {
     // 1. Get current version from last tag
     let current_version = get_current_version().ok();
-    
+
     // 2. Execute semantic-release dry run
     let (next_version, version_type, dry_run_output) = execute_semantic_release_dry_run()?;
-    
+
     // 3. Get commit count since last tag
     let commit_count = get_commit_count_since_last_tag().unwrap_or(0);
-    
+
     // 4. Check if there are unreleased changes
     let has_unreleased_changes = commit_count > 0;
-    
+
     Ok(VersionInfo {
         next_version,
         current_version,
