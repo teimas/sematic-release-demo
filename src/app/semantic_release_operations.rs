@@ -396,7 +396,7 @@ impl App {
                         result_text.push_str("⚠️  No hay cambios para publicar\n");
                     }
 
-                    result_text.push_str("\n");
+                    result_text.push('\n');
                     result_text.push_str("🔍 ANÁLISIS DETALLADO\n");
                     result_text.push_str("=".repeat(50).as_str());
                     result_text.push_str("\n\n");
