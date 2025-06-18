@@ -544,24 +544,113 @@ impl CommitParser {
 // SEMANTIC VERSIONING UTILITIES
 // =============================================================================
 
-pub fn get_next_version() -> Result<String> {
+use crate::types::{VersionInfo, VersionType};
+
+/// Enhanced function to get comprehensive version information
+pub fn get_version_info() -> Result<VersionInfo> {
+    // 1. Get current version from last tag
+    let current_version = get_current_version().ok();
+    
+    // 2. Execute semantic-release dry run
+    let (next_version, version_type, dry_run_output) = execute_semantic_release_dry_run()?;
+    
+    // 3. Get commit count since last tag
+    let commit_count = get_commit_count_since_last_tag().unwrap_or(0);
+    
+    // 4. Check if there are unreleased changes
+    let has_unreleased_changes = commit_count > 0;
+    
+    Ok(VersionInfo {
+        next_version,
+        current_version,
+        version_type,
+        commit_count,
+        has_unreleased_changes,
+        dry_run_output,
+    })
+}
+
+fn execute_semantic_release_dry_run() -> Result<(String, VersionType, String)> {
     let output = Command::new("npx")
         .args(["semantic-release", "--dry-run"])
+        .output()
+        .map_err(|e| anyhow::anyhow!("Failed to execute semantic-release: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let full_output = format!("{}\n{}", stdout, stderr);
+
+    // Extract version
+    let version_regex = Regex::new(r"The next release version is (\d+\.\d+\.\d+)").unwrap();
+    let next_version = if let Some(captures) = version_regex.captures(&full_output) {
+        captures.get(1).unwrap().as_str().to_string()
+    } else if full_output.contains("no release") || full_output.contains("No release published") {
+        "No release needed".to_string()
+    } else {
+        "Unable to determine".to_string()
+    };
+
+    // Determine version type
+    let version_type = determine_version_type(&full_output);
+
+    Ok((next_version, version_type, full_output))
+}
+
+fn determine_version_type(output: &str) -> VersionType {
+    if output.contains("BREAKING CHANGE") || output.contains("major") {
+        VersionType::Major
+    } else if output.contains("feat") || output.contains("minor") {
+        VersionType::Minor
+    } else if output.contains("fix") || output.contains("patch") {
+        VersionType::Patch
+    } else if output.contains("no release") || output.contains("No release published") {
+        VersionType::None
+    } else {
+        VersionType::Unknown
+    }
+}
+
+fn get_current_version() -> Result<String> {
+    let output = Command::new("git")
+        .args(["describe", "--tags", "--abbrev=0"])
+        .output()?;
+
+    if output.status.success() {
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(version)
+    } else {
+        Err(anyhow::anyhow!("No tags found"))
+    }
+}
+
+fn get_commit_count_since_last_tag() -> Result<usize> {
+    // Get last tag
+    let last_tag_output = Command::new("git")
+        .args(["describe", "--tags", "--abbrev=0"])
         .output();
 
-    match output {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let re = Regex::new(r"The next release version is (\d+\.\d+\.\d+)").unwrap();
-
-            if let Some(captures) = re.captures(&stdout) {
-                if let Some(version) = captures.get(1) {
-                    return Ok(version.as_str().to_string());
-                }
-            }
-
-            Ok("next version".to_string())
+    let range = match last_tag_output {
+        Ok(output) if output.status.success() => {
+            let last_tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            format!("{}..HEAD", last_tag)
         }
-        Err(_) => Ok("next version".to_string()),
+        _ => "HEAD".to_string(), // No tags found, count all commits
+    };
+
+    let output = Command::new("git")
+        .args(["rev-list", "--count", &range])
+        .output()?;
+
+    if output.status.success() {
+        let count_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(count_str.parse().unwrap_or(0))
+    } else {
+        Ok(0)
     }
+}
+
+/// Simple function for backward compatibility
+pub fn get_next_version() -> Result<String> {
+    let version_info = get_version_info()?;
+    Ok(version_info.next_version)
 }

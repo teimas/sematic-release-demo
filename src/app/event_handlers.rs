@@ -258,11 +258,11 @@ impl App {
                 }
             }
             KeyCode::Tab => {
-                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 4;
+                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 5;
             }
             KeyCode::BackTab => {
                 self.ui_state.selected_tab = if self.ui_state.selected_tab == 0 {
-                    3
+                    4
                 } else {
                     self.ui_state.selected_tab - 1
                 };
@@ -278,10 +278,14 @@ impl App {
                         self.execute_semantic_release(false).await?;
                     }
                     2 => {
+                        // Get detailed version info
+                        self.get_detailed_version_info().await?;
+                    }
+                    3 => {
                         // View last release info
                         self.view_last_release_info().await?;
                     }
-                    3 => {
+                    4 => {
                         // View semantic-release config
                         self.view_semantic_release_config().await?;
                     }
