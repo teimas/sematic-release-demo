@@ -5,8 +5,7 @@ use std::io::Write;
 use crate::{
     app::App,
     services::{jira::JiraClient, monday::MondayClient},
-    types::{JiraTask, MondayTask, TaskSystem},
-    utils,
+    types::{JiraTask, MondayTask},
 };
 
 #[allow(async_fn_in_trait)]

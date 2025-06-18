@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::{debug, error, info};
 
-use crate::{app::App, git::repository::GitRepo, utils};
+use crate::{app::App, git::repository::GitRepo};
 
 #[allow(async_fn_in_trait)]
 pub trait CommitOperations {
