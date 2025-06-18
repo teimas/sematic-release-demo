@@ -394,6 +394,11 @@ fn create_semantic_release_options(selected: usize, _config: &AppConfig) -> Vec<
             "Check semantic-release configuration status",
             true,
         ),
+        (
+            "🔧 Setup GitHub Actions",
+            "Configure GitHub Actions for automated semantic-release",
+            true,
+        ),
     ];
 
     options

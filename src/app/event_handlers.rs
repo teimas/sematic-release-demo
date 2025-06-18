@@ -259,11 +259,11 @@ impl App {
                 }
             }
             KeyCode::Tab => {
-                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 5;
+                self.ui_state.selected_tab = (self.ui_state.selected_tab + 1) % 6;
             }
             KeyCode::BackTab => {
                 self.ui_state.selected_tab = if self.ui_state.selected_tab == 0 {
-                    4
+                    5
                 } else {
                     self.ui_state.selected_tab - 1
                 };
@@ -289,6 +289,10 @@ impl App {
                     4 => {
                         // View semantic-release config
                         self.view_semantic_release_config().await?;
+                    }
+                    5 => {
+                        // Setup GitHub Actions for semantic-release
+                        self.setup_github_actions_semantic_release().await?;
                     }
                     _ => {}
                 }
