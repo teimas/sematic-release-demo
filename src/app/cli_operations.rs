@@ -97,6 +97,12 @@ impl App {
             }
         }
 
+        if let Some(test_analysis) = analysis_result.get("testAnalysis").and_then(|v| v.as_str()) {
+            if !test_analysis.is_empty() {
+                app.commit_form.test_details = test_analysis.to_string();
+            }
+        }
+
         // Generate commit message preview
         use crate::app::commit_operations::CommitOperations;
         app.preview_commit_message = app.build_commit_message();

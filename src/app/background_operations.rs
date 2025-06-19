@@ -105,7 +105,8 @@ impl App {
                         "description": "No hay cambios para describir.",
                         "scope": "general",
                         "securityAnalysis": "",
-                        "breakingChanges": ""
+                        "breakingChanges": "",
+                        "testAnalysis": ""
                     });
                 }
                 if let Ok(mut status) = status_clone.lock() {
@@ -189,7 +190,8 @@ impl App {
                             "description": "Se realizaron cambios en el código del proyecto. No se pudo generar un análisis detallado automáticamente.",
                             "scope": "general",
                             "securityAnalysis": "",
-                            "breakingChanges": ""
+                            "breakingChanges": "",
+                            "testAnalysis": ""
                         });
                     }
                     if let Ok(mut status) = status_clone.lock() {

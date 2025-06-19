@@ -159,14 +159,14 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
     {
         &ui_state.current_input
     } else if commit_form.test_details.is_empty() {
-        "Enter test details... (Enter for new line)"
+        "Enter test details manually, or press 't' for AI analysis... (Enter for new line)"
     } else {
         &commit_form.test_details
     };
 
     let test_block = Block::default()
         .borders(Borders::ALL)
-        .title("Test Details (multiline)")
+        .title("Test Details (multiline, auto-filled by 't' AI analysis)")
         .border_style(ui_state.get_field_border_style(&CommitField::TestDetails));
     let test_style = ui_state.get_field_style(&CommitField::TestDetails);
 

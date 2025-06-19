@@ -215,6 +215,14 @@ impl App {
                                     self.commit_form.breaking_change = breaking.to_string();
                                 }
                             }
+
+                            if let Some(test_analysis) =
+                                result.get("testAnalysis").and_then(|v| v.as_str())
+                            {
+                                if !test_analysis.is_empty() {
+                                    self.commit_form.test_details = test_analysis.to_string();
+                                }
+                            }
                         }
 
                         self.current_state = AppState::Normal;
