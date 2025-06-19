@@ -157,6 +157,17 @@ ANÁLISIS REQUERIDO:
    - Si NO hay breaking changes: devuelve cadena vacía ""
    - Si SÍ hay breaking changes: describe específicamente qué se rompió
 
+7. **ANÁLISIS DE PRUEBAS** (testAnalysis):
+   - Recomienda pruebas manuales específicas que una persona debería realizar para verificar los cambios
+   - Incluye casos de prueba concretos y pasos detallados
+   - Considera diferentes escenarios: casos normales, casos extremos, casos de error
+   - Menciona qué funcionalidades específicas probar basándose en los cambios realizados
+   - Incluye verificaciones de integración si es aplicable
+   - Sugiere datos de prueba específicos si es necesario
+   - Estructura las recomendaciones como una lista clara y accionable
+   - Si no hay necesidad de pruebas manuales específicas: devuelve cadena vacía ""
+   - RESPONDE EN ESPAÑOL
+
 FORMATO DE RESPUESTA:
 Responde ÚNICAMENTE con un JSON válido usando EXACTAMENTE esta estructura:
 
@@ -166,7 +177,8 @@ Responde ÚNICAMENTE con un JSON válido usando EXACTAMENTE esta estructura:
   "description": "descripción técnica exhaustiva aquí",
   "scope": "ámbito_del_código",
   "securityAnalysis": "análisis de seguridad o cadena vacía",
-  "breakingChanges": "cambios que rompen compatibilidad o cadena vacía"
+  "breakingChanges": "cambios que rompen compatibilidad o cadena vacía",
+  "testAnalysis": "recomendaciones de pruebas manuales en español o cadena vacía"
 }}
 
 VALIDACIONES:
@@ -175,6 +187,7 @@ VALIDACIONES:
 - El título debe ser ≤ 50 caracteres
 - La descripción debe ser ≥ 150 palabras
 - commitType debe ser uno de los tipos válidos listados
+- testAnalysis debe estar en español y ser específico para los cambios realizados
 - NO incluyas explicaciones fuera del JSON
 - NO uses comillas triples ni formato markdown
 - NO agregues texto antes o después del JSON"#,
@@ -196,6 +209,7 @@ VALIDACIONES:
                     && json.get("scope").is_some()
                     && json.get("securityAnalysis").is_some()
                     && json.get("breakingChanges").is_some()
+                    && json.get("testAnalysis").is_some()
                 {
                     Ok(json)
                 } else {
@@ -208,7 +222,8 @@ VALIDACIONES:
                         "description": "Se realizaron cambios en el código del proyecto. Respuesta de Gemini incompleta.",
                         "scope": "general",
                         "securityAnalysis": "",
-                        "breakingChanges": ""
+                        "breakingChanges": "",
+                        "testAnalysis": ""
                     }))
                 }
             }
@@ -224,7 +239,8 @@ VALIDACIONES:
                     "description": "Se realizaron cambios en el código del proyecto. No se pudo generar un análisis detallado automáticamente.",
                     "scope": "general",
                     "securityAnalysis": "",
-                    "breakingChanges": ""
+                    "breakingChanges": "",
+                    "testAnalysis": ""
                 }))
             }
         }
