@@ -1,3 +1,10 @@
+# [4.5.0](https://github.com/teimas/sematic-release-demo/compare/v4.4.0...v4.5.0) (2025-06-19)
+
+
+### Features
+
+* **services, app, ui, cli:** integra análisis de pruebas generado por IA ([f15d50a](https://github.com/teimas/sematic-release-demo/commit/f15d50afeccac5d0098b90bab0bb448d3658b7c9))
+
 # [4.4.0](https://github.com/teimas/sematic-release-demo/compare/v4.3.0...v4.4.0) (2025-06-19)
 
 
