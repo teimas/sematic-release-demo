@@ -1,3 +1,10 @@
+# [4.4.0](https://github.com/teimas/sematic-release-demo/compare/v4.3.0...v4.4.0) (2025-06-19)
+
+
+### Features
+
+* **setup, git:** Automatiza URL de repositorio en package.json ([473f5ae](https://github.com/teimas/sematic-release-demo/commit/473f5ae6ef1a3e81147e5a3ac712b170e6f011cd))
+
 # [4.3.0](https://github.com/teimas/sematic-release-demo/compare/v4.2.0...v4.3.0) (2025-06-18)
 
 
