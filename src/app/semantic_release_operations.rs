@@ -700,6 +700,7 @@ impl App {
 }
 
 fn setup_package_json() -> Result<bool> {
+    use crate::git::repository::GitRepo;
     use std::fs;
     use std::path::Path;
 
@@ -710,21 +711,33 @@ fn setup_package_json() -> Result<bool> {
         return Ok(false);
     }
 
-    let package_json = r#"{
+    // Try to get the repository URL from the current git repo
+    let repository_url = if let Ok(git_repo) = GitRepo::new() {
+        git_repo.get_repository_url().unwrap_or(None)
+    } else {
+        None
+    };
+
+    // Use the detected URL or fallback to placeholder
+    let repo_url = repository_url
+        .unwrap_or_else(|| "git+https://github.com/username/repository.git".to_string());
+
+    let package_json = format!(
+        r#"{{
   "name": "semantic-release-project",
   "version": "1.0.0",
   "description": "Project configured with semantic-release for automated versioning",
   "main": "index.js",
-  "scripts": {
+  "scripts": {{
     "test": "echo \"No tests specified\" && exit 0",
     "build": "echo \"No build step specified\" && exit 0",
     "semantic-release": "semantic-release",
     "prepare": "npm run build"
-  },
-  "repository": {
+  }},
+  "repository": {{
     "type": "git",
-    "url": "git+https://github.com/username/repository.git"
-  },
+    "url": "{}"
+  }},
   "keywords": [
     "semantic-release",
     "automation",
@@ -732,16 +745,18 @@ fn setup_package_json() -> Result<bool> {
   ],
   "author": "",
   "license": "MIT",
-  "devDependencies": {
+  "devDependencies": {{
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^9.2.6",
     "@semantic-release/release-notes-generator": "^12.1.0",
     "semantic-release": "^22.0.12"
-  }
-}
-"#;
+  }}
+}}
+"#,
+        repo_url
+    );
 
     fs::write(package_path, package_json)?;
     Ok(true)

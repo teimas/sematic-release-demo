@@ -194,6 +194,41 @@ impl GitRepo {
         }
     }
 
+    pub fn get_repository_url(&self) -> Result<Option<String>> {
+        let output = Command::new("git")
+            .args(["remote", "get-url", "origin"])
+            .output()?;
+
+        if output.status.success() {
+            let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if url.is_empty() {
+                Ok(None)
+            } else {
+                // Convert SSH URL to HTTPS if needed
+                let url = if url.starts_with("git@github.com:") {
+                    // Convert git@github.com:user/repo.git to https://github.com/user/repo.git
+                    url.replace("git@github.com:", "https://github.com/")
+                } else if url.starts_with("https://") && !url.ends_with(".git") {
+                    // Ensure .git suffix for consistency
+                    format!("{}.git", url)
+                } else {
+                    url
+                };
+
+                // Add git+ prefix if it's an HTTPS URL for npm package.json format
+                let formatted_url = if url.starts_with("https://") {
+                    format!("git+{}", url)
+                } else {
+                    url
+                };
+
+                Ok(Some(formatted_url))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn get_status(&self) -> Result<GitStatus> {
         let mut status = GitStatus {
             staged: Vec::new(),
