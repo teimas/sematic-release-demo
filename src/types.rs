@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTask {
     pub id: String,
@@ -245,8 +244,6 @@ pub enum AppState {
     ConfirmingStageAll,
 }
 
-
-
 // Keep SemanticReleaseState for UI display compatibility
 #[derive(Debug, Clone)]
 pub struct SemanticReleaseState {
@@ -267,8 +264,6 @@ impl Default for SemanticReleaseState {
     }
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct VersionInfo {
     pub next_version: String,
@@ -285,7 +280,6 @@ pub enum VersionType {
     Minor,
     Patch,
     None,
-
 }
 
 impl std::fmt::Display for VersionType {
@@ -295,7 +289,6 @@ impl std::fmt::Display for VersionType {
             VersionType::Minor => write!(f, "Minor"),
             VersionType::Patch => write!(f, "Patch"),
             VersionType::None => write!(f, "No Release"),
-
         }
     }
 }

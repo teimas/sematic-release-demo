@@ -152,12 +152,12 @@ impl App {
                     CommitField::PartesAEjecutar => &self.commit_form.partes_a_ejecutar,
                     _ => "",
                 };
-                
+
                 // Clear and set the textarea content
                 textarea.select_all();
                 textarea.delete_str(textarea.lines().join("\n").len());
                 textarea.insert_str(text);
-                
+
                 self.ui_state.input_mode = InputMode::Editing;
             }
         } else {
@@ -262,11 +262,11 @@ impl App {
     }
 
     // Text manipulation methods - replaced with tui-textarea
-    
+
     // Helper function to convert crossterm KeyEvent to tui_textarea Input
     fn crossterm_key_to_textarea_input(key: KeyEvent) -> tui_textarea::Input {
         use tui_textarea::{Input, Key};
-        
+
         let tui_key = match key.code {
             KeyCode::Char(c) => Key::Char(c),
             KeyCode::Enter => Key::Enter,
@@ -287,7 +287,7 @@ impl App {
             KeyCode::F(n) => Key::F(n),
             _ => Key::Null,
         };
-        
+
         Input {
             key: tui_key,
             ctrl: key.modifiers.contains(KeyModifiers::CONTROL),
@@ -311,7 +311,7 @@ impl App {
                 return Ok(());
             }
             KeyCode::BackTab => {
-                // Save current textarea content and move to previous field  
+                // Save current textarea content and move to previous field
                 self.save_current_textarea_to_form();
                 self.ui_state.input_mode = InputMode::Normal;
                 self.handle_back_tab_navigation();
@@ -456,7 +456,9 @@ impl App {
             KeyCode::Esc => {
                 self.clear_current_tasks();
                 self.ui_state.search_textarea.select_all();
-                self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
+                self.ui_state
+                    .search_textarea
+                    .delete_str(self.ui_state.search_textarea.lines().join("\n").len());
                 self.ui_state.focused_search_index = 0;
                 self.message = Some("Search cleared".to_string());
             }
@@ -526,7 +528,9 @@ impl App {
             }
             KeyCode::Backspace => {
                 self.ui_state.search_textarea.select_all();
-                self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
+                self.ui_state
+                    .search_textarea
+                    .delete_str(self.ui_state.search_textarea.lines().join("\n").len());
                 self.clear_current_tasks();
             }
             _ => {}

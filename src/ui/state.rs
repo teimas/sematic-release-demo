@@ -57,9 +57,15 @@ impl Default for UIState {
             scroll_offset: 0,
             scope_textarea: create_single_line_textarea("Enter scope (e.g., auth, ui, api)..."),
             title_textarea: create_single_line_textarea("Enter commit title..."),
-            description_textarea: create_multiline_textarea("Press 't' for comprehensive AI analysis, or type manually..."),
-            breaking_change_textarea: create_single_line_textarea("Enter breaking change details (if any)..."),
-            test_details_textarea: create_multiline_textarea("Enter test details manually, or press 't' for AI analysis..."),
+            description_textarea: create_multiline_textarea(
+                "Press 't' for comprehensive AI analysis, or type manually...",
+            ),
+            breaking_change_textarea: create_single_line_textarea(
+                "Enter breaking change details (if any)...",
+            ),
+            test_details_textarea: create_multiline_textarea(
+                "Enter test details manually, or press 't' for AI analysis...",
+            ),
             security_textarea: create_multiline_textarea("Enter security info (or NA)..."),
             migraciones_lentas_textarea: create_multiline_textarea("Enter migraciones lentas..."),
             partes_a_ejecutar_textarea: create_multiline_textarea("Enter partes a ejecutar..."),
@@ -141,12 +147,17 @@ impl UIState {
         // Store current field and input mode to avoid borrowing issues
         let current_field = self.current_field.clone();
         let input_mode = self.input_mode.clone();
-        
+
         // Update all textarea styles based on current field and input mode
         for field in [
-            CommitField::Scope, CommitField::Title, CommitField::Description,
-            CommitField::BreakingChange, CommitField::TestDetails, CommitField::Security,
-            CommitField::MigracionesLentas, CommitField::PartesAEjecutar
+            CommitField::Scope,
+            CommitField::Title,
+            CommitField::Description,
+            CommitField::BreakingChange,
+            CommitField::TestDetails,
+            CommitField::Security,
+            CommitField::MigracionesLentas,
+            CommitField::PartesAEjecutar,
         ] {
             if let Some(textarea) = self.get_textarea_mut(&field) {
                 if current_field == field && input_mode == InputMode::Editing {
@@ -156,16 +167,21 @@ impl UIState {
                     textarea.set_cursor_line_style(Style::default());
                     textarea.set_cursor_style(Style::default());
                 }
-                
+
                 // Update block style - we'll do this separately to avoid borrowing issues
             }
         }
-        
+
         // Update block styles in a separate loop
         for field in [
-            CommitField::Scope, CommitField::Title, CommitField::Description,
-            CommitField::BreakingChange, CommitField::TestDetails, CommitField::Security,
-            CommitField::MigracionesLentas, CommitField::PartesAEjecutar
+            CommitField::Scope,
+            CommitField::Title,
+            CommitField::Description,
+            CommitField::BreakingChange,
+            CommitField::TestDetails,
+            CommitField::Security,
+            CommitField::MigracionesLentas,
+            CommitField::PartesAEjecutar,
         ] {
             let border_style = self.get_field_border_style(&field);
             if let Some(textarea) = self.get_textarea_mut(&field) {

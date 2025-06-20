@@ -23,7 +23,7 @@ impl MondayClient {
     #[instrument(skip(config))]
     pub fn new(config: &AppConfig) -> Result<Self> {
         info!("Initializing Monday.com client");
-        
+
         let api_key = config
             .monday_api_key
             .as_ref()
@@ -60,9 +60,16 @@ impl MondayClient {
     #[instrument(skip(self), fields(query = query))]
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<MondayTask>> {
         info!("Searching Monday.com tasks");
-        
+
         let graphql_query = self.build_search_query(query);
-        debug!(query_type = if self.board_id.is_some() { "board_specific" } else { "global" }, "Built GraphQL search query");
+        debug!(
+            query_type = if self.board_id.is_some() {
+                "board_specific"
+            } else {
+                "global"
+            },
+            "Built GraphQL search query"
+        );
 
         let response = self.execute_graphql_request(&graphql_query).await?;
         let result: Value = response.json().await.map_err(|e| {
@@ -71,8 +78,11 @@ impl MondayClient {
         })?;
 
         let tasks = self.parse_search_results(result)?;
-        info!(task_count = tasks.len(), "Monday.com search completed successfully");
-        
+        info!(
+            task_count = tasks.len(),
+            "Monday.com search completed successfully"
+        );
+
         Ok(tasks)
     }
 
@@ -165,9 +175,7 @@ impl MondayClient {
 // TASK DETAILS AND RETRIEVAL
 // =============================================================================
 
-impl MondayClient {
-
-}
+impl MondayClient {}
 
 // =============================================================================
 // GRAPHQL REQUEST EXECUTION
@@ -177,7 +185,7 @@ impl MondayClient {
     #[instrument(skip(self, query))]
     async fn execute_graphql_request(&self, query: &Value) -> Result<reqwest::Response> {
         debug!("Executing Monday.com GraphQL request");
-        
+
         let response = self
             .client
             .post("https://api.monday.com/v2")
@@ -195,12 +203,9 @@ impl MondayClient {
         if !response.status().is_success() {
             let status = response.status();
             error!(status = %status, "Monday.com API returned error status");
-            return Err(SemanticReleaseError::monday_error(
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Monday.com API error: HTTP {}", status)
-                )
-            ));
+            return Err(SemanticReleaseError::monday_error(std::io::Error::other(
+                format!("Monday.com API error: HTTP {}", status),
+            )));
         }
 
         debug!(status = %response.status(), "Monday.com GraphQL request successful");
@@ -219,7 +224,10 @@ impl MondayClient {
         if let Some(_board_id) = &self.board_id {
             // Parse board-specific results
             tasks.extend(self.parse_board_specific_results(&result));
-            debug!(task_count = tasks.len(), "Parsed board-specific search results");
+            debug!(
+                task_count = tasks.len(),
+                "Parsed board-specific search results"
+            );
         } else {
             // Parse global search results
             tasks.extend(self.parse_global_search_results(&result));
@@ -397,7 +405,7 @@ impl MondayClient {
     #[instrument(skip(self))]
     pub async fn test_connection(&self) -> Result<String> {
         info!("Testing Monday.com connection");
-        
+
         let query = json!({
             "query": "query { me { name email } }"
         });
@@ -410,7 +418,7 @@ impl MondayClient {
 
         let user_info = self.parse_connection_test_result(result)?;
         info!(user_info = %user_info, "Monday.com connection test successful");
-        
+
         Ok(user_info)
     }
 
@@ -421,12 +429,9 @@ impl MondayClient {
             Ok(format!("{} ({})", name, email))
         } else {
             error!(response = ?result, "Monday.com connection test returned invalid response structure");
-            Err(SemanticReleaseError::monday_error(
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Failed to get user information from Monday.com API"
-                )
-            ))
+            Err(SemanticReleaseError::monday_error(std::io::Error::other(
+                "Failed to get user information from Monday.com API",
+            )))
         }
     }
 }

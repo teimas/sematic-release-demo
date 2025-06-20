@@ -1,19 +1,13 @@
 use crate::error::Result;
-use crossterm::{
-    event::{self, Event, KeyEventKind},
-};
-use ratatui::{
-    backend::Backend,
-    Terminal,
-};
+use crossterm::event::{self, Event, KeyEventKind};
+use ratatui::{backend::Backend, Terminal};
 use tracing::{info, instrument};
 
 use crate::{
     app::background_operations::BackgroundTaskManager,
     config::load_config,
     types::{
-        AppConfig, AppScreen, AppState, CommitForm, JiraTask,
-        MondayTask, SemanticReleaseState,
+        AppConfig, AppScreen, AppState, CommitForm, JiraTask, MondayTask, SemanticReleaseState,
     },
     ui::UIState,
 };
@@ -32,10 +26,10 @@ pub struct App {
     pub message: Option<String>,
     pub should_quit: bool,
     pub preview_commit_message: String,
-    
+
     // Modern async background operations
     pub background_task_manager: BackgroundTaskManager,
-    
+
     // Keep semantic_release_state for UI results display
     pub semantic_release_state: Option<SemanticReleaseState>,
 }
@@ -59,10 +53,10 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
-            
+
             // Initialize modern async background operations
             background_task_manager: BackgroundTaskManager::new(),
-            
+
             // Keep for UI display
             semantic_release_state: None,
         })
@@ -71,10 +65,10 @@ impl App {
     #[instrument(skip_all)]
     pub async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
         info!("Starting main application loop");
-        
+
         // Subscribe to background events
         let mut event_rx = self.background_task_manager.subscribe();
-        
+
         loop {
             // Handle background task events (modern async approach)
             while let Ok(event) = event_rx.try_recv() {
@@ -86,20 +80,23 @@ impl App {
                     BackgroundEvent::ReleaseNotesCompleted(result) => {
                         // Extract and display results
                         if let Some(notes) = result.get("notes").and_then(|v| v.as_str()) {
-                            self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
+                            self.message =
+                                Some("✅ Notas de versión generadas exitosamente".to_string());
                             self.current_state = AppState::Normal;
                             self.current_screen = AppScreen::Main;
                             tracing::info!("Release notes completed: {} characters", notes.len());
                         } else {
                             // Handle case where result is a direct string
-                            self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
+                            self.message =
+                                Some("✅ Notas de versión generadas exitosamente".to_string());
                             self.current_state = AppState::Normal;
                             self.current_screen = AppScreen::Main;
                             tracing::info!("Release notes completed: {:?}", result);
                         }
                     }
                     BackgroundEvent::ReleaseNotesError(error) => {
-                        self.current_state = AppState::Error(format!("Error en generación: {}", error));
+                        self.current_state =
+                            AppState::Error(format!("Error en generación: {}", error));
                         self.message = Some(format!("❌ {}", error));
                     }
                     BackgroundEvent::AnalysisProgress(status) => {
@@ -107,15 +104,20 @@ impl App {
                     }
                     BackgroundEvent::AnalysisCompleted(result) => {
                         self.current_state = AppState::Normal;
-                        self.message = Some("✅ Análisis completado - Formulario poblado automáticamente".to_string());
-                        
+                        self.message = Some(
+                            "✅ Análisis completado - Formulario poblado automáticamente"
+                                .to_string(),
+                        );
+
                         // Populate commit form with analysis results
                         if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
                             if !title.is_empty() {
                                 self.commit_form.title = title.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.title_textarea.select_all();
-                                self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
+                                self.ui_state.title_textarea.delete_str(
+                                    self.ui_state.title_textarea.lines().join("\n").len(),
+                                );
                                 self.ui_state.title_textarea.insert_str(title);
                             }
                         }
@@ -125,22 +127,29 @@ impl App {
                                 self.commit_form.scope = scope.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.scope_textarea.select_all();
-                                self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
+                                self.ui_state.scope_textarea.delete_str(
+                                    self.ui_state.scope_textarea.lines().join("\n").len(),
+                                );
                                 self.ui_state.scope_textarea.insert_str(scope);
                             }
                         }
 
-                        if let Some(description) = result.get("description").and_then(|v| v.as_str()) {
+                        if let Some(description) =
+                            result.get("description").and_then(|v| v.as_str())
+                        {
                             if !description.is_empty() {
                                 self.commit_form.description = description.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.description_textarea.select_all();
-                                self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
+                                self.ui_state.description_textarea.delete_str(
+                                    self.ui_state.description_textarea.lines().join("\n").len(),
+                                );
                                 self.ui_state.description_textarea.insert_str(description);
                             }
                         }
 
-                        if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str()) {
+                        if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str())
+                        {
                             // Parse the commit type string into CommitType enum
                             let parsed_commit_type = match commit_type {
                                 "feat" => Some(crate::types::CommitType::Feat),
@@ -154,50 +163,72 @@ impl App {
                                 "revert" => Some(crate::types::CommitType::Revert),
                                 _ => Some(crate::types::CommitType::Feat), // Default fallback
                             };
-                            
+
                             self.commit_form.commit_type = parsed_commit_type;
-                            
+
                             // Update the selected commit type in UI
-                            let commit_types = vec!["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore"];
-                            if let Some(index) = commit_types.iter().position(|&t| t == commit_type) {
+                            let commit_types = [
+                                "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore",
+                            ];
+                            if let Some(index) = commit_types.iter().position(|&t| t == commit_type)
+                            {
                                 self.ui_state.selected_commit_type = index;
                             }
                         }
 
-                        if let Some(security) = result.get("securityAnalysis").and_then(|v| v.as_str()) {
+                        if let Some(security) =
+                            result.get("securityAnalysis").and_then(|v| v.as_str())
+                        {
                             if !security.is_empty() && security != "N/A" {
                                 self.commit_form.security = security.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.security_textarea.select_all();
-                                self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
+                                self.ui_state.security_textarea.delete_str(
+                                    self.ui_state.security_textarea.lines().join("\n").len(),
+                                );
                                 self.ui_state.security_textarea.insert_str(security);
                             }
                         }
 
-                        if let Some(breaking) = result.get("breakingChanges").and_then(|v| v.as_str()) {
+                        if let Some(breaking) =
+                            result.get("breakingChanges").and_then(|v| v.as_str())
+                        {
                             if !breaking.is_empty() && breaking != "N/A" {
                                 self.commit_form.breaking_change = breaking.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.breaking_change_textarea.select_all();
-                                self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
+                                self.ui_state.breaking_change_textarea.delete_str(
+                                    self.ui_state
+                                        .breaking_change_textarea
+                                        .lines()
+                                        .join("\n")
+                                        .len(),
+                                );
                                 self.ui_state.breaking_change_textarea.insert_str(breaking);
                             }
                         }
 
-                        if let Some(test_details) = result.get("testAnalysis").and_then(|v| v.as_str()) {
+                        if let Some(test_details) =
+                            result.get("testAnalysis").and_then(|v| v.as_str())
+                        {
                             if !test_details.is_empty() && test_details != "N/A" {
                                 self.commit_form.test_details = test_details.to_string();
                                 // Update the UI textarea as well
                                 self.ui_state.test_details_textarea.select_all();
-                                self.ui_state.test_details_textarea.delete_str(self.ui_state.test_details_textarea.lines().join("\n").len());
+                                self.ui_state.test_details_textarea.delete_str(
+                                    self.ui_state.test_details_textarea.lines().join("\n").len(),
+                                );
                                 self.ui_state.test_details_textarea.insert_str(test_details);
                             }
                         }
 
-                        tracing::info!("Analysis completed and form populated with comprehensive data");
+                        tracing::info!(
+                            "Analysis completed and form populated with comprehensive data"
+                        );
                     }
                     BackgroundEvent::AnalysisError(error) => {
-                        self.current_state = AppState::Error(format!("Error en análisis: {}", error));
+                        self.current_state =
+                            AppState::Error(format!("Error en análisis: {}", error));
                         self.message = Some(format!("❌ {}", error));
                     }
 
@@ -209,7 +240,6 @@ impl App {
                         self.current_state = AppState::Normal;
                         tracing::info!("Operation completed: {}", operation_id);
                     }
-
                 }
             }
 
@@ -249,17 +279,14 @@ impl App {
         Ok(())
     }
 
-
-
     pub async fn run(mut self) -> Result<()> {
         use crossterm::{
             execute,
-            terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+            terminal::{
+                disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+            },
         };
-        use ratatui::{
-            backend::CrosstermBackend,
-            Terminal,
-        };
+        use ratatui::{backend::CrosstermBackend, Terminal};
         use std::io;
 
         // Setup terminal
@@ -273,10 +300,7 @@ impl App {
 
         // Restore terminal
         disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen
-        )?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
 
         result

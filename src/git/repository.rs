@@ -1,4 +1,3 @@
-
 use git2::Repository;
 use regex::Regex;
 use std::process::{Command, Stdio};
@@ -32,7 +31,7 @@ impl GitRepo {
             error!(error = %e, "Failed to open git repository");
             SemanticReleaseError::GitError(e)
         })?;
-        
+
         info!("Git repository initialized successfully");
         Ok(Self { repo })
     }
@@ -52,7 +51,7 @@ impl GitRepo {
             error!(error = %e, "Failed to create revwalk");
             SemanticReleaseError::GitError(e)
         })?;
-        
+
         revwalk.push_head().map_err(|e| {
             error!(error = %e, "Failed to push HEAD to revwalk");
             SemanticReleaseError::GitError(e)
@@ -73,7 +72,7 @@ impl GitRepo {
                 error!(error = %e, "Failed to get OID from revwalk");
                 SemanticReleaseError::GitError(e)
             })?;
-            
+
             let commit = self.repo.find_commit(oid).map_err(|e| {
                 error!(oid = %oid, error = %e, "Failed to find commit");
                 SemanticReleaseError::GitError(e)
@@ -89,7 +88,10 @@ impl GitRepo {
             commits.push(git_commit);
         }
 
-        info!(commit_count = commits.len(), "Retrieved commits successfully");
+        info!(
+            commit_count = commits.len(),
+            "Retrieved commits successfully"
+        );
         Ok(commits)
     }
 
@@ -147,7 +149,11 @@ impl GitRepo {
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git describe command");
-                SemanticReleaseError::command_error("git describe --tags --abbrev=0", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git describe --tags --abbrev=0",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         match output.status.success() {
@@ -178,7 +184,7 @@ impl GitRepo {
     #[instrument(skip(self))]
     pub fn create_commit(&self, message: &str) -> Result<String> {
         info!(message_length = message.len(), "Creating git commit");
-        
+
         // Use git command for committing
         let output = Command::new("git")
             .args(["commit", "-m", message])
@@ -209,7 +215,7 @@ impl GitRepo {
     #[instrument(skip(self))]
     pub fn stage_all(&self) -> Result<String> {
         info!("Staging all changes");
-        
+
         // Use git command for staging all changes (equivalent to git add -A)
         let output = Command::new("git")
             .args(["add", "-A"])
@@ -246,13 +252,17 @@ impl GitRepo {
     #[instrument(skip(self))]
     pub fn get_current_branch(&self) -> Result<String> {
         debug!("Getting current branch");
-        
+
         let output = Command::new("git")
             .args(["branch", "--show-current"])
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git branch command");
-                SemanticReleaseError::command_error("git branch --show-current", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git branch --show-current",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if output.status.success() {
@@ -279,13 +289,17 @@ impl GitRepo {
     #[instrument(skip(self))]
     pub fn get_repository_url(&self) -> Result<Option<String>> {
         debug!("Getting repository URL");
-        
+
         let output = Command::new("git")
             .args(["remote", "get-url", "origin"])
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git remote command");
-                SemanticReleaseError::command_error("git remote get-url origin", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git remote get-url origin",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if output.status.success() {
@@ -336,7 +350,11 @@ impl GitRepo {
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git diff --cached command");
-                SemanticReleaseError::command_error("git diff --cached --name-only", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git diff --cached --name-only",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if staged_output.status.success() {
@@ -374,7 +392,11 @@ impl GitRepo {
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git ls-files command");
-                SemanticReleaseError::command_error("git ls-files --others --exclude-standard", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git ls-files --others --exclude-standard",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if untracked_output.status.success() {
@@ -428,13 +450,10 @@ impl GitRepo {
         }
 
         // Get unstaged changes with diff
-        let unstaged_output = Command::new("git")
-            .args(["diff"])
-            .output()
-            .map_err(|e| {
-                error!(error = %e, "Failed to execute git diff command");
-                SemanticReleaseError::command_error("git diff", None, e.to_string())
-            })?;
+        let unstaged_output = Command::new("git").args(["diff"]).output().map_err(|e| {
+            error!(error = %e, "Failed to execute git diff command");
+            SemanticReleaseError::command_error("git diff", None, e.to_string())
+        })?;
 
         if unstaged_output.status.success() {
             let unstaged_diff = String::from_utf8_lossy(&unstaged_output.stdout);
@@ -452,7 +471,11 @@ impl GitRepo {
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git ls-files command for untracked files");
-                SemanticReleaseError::command_error("git ls-files --others --exclude-standard", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git ls-files --others --exclude-standard",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if untracked_output.status.success() {
@@ -474,7 +497,10 @@ impl GitRepo {
             debug!("No changes detected in repository");
         }
 
-        info!(changes_length = changes.len(), "Retrieved detailed git changes");
+        info!(
+            changes_length = changes.len(),
+            "Retrieved detailed git changes"
+        );
         Ok(changes)
     }
 }
@@ -550,8 +576,6 @@ impl CommitParser {
 
         changes
     }
-
-
 }
 
 // =============================================================================
@@ -587,8 +611,6 @@ impl CommitParser {
         tasks.dedup();
         tasks
     }
-
-
 }
 
 // =============================================================================
@@ -614,8 +636,6 @@ impl CommitParser {
         tasks.dedup();
         tasks
     }
-
-
 }
 
 // =============================================================================
@@ -628,7 +648,7 @@ use crate::types::{VersionInfo, VersionType};
 #[instrument]
 pub fn get_version_info() -> Result<VersionInfo> {
     info!("Getting comprehensive version information");
-    
+
     // 1. Get current version from last tag
     let current_version = get_current_version().ok();
 
@@ -663,13 +683,17 @@ pub fn get_version_info() -> Result<VersionInfo> {
 #[instrument]
 fn execute_semantic_release_dry_run() -> Result<(String, VersionType, String)> {
     debug!("Executing semantic-release dry run");
-    
+
     let output = Command::new("npx")
         .args(["semantic-release", "--dry-run"])
         .output()
         .map_err(|e| {
             error!(error = %e, "Failed to execute semantic-release command");
-            SemanticReleaseError::command_error("npx semantic-release --dry-run", None, e.to_string())
+            SemanticReleaseError::command_error(
+                "npx semantic-release --dry-run",
+                None,
+                e.to_string(),
+            )
         })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -705,8 +729,6 @@ fn determine_version_type(output: &str) -> VersionType {
         VersionType::Minor
     } else if output.contains("fix") || output.contains("patch") {
         VersionType::Patch
-    } else if output.contains("no release") || output.contains("No release published") {
-        VersionType::None
     } else {
         VersionType::None
     }
@@ -715,13 +737,17 @@ fn determine_version_type(output: &str) -> VersionType {
 #[instrument]
 fn get_current_version() -> Result<String> {
     debug!("Getting current version from git tags");
-    
+
     let output = Command::new("git")
         .args(["describe", "--tags", "--abbrev=0"])
         .output()
         .map_err(|e| {
             error!(error = %e, "Failed to execute git describe command");
-            SemanticReleaseError::command_error("git describe --tags --abbrev=0", None, e.to_string())
+            SemanticReleaseError::command_error(
+                "git describe --tags --abbrev=0",
+                None,
+                e.to_string(),
+            )
         })?;
 
     if output.status.success() {
@@ -742,9 +768,14 @@ fn get_current_version() -> Result<String> {
 #[instrument]
 fn get_commit_count_since_last_tag() -> Result<usize> {
     debug!("Getting commit count since last tag");
-    
+
     let output = Command::new("git")
-        .args(["rev-list", "--count", "HEAD", "^$(git describe --tags --abbrev=0 2>/dev/null || echo '')"])
+        .args([
+            "rev-list",
+            "--count",
+            "HEAD",
+            "^$(git describe --tags --abbrev=0 2>/dev/null || echo '')",
+        ])
         .output()
         .map_err(|e| {
             error!(error = %e, "Failed to execute git rev-list command");
@@ -764,7 +795,11 @@ fn get_commit_count_since_last_tag() -> Result<usize> {
             .output()
             .map_err(|e| {
                 error!(error = %e, "Failed to execute git rev-list fallback command");
-                SemanticReleaseError::command_error("git rev-list --count HEAD", None, e.to_string())
+                SemanticReleaseError::command_error(
+                    "git rev-list --count HEAD",
+                    None,
+                    e.to_string(),
+                )
             })?;
 
         if output.status.success() {
@@ -779,5 +814,3 @@ fn get_commit_count_since_last_tag() -> Result<usize> {
         }
     }
 }
-
-

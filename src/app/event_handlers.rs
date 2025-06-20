@@ -323,7 +323,11 @@ impl App {
         ));
 
         if in_search_input {
-            self.handle_search_input_mode(crossterm::event::KeyEvent::new(key, crossterm::event::KeyModifiers::empty())).await?;
+            self.handle_search_input_mode(crossterm::event::KeyEvent::new(
+                key,
+                crossterm::event::KeyModifiers::empty(),
+            ))
+            .await?;
         } else {
             self.handle_search_navigation_mode(key).await?;
         }
@@ -334,7 +338,9 @@ impl App {
     fn handle_monday_search(&mut self) {
         self.current_screen = AppScreen::TaskSearch;
         self.ui_state.search_textarea.select_all();
-        self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
+        self.ui_state
+            .search_textarea
+            .delete_str(self.ui_state.search_textarea.lines().join("\n").len());
         self.monday_tasks.clear();
         self.ui_state.selected_tab = 0;
         self.message = Some("Monday.com Search - Press 'i' or '/' to start typing".to_string());
@@ -343,7 +349,9 @@ impl App {
     fn handle_jira_search(&mut self) {
         self.current_screen = AppScreen::TaskSearch;
         self.ui_state.search_textarea.select_all();
-        self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
+        self.ui_state
+            .search_textarea
+            .delete_str(self.ui_state.search_textarea.lines().join("\n").len());
         self.jira_tasks.clear();
         self.ui_state.selected_tab = 0;
         self.message = Some("JIRA Search - Press 'i' or '/' to start typing".to_string());
@@ -354,12 +362,20 @@ impl App {
         self.preview_commit_message = self.build_commit_message();
         self.current_screen = AppScreen::CommitPreview;
         self.ui_state.input_mode = InputMode::Editing;
-        
+
         // Load the commit message into the preview textarea
         self.ui_state.commit_preview_textarea.select_all();
-        self.ui_state.commit_preview_textarea.delete_str(self.ui_state.commit_preview_textarea.lines().join("\n").len());
-        self.ui_state.commit_preview_textarea.insert_str(&self.preview_commit_message);
-        
+        self.ui_state.commit_preview_textarea.delete_str(
+            self.ui_state
+                .commit_preview_textarea
+                .lines()
+                .join("\n")
+                .len(),
+        );
+        self.ui_state
+            .commit_preview_textarea
+            .insert_str(&self.preview_commit_message);
+
         self.message = Some(
             "Review and edit your commit message. Press Ctrl+C to commit, Esc to cancel"
                 .to_string(),

@@ -19,7 +19,7 @@ impl JiraClient {
     #[instrument(skip(config))]
     pub fn new(config: &AppConfig) -> Result<Self> {
         info!("Initializing JIRA client");
-        
+
         // Validate JIRA configuration
         let jira_instance = if let (Some(url), Some(username), Some(api_token)) = (
             &config.jira_url,
@@ -71,14 +71,13 @@ impl JiraClient {
     #[instrument(skip(self), fields(query = query))]
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<JiraTask>> {
         info!("Searching JIRA tasks");
-        
-        let instance = self
-            .jira_instance
-            .as_ref()
-            .ok_or_else(|| {
-                error!("JIRA search attempted but client not configured");
-                SemanticReleaseError::config_error("JIRA not configured properly - missing URL, username, or API token")
-            })?;
+
+        let instance = self.jira_instance.as_ref().ok_or_else(|| {
+            error!("JIRA search attempted but client not configured");
+            SemanticReleaseError::config_error(
+                "JIRA not configured properly - missing URL, username, or API token",
+            )
+        })?;
 
         // Build JQL query for the configured project
         let jql = self.build_jql_query(query);
@@ -87,11 +86,14 @@ impl JiraClient {
         // Perform the search using jira_query
         match instance.search(&jql).await {
             Ok(issues) => {
-                info!(issue_count = issues.len(), "JIRA search completed successfully");
-                
+                info!(
+                    issue_count = issues.len(),
+                    "JIRA search completed successfully"
+                );
+
                 let mut tasks = Vec::new();
                 let mut conversion_errors = Vec::new();
-                
+
                 for issue in issues {
                     match self.convert_jira_issue_to_task(issue) {
                         Ok(task) => {
@@ -122,16 +124,14 @@ impl JiraClient {
         }
     }
 
-
-
     #[instrument(skip(self))]
     pub async fn test_connection(&self) -> Result<String> {
         info!("Testing JIRA connection");
-        
+
         let instance = self.jira_instance.as_ref().ok_or_else(|| {
             error!("JIRA connection test attempted but client not configured");
             SemanticReleaseError::config_error(
-                "JIRA configuration incomplete - missing URL, username, or API token"
+                "JIRA configuration incomplete - missing URL, username, or API token",
             )
         })?;
 
@@ -150,7 +150,10 @@ impl JiraClient {
                     "✅ JIRA connection successful! Found {} issues",
                     issues.len()
                 );
-                info!(issue_count = issues.len(), "JIRA connection test successful");
+                info!(
+                    issue_count = issues.len(),
+                    "JIRA connection test successful"
+                );
                 Ok(message)
             }
             Err(e) => {
@@ -236,4 +239,3 @@ impl JiraClient {
         })
     }
 }
-

@@ -94,9 +94,11 @@ async fn main() -> miette::Result<()> {
     if cli.autocommit {
         // File logging only
         info!("🤖 Running autocommit flow");
-        let app = App::new().await
+        let app = App::new()
+            .await
             .map_err(|e| miette::miette!("Failed to initialize app for autocommit: {}", e))?;
-        app.autocommit_flow().await
+        app.autocommit_flow()
+            .await
             .map_err(|e| miette::miette!("Autocommit flow failed: {}", e))?;
         return Ok(());
     }
@@ -105,7 +107,8 @@ async fn main() -> miette::Result<()> {
         Commands::Tui => {
             // File logging only
             info!("🖥️ Starting TUI interface");
-            let app = App::new().await
+            let app = App::new()
+                .await
                 .map_err(|e| miette::miette!("Failed to initialize app for TUI: {}", e))?;
             app.run().await
         }
@@ -117,22 +120,25 @@ async fn main() -> miette::Result<()> {
         Commands::Commit => {
             // File logging only
             info!("📝 Running commit flow");
-            let app = App::new().await
+            let app = App::new()
+                .await
                 .map_err(|e| miette::miette!("Failed to initialize app for commit: {}", e))?;
             app.commit_flow().await
         }
         Commands::ReleaseNotes => {
             // File logging only
             info!("📝 Running release notes generation");
-            let mut app = App::new().await
-                .map_err(|e| miette::miette!("Failed to initialize app for release notes: {}", e))?;
+            let mut app = App::new().await.map_err(|e| {
+                miette::miette!("Failed to initialize app for release notes: {}", e)
+            })?;
             app.current_screen = AppScreen::ReleaseNotes;
             app.run().await
         }
         Commands::Search { query } => {
             // File logging only
             info!(?query, "🔍 Running task search");
-            let app = App::new().await
+            let app = App::new()
+                .await
                 .map_err(|e| miette::miette!("Failed to initialize app for search: {}", e))?;
             if let Some(query) = query {
                 app.search_tasks(&query).await
@@ -189,21 +195,14 @@ async fn main() -> miette::Result<()> {
         Commands::Debug { debug_command } => {
             // File logging only
             info!(?debug_command, "🐛 Running debug command");
-            let app = App::new().await
+            let app = App::new()
+                .await
                 .map_err(|e| miette::miette!("Failed to initialize app for debug: {}", e))?;
             match debug_command {
-                DebugCommands::Monday => {
-                    app.debug_monday().await
-                }
-                DebugCommands::Gemini => {
-                    app.debug_gemini().await
-                }
-                DebugCommands::Git => {
-                    app.debug_git().await
-                }
-                DebugCommands::Commit => {
-                    app.debug_commit().await
-                }
+                DebugCommands::Monday => app.debug_monday().await,
+                DebugCommands::Gemini => app.debug_gemini().await,
+                DebugCommands::Git => app.debug_git().await,
+                DebugCommands::Commit => app.debug_commit().await,
             }
         }
     };

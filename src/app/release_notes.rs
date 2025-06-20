@@ -4,10 +4,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::{
-    app::{App, background_operations::BackgroundEvent},
+    app::{background_operations::BackgroundEvent, App},
+    error::SemanticReleaseError,
     git::GitRepo,
     types::{AppConfig, AppState, GitCommit},
-    error::SemanticReleaseError,
 };
 use async_broadcast::Sender;
 use tracing::{info, instrument, warn};
@@ -33,21 +33,22 @@ impl ReleaseNotesOperations for App {
         let git_repo = GitRepo::new()?;
         let last_tag = git_repo.get_last_tag()?;
         let commits = git_repo.get_commits_since_tag(last_tag.as_deref())?;
-        
+
         if let Some(tag) = &last_tag {
             info!("Generating release notes for commits since tag: {}", tag);
         } else {
             info!("No previous tag found, generating release notes for all commits");
         }
-        
+
         // Start async release notes generation
-        match self.background_task_manager.start_release_notes_generation(
-            &self.config,
-            commits,
-        ).await {
+        match self
+            .background_task_manager
+            .start_release_notes_generation(&self.config, commits)
+            .await
+        {
             Ok(_operation_id) => {
                 info!("Release notes generation started via BackgroundTaskManager");
-            },
+            }
             Err(e) => {
                 self.current_state = AppState::Error(format!("Error iniciando generación: {}", e));
                 self.message = Some(format!("❌ {}", e));
@@ -107,16 +108,18 @@ impl App {
 
             match npm_output {
                 Ok(output) => {
-                        if output.status.success() {
+                    if output.status.success() {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         let stderr = String::from_utf8_lossy(&output.stderr);
 
                         // Parse output to extract information
-                        let mut status_message = "✅ Notas de versión generadas exitosamente".to_string();
+                        let mut status_message =
+                            "✅ Notas de versión generadas exitosamente".to_string();
 
                         // Look for generated files in the output
                         if stdout.contains("✅") || stderr.contains("✅") {
-                            status_message = stdout.lines()
+                            status_message = stdout
+                                .lines()
                                 .find(|line| line.contains("✅"))
                                 .unwrap_or("✅ Notas de versión generadas exitosamente")
                                 .to_string();
@@ -125,13 +128,13 @@ impl App {
                         if let Ok(mut status) = status_clone.lock() {
                             *status = status_message;
                         }
-                        } else {
+                    } else {
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         if let Ok(mut status) = status_clone.lock() {
                             *status = format!("❌ Error en npm: {}", stderr);
                         }
-                            if let Ok(mut success) = success_clone.lock() {
-                                *success = false;
+                        if let Ok(mut success) = success_clone.lock() {
+                            *success = false;
                         }
                     }
                 }
@@ -176,14 +179,15 @@ impl App {
         // Check if npm succeeded
         let success = npm_success.lock().map(|s| *s).unwrap_or(false);
         if !success {
-            return Err(crate::error::SemanticReleaseError::release_error(format!("Release notes operation failed: {}", current_status)));
+            return Err(crate::error::SemanticReleaseError::release_error(format!(
+                "Release notes operation failed: {}",
+                current_status
+            )));
         }
 
         Ok(())
     }
 }
-
-
 
 #[instrument(skip(config, _commits, event_tx))]
 async fn analyze_commits_with_ai(
@@ -193,9 +197,12 @@ async fn analyze_commits_with_ai(
 ) -> crate::error::Result<String> {
     if let Some(_token) = &config.gemini_token {
         // Update progress
-        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-            "Running AI analysis on commits...".to_string()
-        )).await {
+        if let Err(e) = event_tx
+            .broadcast(BackgroundEvent::ReleaseNotesProgress(
+                "Running AI analysis on commits...".to_string(),
+            ))
+            .await
+        {
             warn!("Failed to broadcast AI progress: {}", e);
         }
 
@@ -204,7 +211,9 @@ async fn analyze_commits_with_ai(
         warn!("AI analysis not yet implemented in async version");
         Ok("AI analysis will be implemented in a future update.".to_string())
     } else {
-        Err(SemanticReleaseError::config_error("Gemini token not configured"))
+        Err(SemanticReleaseError::config_error(
+            "Gemini token not configured",
+        ))
     }
 }
 
@@ -234,7 +243,7 @@ fn add_commit_section(release_notes: &mut String, title: &str, commits: &[&GitCo
                 let mut task_refs = Vec::new();
                 task_refs.extend(commit.monday_tasks.iter().map(|t| format!("Monday: {}", t)));
                 task_refs.extend(commit.jira_tasks.iter().map(|t| format!("JIRA: {}", t)));
-                
+
                 if !task_refs.is_empty() {
                     release_notes.push_str(&format!("  - Related: {}\n", task_refs.join(", ")));
                 }
@@ -299,11 +308,14 @@ pub async fn generate_release_notes_task(
     commits: Vec<GitCommit>,
 ) -> crate::error::Result<()> {
     info!("Starting release notes generation task");
-    
+
     // Broadcast progress: preparation phase
-    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-        "Preparing commit data for analysis...".to_string()
-    )).await {
+    if let Err(e) = event_tx
+        .broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Preparing commit data for analysis...".to_string(),
+        ))
+        .await
+    {
         warn!("Failed to broadcast progress: {}", e);
     }
 
@@ -312,18 +324,24 @@ pub async fn generate_release_notes_task(
 
     if commits.is_empty() {
         let message = "No commits found for release notes generation.";
-        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesCompleted(
-            serde_json::json!({"message": message, "status": "completed"})
-        )).await {
+        if let Err(e) = event_tx
+            .broadcast(BackgroundEvent::ReleaseNotesCompleted(
+                serde_json::json!({"message": message, "status": "completed"}),
+            ))
+            .await
+        {
             warn!("Failed to broadcast completion: {}", e);
         }
         return Ok(());
     }
 
     // Broadcast progress: categorization phase
-    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-        "Categorizing commits by type...".to_string()
-    )).await {
+    if let Err(e) = event_tx
+        .broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Categorizing commits by type...".to_string(),
+        ))
+        .await
+    {
         warn!("Failed to broadcast progress: {}", e);
     }
 
@@ -339,7 +357,7 @@ pub async fn generate_release_notes_task(
     let mut reverts = Vec::new();
     let mut breaking_changes = Vec::new();
 
-                        for commit in &commits {
+    for commit in &commits {
         if !commit.breaking_changes.is_empty() {
             breaking_changes.extend(commit.breaking_changes.iter().cloned());
         }
@@ -368,9 +386,12 @@ pub async fn generate_release_notes_task(
     }
 
     // Broadcast progress: AI enhancement phase
-    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-        "Enhancing release notes with AI analysis...".to_string()
-    )).await {
+    if let Err(e) = event_tx
+        .broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Enhancing release notes with AI analysis...".to_string(),
+        ))
+        .await
+    {
         warn!("Failed to broadcast progress: {}", e);
     }
 
@@ -381,8 +402,8 @@ pub async fn generate_release_notes_task(
                 release_notes.push_str("## 🤖 AI Summary\n\n");
                 release_notes.push_str(&ai_analysis);
                 release_notes.push_str("\n\n");
-                                }
-                                Err(e) => {
+            }
+            Err(e) => {
                 warn!("AI analysis failed: {}", e);
                 // Continue with standard generation
             }
@@ -392,7 +413,11 @@ pub async fn generate_release_notes_task(
     // Standard sections
     add_commit_section(&mut release_notes, "✨ New Features", &features);
     add_commit_section(&mut release_notes, "🐛 Bug Fixes", &fixes);
-    add_commit_section(&mut release_notes, "⚡ Performance Improvements", &performance);
+    add_commit_section(
+        &mut release_notes,
+        "⚡ Performance Improvements",
+        &performance,
+    );
     add_commit_section(&mut release_notes, "♻️  Code Refactoring", &refactor);
     add_commit_section(&mut release_notes, "📚 Documentation", &docs);
     add_commit_section(&mut release_notes, "🧪 Tests", &tests);
@@ -401,9 +426,12 @@ pub async fn generate_release_notes_task(
     add_commit_section(&mut release_notes, "⏪ Reverts", &reverts);
 
     // Broadcast progress: task management integration
-    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-        "Integrating task management data...".to_string()
-    )).await {
+    if let Err(e) = event_tx
+        .broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Integrating task management data...".to_string(),
+        ))
+        .await
+    {
         warn!("Failed to broadcast progress: {}", e);
     }
 
@@ -411,43 +439,59 @@ pub async fn generate_release_notes_task(
     add_task_management_section(&mut release_notes, &commits, &config).await;
 
     // Broadcast progress: saving files
-    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-        "Creating release-notes directory and saving files...".to_string()
-    )).await {
+    if let Err(e) = event_tx
+        .broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Creating release-notes directory and saving files...".to_string(),
+        ))
+        .await
+    {
         warn!("Failed to broadcast progress: {}", e);
     }
 
     // Create output directory
     if let Err(e) = std::fs::create_dir_all("release-notes") {
         warn!("Could not create release-notes directory: {}", e);
-        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesError(
-            format!("Failed to create release-notes directory: {}", e)
-        )).await {
+        if let Err(e) = event_tx
+            .broadcast(BackgroundEvent::ReleaseNotesError(format!(
+                "Failed to create release-notes directory: {}",
+                e
+            )))
+            .await
+        {
             warn!("Failed to broadcast error: {}", e);
         }
-        return Err(SemanticReleaseError::config_error(&format!(
-            "Could not create release-notes directory: {}", e
+        return Err(SemanticReleaseError::config_error(format!(
+            "Could not create release-notes directory: {}",
+            e
         )));
-        }
+    }
 
-        // Generate filenames
+    // Generate filenames
     let date_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let script_filename = format!(
-            "release-notes/release-notes-{}_SCRIPT_WITH_ENTER_KEY.md",
-            date_str
-        );
-        let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
+        "release-notes/release-notes-{}_SCRIPT_WITH_ENTER_KEY.md",
+        date_str
+    );
+    let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
 
     // Save the basic release notes file
     if let Err(e) = std::fs::write(&script_filename, &release_notes) {
-        warn!("Failed to write release notes file {}: {}", script_filename, e);
-        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesError(
-            format!("Failed to save release notes file: {}", e)
-        )).await {
+        warn!(
+            "Failed to write release notes file {}: {}",
+            script_filename, e
+        );
+        if let Err(e) = event_tx
+            .broadcast(BackgroundEvent::ReleaseNotesError(format!(
+                "Failed to save release notes file: {}",
+                e
+            )))
+            .await
+        {
             warn!("Failed to broadcast error: {}", e);
         }
-        return Err(SemanticReleaseError::config_error(&format!(
-            "Failed to write release notes file: {}", e
+        return Err(SemanticReleaseError::config_error(format!(
+            "Failed to write release notes file: {}",
+            e
         )));
     }
 
@@ -455,9 +499,12 @@ pub async fn generate_release_notes_task(
 
     // Try to process with Gemini if configured
     if config.gemini_token.is_some() {
-        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
-            "Processing release notes with Gemini AI...".to_string()
-        )).await {
+        if let Err(e) = event_tx
+            .broadcast(BackgroundEvent::ReleaseNotesProgress(
+                "Processing release notes with Gemini AI...".to_string(),
+            ))
+            .await
+        {
             warn!("Failed to broadcast progress: {}", e);
         }
 
@@ -467,9 +514,13 @@ pub async fn generate_release_notes_task(
             Ok(content) => content,
             Err(e) => {
                 warn!("Failed to read template file scripts/plantilla.md: {}", e);
-                if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesError(
-                    format!("Failed to read template file: {}", e)
-                )).await {
+                if let Err(e) = event_tx
+                    .broadcast(BackgroundEvent::ReleaseNotesError(format!(
+                        "Failed to read template file: {}",
+                        e
+                    )))
+                    .await
+                {
                     warn!("Failed to broadcast error: {}", e);
                 }
                 // Continue without Gemini processing if template can't be read
@@ -481,19 +532,24 @@ pub async fn generate_release_notes_task(
             Ok(gemini_client) => {
                 // Combine release notes and template for Gemini processing
                 let combined_input = format!(
-                    "RELEASE NOTES TO PROCESS:\n{}\n\nTEMPLATE TO FOLLOW:\n{}", 
-                    release_notes, 
-                    template_content
+                    "RELEASE NOTES TO PROCESS:\n{}\n\nTEMPLATE TO FOLLOW:\n{}",
+                    release_notes, template_content
                 );
 
-                match gemini_client.process_release_notes_document(&combined_input).await {
+                match gemini_client
+                    .process_release_notes_document(&combined_input)
+                    .await
+                {
                     Ok(gemini_response) => {
                         // Save the Gemini-processed version
                         if let Err(e) = std::fs::write(&gemini_filename, &gemini_response) {
                             warn!("Failed to write Gemini file {}: {}", gemini_filename, e);
                             // Don't fail the entire operation, just log the warning
                         } else {
-                            info!("Successfully saved Gemini-processed release notes to: {}", gemini_filename);
+                            info!(
+                                "Successfully saved Gemini-processed release notes to: {}",
+                                gemini_filename
+                            );
                         }
                     }
                     Err(e) => {

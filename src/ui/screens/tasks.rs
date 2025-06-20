@@ -74,7 +74,7 @@ fn render_search_input(f: &mut Frame, area: Rect, ui_state: &UIState, config: &A
         .borders(Borders::ALL)
         .title(search_title.as_str())
         .border_style(search_style);
-    
+
     let mut search_textarea = ui_state.search_textarea.clone();
     search_textarea.set_block(search_block);
 
@@ -116,7 +116,10 @@ fn build_monday_task_list<'a>(
     commit_form: &CommitForm,
 ) -> (String, Vec<ListItem<'a>>) {
     if monday_tasks.is_empty() {
-        return build_empty_results_list("Monday.com", ui_state.search_textarea.lines().join(" ").as_str());
+        return build_empty_results_list(
+            "Monday.com",
+            ui_state.search_textarea.lines().join(" ").as_str(),
+        );
     }
 
     let items = monday_tasks
@@ -156,7 +159,10 @@ fn build_jira_task_list<'a>(
     commit_form: &CommitForm,
 ) -> (String, Vec<ListItem<'a>>) {
     if jira_tasks.is_empty() {
-        return build_empty_results_list("JIRA", ui_state.search_textarea.lines().join(" ").as_str());
+        return build_empty_results_list(
+            "JIRA",
+            ui_state.search_textarea.lines().join(" ").as_str(),
+        );
     }
 
     let items = jira_tasks

@@ -7,6 +7,7 @@ pub type Result<T> = miette::Result<T, SemanticReleaseError>;
 
 /// Main application error type with rich diagnostic information
 #[derive(Error, Diagnostic, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum SemanticReleaseError {
     #[error("Git repository error")]
     #[diagnostic(
@@ -20,13 +21,11 @@ pub enum SemanticReleaseError {
         code(semantic_release::config_error),
         help("Check your configuration file at ~/.config/semantic-release-tui/config.toml")
     )]
-    ConfigError { 
+    ConfigError {
         message: String,
         #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
-
-
 
     #[error("Monday.com API error")]
     #[diagnostic(
@@ -37,7 +36,7 @@ pub enum SemanticReleaseError {
 
     #[error("JIRA API error")]
     #[diagnostic(
-        code(semantic_release::jira_error), 
+        code(semantic_release::jira_error),
         help("Verify your JIRA URL, username, and API token in the configuration")
     )]
     JiraError(#[source] Box<dyn std::error::Error + Send + Sync>),
@@ -67,8 +66,6 @@ pub enum SemanticReleaseError {
     )]
     JsonError(#[from] serde_json::Error),
 
-
-
     #[error("Command execution failed: {command}")]
     #[diagnostic(
         code(semantic_release::command_error),
@@ -79,8 +76,6 @@ pub enum SemanticReleaseError {
         exit_code: Option<i32>,
         stderr: String,
     },
-
-
 
     #[error("HTTP request failed")]
     #[diagnostic(code(semantic_release::http_error))]
@@ -124,8 +119,6 @@ impl SemanticReleaseError {
         }
     }
 
-
-
     /// Create a JIRA error
     pub fn jira_error(source: impl std::error::Error + Send + Sync + 'static) -> Self {
         Self::JiraError(Box::new(source))
@@ -147,18 +140,18 @@ impl SemanticReleaseError {
         }
     }
 
-
-
     /// Create a command error
-    pub fn command_error(command: impl Into<String>, exit_code: Option<i32>, stderr: String) -> Self {
+    pub fn command_error(
+        command: impl Into<String>,
+        exit_code: Option<i32>,
+        stderr: String,
+    ) -> Self {
         Self::CommandError {
             command: command.into(),
             exit_code,
             stderr,
         }
     }
-
-
 
     /// Create a release operation error
     pub fn release_error(operation: impl Into<String>) -> Self {
@@ -167,8 +160,6 @@ impl SemanticReleaseError {
             source: None,
         }
     }
-
-
 }
 
 /// Convert from anyhow::Error for gradual migration
@@ -190,4 +181,4 @@ impl From<git2::Error> for SemanticReleaseError {
     fn from(err: git2::Error) -> Self {
         Self::GitError(err)
     }
-} 
+}

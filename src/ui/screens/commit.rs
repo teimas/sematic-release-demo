@@ -138,7 +138,11 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
         "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' Monday.com/'j' JIRA search, 't' AI analysis, 'm' manage tasks, 'c' commit, 'q' quit"
     };
     let instructions_widget = Paragraph::new(instructions)
-        .block(Block::default().borders(Borders::ALL).title("Instructions (TextArea Mode)"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Instructions (TextArea Mode)"),
+        )
         .style(Style::default().fg(Color::Cyan))
         .wrap(Wrap { trim: true });
     f.render_widget(instructions_widget, chunks[9]);
@@ -154,20 +158,25 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
         let selected_task_list = List::new(task_items).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("Selected Tasks ({})", commit_form.selected_tasks.len()))
+                .title(format!(
+                    "Selected Tasks ({})",
+                    commit_form.selected_tasks.len()
+                ))
                 .border_style(ui_state.get_field_border_style(&CommitField::SelectedTasks)),
         );
 
         f.render_widget(selected_task_list, chunks[10]);
     } else {
-        let no_tasks = Paragraph::new("No tasks selected. Use 's' for Monday.com or 'j' for JIRA search to add tasks.")
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Selected Tasks (0)")
-                    .border_style(ui_state.get_field_border_style(&CommitField::SelectedTasks)),
-            )
-            .style(Style::default().fg(Color::DarkGray));
+        let no_tasks = Paragraph::new(
+            "No tasks selected. Use 's' for Monday.com or 'j' for JIRA search to add tasks.",
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Selected Tasks (0)")
+                .border_style(ui_state.get_field_border_style(&CommitField::SelectedTasks)),
+        )
+        .style(Style::default().fg(Color::DarkGray));
         f.render_widget(no_tasks, chunks[10]);
     }
 }
@@ -182,10 +191,11 @@ pub fn draw_commit_preview_screen(f: &mut Frame, area: Rect, ui_state: &UIState)
         .split(area);
 
     // Instructions
-    let instructions = Paragraph::new("📋 Commit Preview: Edit message above, 'c' to commit, Esc to go back")
-        .block(Block::default().borders(Borders::ALL).title("Instructions"))
-        .style(Style::default().fg(Color::Cyan))
-        .wrap(Wrap { trim: true });
+    let instructions =
+        Paragraph::new("📋 Commit Preview: Edit message above, 'c' to commit, Esc to go back")
+            .block(Block::default().borders(Borders::ALL).title("Instructions"))
+            .style(Style::default().fg(Color::Cyan))
+            .wrap(Wrap { trim: true });
     f.render_widget(instructions, chunks[0]);
 
     // Commit message editor using TextArea

@@ -1,7 +1,7 @@
 use crate::error::Result;
 use std::fs::OpenOptions;
 use std::io::Write;
-use tracing::{instrument, debug, error};
+use tracing::{debug, error, instrument};
 
 use crate::{
     app::App,

@@ -13,7 +13,7 @@ impl CommitOperations for App {
     #[instrument(skip(self))]
     fn build_commit_message(&self) -> String {
         debug!("Building commit message from form data");
-        
+
         let mut message = String::new();
 
         // Type and scope
@@ -117,7 +117,10 @@ impl CommitOperations for App {
             }
         }
 
-        debug!(message_len = message.len(), "Commit message built successfully");
+        debug!(
+            message_len = message.len(),
+            "Commit message built successfully"
+        );
         message
     }
 
@@ -125,12 +128,12 @@ impl CommitOperations for App {
     async fn create_commit_with_message(&self, message: &str) -> Result<()> {
         info!("Creating commit with custom message");
         debug!("Initializing git repository...");
-        
+
         let git_repo = GitRepo::new().map_err(|e| {
             error!(error = %e, "Failed to initialize git repository");
             crate::error::SemanticReleaseError::git_error(e)
         })?;
-        
+
         info!("Git repository initialized successfully");
 
         info!("Creating commit with message (length: {})", message.len());

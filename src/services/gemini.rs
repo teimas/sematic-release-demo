@@ -19,7 +19,7 @@ impl GeminiClient {
     #[instrument(skip(config))]
     pub fn new(config: &AppConfig) -> Result<Self> {
         info!("Initializing Gemini AI client");
-        
+
         let api_key = config
             .gemini_token
             .as_ref()
@@ -47,14 +47,17 @@ impl GeminiClient {
     #[instrument(skip(self), fields(prompt_len = prompt.len()))]
     async fn call_gemini_with_fallback(&self, prompt: &str) -> Result<String> {
         debug!("Attempting Gemini API call with fallback strategy");
-        
+
         // Try Gemini 2.5 Pro Preview first (most advanced), then fallback to 2.0 Flash
         match self
             .call_gemini_api(prompt, "gemini-2.5-pro-preview-06-05")
             .await
         {
             Ok(response) => {
-                info!(model = "gemini-2.5-pro-preview-06-05", "Gemini API call successful");
+                info!(
+                    model = "gemini-2.5-pro-preview-06-05",
+                    "Gemini API call successful"
+                );
                 Ok(response)
             }
             Err(e) => {
@@ -63,7 +66,7 @@ impl GeminiClient {
                     error = %e,
                     "Gemini 2.5 Pro Preview failed, trying 2.0 Flash"
                 );
-                
+
                 let fallback_response = self.call_gemini_api(prompt, "gemini-2.0-flash").await?;
                 info!(model = "gemini-2.0-flash", "Gemini API fallback successful");
                 Ok(fallback_response)
@@ -74,27 +77,28 @@ impl GeminiClient {
     #[instrument(skip(self), fields(model = model, prompt_len = prompt.len()))]
     async fn call_gemini_api(&self, prompt: &str, model: &str) -> Result<String> {
         debug!(model = model, "Making Gemini API request");
-        
+
         let chat_req = ChatRequest::new(vec![ChatMessage::user(prompt)]);
 
-        let chat_res = self.client.exec_chat(model, chat_req, None).await
+        let chat_res = self
+            .client
+            .exec_chat(model, chat_req, None)
+            .await
             .map_err(|e| {
                 error!(model = model, error = %e, "Gemini API request failed");
                 SemanticReleaseError::ai_error("Gemini", e)
             })?;
 
-        let content = chat_res
-            .content_text_as_str()
-            .ok_or_else(|| {
-                error!(model = model, "Gemini API returned no response content");
-                SemanticReleaseError::ai_error(
-                    "Gemini",
-                    std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "No response content from Gemini API"
-                    )
-                )
-            })?;
+        let content = chat_res.content_text_as_str().ok_or_else(|| {
+            error!(model = model, "Gemini API returned no response content");
+            SemanticReleaseError::ai_error(
+                "Gemini",
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "No response content from Gemini API",
+                ),
+            )
+        })?;
 
         debug!(
             model = model,
@@ -114,17 +118,17 @@ impl GeminiClient {
     #[instrument(skip(self), fields(document_len = document.len()))]
     pub async fn process_release_notes_document(&self, document: &str) -> Result<String> {
         info!("Processing release notes document with Gemini");
-        
+
         // This method sends the complete structured document to Gemini for processing
         // (like the Node.js script's processWithGemini function)
         let result = self.call_gemini_with_fallback(document).await?;
-        
+
         info!(
             input_len = document.len(),
             output_len = result.len(),
             "Release notes processing completed"
         );
-        
+
         Ok(result)
     }
 }
@@ -140,7 +144,7 @@ impl GeminiClient {
         changes: &str,
     ) -> Result<serde_json::Value> {
         info!("Generating comprehensive commit analysis with Gemini");
-        
+
         let prompt = format!(
             r#"Eres un desarrollador experto y especialista en semantic release que debe analizar cambios de código de forma EXHAUSTIVA y generar un análisis completo de commit.
 
@@ -278,7 +282,7 @@ VALIDACIONES:
                 } else {
                     warn!("Gemini JSON response missing required fields, using fallback");
                     debug!(parsed_json = ?json, "Incomplete JSON response");
-                    
+
                     // Return a fallback JSON structure
                     Ok(serde_json::json!({
                         "title": "cambios realizados en el código",
@@ -367,7 +371,7 @@ VALIDACIONES:
 #[instrument(skip(config))]
 pub async fn test_gemini_connection(config: &AppConfig) -> Result<String> {
     info!("Testing Gemini connection");
-    
+
     let client = GeminiClient::new(config)?;
 
     let test_prompt =
@@ -378,7 +382,10 @@ pub async fn test_gemini_connection(config: &AppConfig) -> Result<String> {
         .await
     {
         Ok(response) => {
-            info!(model = "gemini-2.5-pro-preview-06-05", "Gemini connection test successful");
+            info!(
+                model = "gemini-2.5-pro-preview-06-05",
+                "Gemini connection test successful"
+            );
             Ok(response)
         }
         Err(_e) => {
@@ -386,8 +393,11 @@ pub async fn test_gemini_connection(config: &AppConfig) -> Result<String> {
             let fallback_response = client
                 .call_gemini_api(test_prompt, "gemini-2.0-flash")
                 .await?;
-            
-            info!(model = "gemini-2.0-flash", "Gemini connection test successful with fallback");
+
+            info!(
+                model = "gemini-2.0-flash",
+                "Gemini connection test successful with fallback"
+            );
             Ok(fallback_response)
         }
     }
