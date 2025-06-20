@@ -195,7 +195,7 @@ impl BackgroundTaskManager {
                 async move {
                     match generate_release_notes_task(event_tx, op_id, config, commits).await {
                         Ok(_) => Ok(()),
-                        Err(e) => {
+                Err(e) => {
                             error!("Release notes generation failed: {}", e);
                             Err(e)
                         }
@@ -381,8 +381,8 @@ impl BackgroundTaskManager {
             if let Some(result_str) = result.as_str() {
                 BackgroundEvent::SemanticReleaseCompleted(result_str.to_string())
             } else {
-                return;
-            }
+                    return;
+                }
         } else {
             return;
         };

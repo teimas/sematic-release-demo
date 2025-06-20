@@ -17,17 +17,7 @@ pub fn log_error(component: &str, error: &dyn std::fmt::Display) {
     log_debug(component, &format!("❌ {}", error));
 }
 
-/// Log a warning to the debug.log file with a component prefix
-pub fn log_warning(component: &str, message: &str) {
-    log_debug(component, &format!("⚠️ {}", message));
-}
-
 /// Log a success message to the debug.log file with a component prefix
 pub fn log_success(component: &str, message: &str) {
     log_debug(component, &format!("✅ {}", message));
-}
-
-/// Log an info message to the debug.log file with a component prefix
-pub fn log_info(component: &str, message: &str) {
-    log_debug(component, &format!("🔍 {}", message));
 }

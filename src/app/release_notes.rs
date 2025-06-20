@@ -107,7 +107,7 @@ impl App {
 
             match npm_output {
                 Ok(output) => {
-                    if output.status.success() {
+                        if output.status.success() {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -125,13 +125,13 @@ impl App {
                         if let Ok(mut status) = status_clone.lock() {
                             *status = status_message;
                         }
-                    } else {
+                        } else {
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         if let Ok(mut status) = status_clone.lock() {
                             *status = format!("❌ Error en npm: {}", stderr);
                         }
-                        if let Ok(mut success) = success_clone.lock() {
-                            *success = false;
+                            if let Ok(mut success) = success_clone.lock() {
+                                *success = false;
                         }
                     }
                 }
@@ -360,7 +360,7 @@ pub async fn generate_release_notes_task(
     let mut reverts = Vec::new();
     let mut breaking_changes = Vec::new();
 
-    for commit in &commits {
+                        for commit in &commits {
         if !commit.breaking_changes.is_empty() {
             breaking_changes.extend(commit.breaking_changes.iter().cloned());
         }
@@ -402,8 +402,8 @@ pub async fn generate_release_notes_task(
                 release_notes.push_str("## 🤖 AI Summary\n\n");
                 release_notes.push_str(&ai_analysis);
                 release_notes.push_str("\n\n");
-            }
-            Err(e) => {
+                                }
+                                Err(e) => {
                 warn!("AI analysis failed: {}", e);
                 // Continue with standard generation
             }
@@ -449,15 +449,15 @@ pub async fn generate_release_notes_task(
         return Err(SemanticReleaseError::config_error(&format!(
             "Could not create release-notes directory: {}", e
         )));
-    }
+        }
 
-    // Generate filenames
+        // Generate filenames
     let date_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let script_filename = format!(
-        "release-notes/release-notes-{}_SCRIPT_WITH_ENTER_KEY.md",
-        date_str
-    );
-    let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
+            "release-notes/release-notes-{}_SCRIPT_WITH_ENTER_KEY.md",
+            date_str
+        );
+        let gemini_filename = format!("release-notes/release-notes-{}_GEMINI.md", date_str);
 
     // Save the basic release notes file
     if let Err(e) = std::fs::write(&script_filename, &release_notes) {

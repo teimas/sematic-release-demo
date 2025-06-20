@@ -64,7 +64,7 @@ pub struct JiraUser {
     pub email_address: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JiraTaskMention {
     pub key: String,
     pub summary: String,
@@ -115,7 +115,7 @@ pub struct GitCommit {
     pub jira_task_mentions: Vec<JiraTaskMention>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTaskMention {
     pub id: String,
     pub title: String,
