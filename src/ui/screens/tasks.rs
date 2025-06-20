@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
 
@@ -55,7 +55,7 @@ fn render_search_input(f: &mut Frame, area: Rect, ui_state: &UIState, config: &A
     let (search_title, search_style) = if ui_state.input_mode == InputMode::Editing {
         (
             format!(
-                "🔍 Search {} Tasks (Type to search, Enter to submit, Esc to exit)",
+                "🔍 Search {} Tasks (Typing... Press Enter to search, Esc to stop)",
                 task_system_name
             ),
             Style::default().fg(Color::Green),
@@ -70,14 +70,15 @@ fn render_search_input(f: &mut Frame, area: Rect, ui_state: &UIState, config: &A
         )
     };
 
-    let search_input = Paragraph::new(format!("Search: {}", ui_state.current_input)).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(search_title.as_str())
-            .border_style(search_style),
-    );
+    let search_block = Block::default()
+        .borders(Borders::ALL)
+        .title(search_title.as_str())
+        .border_style(search_style);
+    
+    let mut search_textarea = ui_state.search_textarea.clone();
+    search_textarea.set_block(search_block);
 
-    f.render_widget(search_input, area);
+    f.render_widget(&search_textarea, area);
 }
 
 // =============================================================================
@@ -115,7 +116,7 @@ fn build_monday_task_list<'a>(
     commit_form: &CommitForm,
 ) -> (String, Vec<ListItem<'a>>) {
     if monday_tasks.is_empty() {
-        return build_empty_results_list("Monday.com", &ui_state.current_input);
+        return build_empty_results_list("Monday.com", ui_state.search_textarea.lines().join(" ").as_str());
     }
 
     let items = monday_tasks
@@ -155,7 +156,7 @@ fn build_jira_task_list<'a>(
     commit_form: &CommitForm,
 ) -> (String, Vec<ListItem<'a>>) {
     if jira_tasks.is_empty() {
-        return build_empty_results_list("JIRA", &ui_state.current_input);
+        return build_empty_results_list("JIRA", ui_state.search_textarea.lines().join(" ").as_str());
     }
 
     let items = jira_tasks
@@ -197,9 +198,9 @@ fn build_no_system_list() -> (String, Vec<ListItem<'static>>) {
 
 fn build_empty_results_list(
     system_name: &str,
-    current_input: &str,
+    search_text: &str,
 ) -> (String, Vec<ListItem<'static>>) {
-    if current_input.is_empty() {
+    if search_text.is_empty() {
         // No search query, show placeholder
         let items = vec![ListItem::new(vec![
             Line::from("💡 Type a search query above and press Enter"),

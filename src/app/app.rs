@@ -152,6 +152,10 @@ impl App {
                             if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
                                 if !title.is_empty() {
                                     self.commit_form.title = title.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.title_textarea.select_all();
+                                    self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
+                                    self.ui_state.title_textarea.insert_str(title);
                                 }
                             }
 
@@ -191,12 +195,20 @@ impl App {
                             {
                                 if !description.is_empty() {
                                     self.commit_form.description = description.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.description_textarea.select_all();
+                                    self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
+                                    self.ui_state.description_textarea.insert_str(description);
                                 }
                             }
 
                             if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
                                 if !scope.is_empty() && scope != "general" {
                                     self.commit_form.scope = scope.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.scope_textarea.select_all();
+                                    self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
+                                    self.ui_state.scope_textarea.insert_str(scope);
                                 }
                             }
 
@@ -205,6 +217,10 @@ impl App {
                             {
                                 if !security.is_empty() {
                                     self.commit_form.security = security.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.security_textarea.select_all();
+                                    self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
+                                    self.ui_state.security_textarea.insert_str(security);
                                 }
                             }
 
@@ -213,6 +229,10 @@ impl App {
                             {
                                 if !breaking.is_empty() {
                                     self.commit_form.breaking_change = breaking.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.breaking_change_textarea.select_all();
+                                    self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
+                                    self.ui_state.breaking_change_textarea.insert_str(breaking);
                                 }
                             }
 
@@ -221,6 +241,10 @@ impl App {
                             {
                                 if !test_analysis.is_empty() {
                                     self.commit_form.test_details = test_analysis.to_string();
+                                    // Also update the textarea
+                                    self.ui_state.test_details_textarea.select_all();
+                                    self.ui_state.test_details_textarea.delete_str(self.ui_state.test_details_textarea.lines().join("\n").len());
+                                    self.ui_state.test_details_textarea.insert_str(test_analysis);
                                 }
                             }
                         }

@@ -201,7 +201,7 @@ impl App {
                 // Cancel commit and go back to commit screen
                 self.current_screen = AppScreen::Commit;
                 self.ui_state.input_mode = InputMode::Normal;
-                self.ui_state.current_input.clear();
+                // Clear any textarea content if needed
                 self.message = Some("Commit cancelled".to_string());
             }
             _ => {
@@ -307,13 +307,14 @@ impl App {
         let in_search_input = self.ui_state.input_mode == InputMode::Editing;
 
         // Debug: log key events and current mode
+        let search_input = self.ui_state.search_textarea.lines().join(" ");
         self.message = Some(format!(
             "DEBUG: Key: {:?}, Mode: {:?}, Input: '{}'",
-            key, self.ui_state.input_mode, self.ui_state.current_input
+            key, self.ui_state.input_mode, search_input
         ));
 
         if in_search_input {
-            self.handle_search_input_mode(key).await?;
+            self.handle_search_input_mode(crossterm::event::KeyEvent::new(key, crossterm::event::KeyModifiers::empty())).await?;
         } else {
             self.handle_search_navigation_mode(key).await?;
         }
@@ -323,7 +324,8 @@ impl App {
     // Helper methods for commit screen handling
     fn handle_monday_search(&mut self) {
         self.current_screen = AppScreen::TaskSearch;
-        self.ui_state.current_input.clear();
+        self.ui_state.search_textarea.select_all();
+        self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
         self.monday_tasks.clear();
         self.ui_state.selected_tab = 0;
         self.message = Some("Monday.com Search - Press 'i' or '/' to start typing".to_string());
@@ -331,7 +333,8 @@ impl App {
 
     fn handle_jira_search(&mut self) {
         self.current_screen = AppScreen::TaskSearch;
-        self.ui_state.current_input.clear();
+        self.ui_state.search_textarea.select_all();
+        self.ui_state.search_textarea.delete_str(self.ui_state.search_textarea.lines().join("\n").len());
         self.jira_tasks.clear();
         self.ui_state.selected_tab = 0;
         self.message = Some("JIRA Search - Press 'i' or '/' to start typing".to_string());
@@ -342,8 +345,12 @@ impl App {
         self.preview_commit_message = self.build_commit_message();
         self.current_screen = AppScreen::CommitPreview;
         self.ui_state.input_mode = InputMode::Editing;
-        self.ui_state.current_input = self.preview_commit_message.clone();
-        self.ui_state.cursor_position = self.preview_commit_message.len();
+        
+        // Load the commit message into the preview textarea
+        self.ui_state.commit_preview_textarea.select_all();
+        self.ui_state.commit_preview_textarea.delete_str(self.ui_state.commit_preview_textarea.lines().join("\n").len());
+        self.ui_state.commit_preview_textarea.insert_str(&self.preview_commit_message);
+        
         self.message = Some(
             "Review and edit your commit message. Press Ctrl+C to commit, Esc to cancel"
                 .to_string(),
@@ -363,49 +370,7 @@ impl App {
         }
     }
 
-    fn handle_tab_navigation(&mut self) {
-        if self.ui_state.input_mode == InputMode::Editing {
-            self.save_current_field();
-        }
-
-        // Navigate to next field
-        self.ui_state.current_field = match self.ui_state.current_field {
-            CommitField::Type => CommitField::Scope,
-            CommitField::Scope => CommitField::Title,
-            CommitField::Title => CommitField::Description,
-            CommitField::Description => CommitField::BreakingChange,
-            CommitField::BreakingChange => CommitField::TestDetails,
-            CommitField::TestDetails => CommitField::Security,
-            CommitField::Security => CommitField::MigracionesLentas,
-            CommitField::MigracionesLentas => CommitField::PartesAEjecutar,
-            CommitField::PartesAEjecutar => CommitField::SelectedTasks,
-            CommitField::SelectedTasks => CommitField::Type,
-        };
-
-        self.enter_edit_mode_if_text_field();
-    }
-
-    fn handle_back_tab_navigation(&mut self) {
-        if self.ui_state.input_mode == InputMode::Editing {
-            self.save_current_field();
-        }
-
-        // Navigate to previous field
-        self.ui_state.current_field = match self.ui_state.current_field {
-            CommitField::Type => CommitField::SelectedTasks,
-            CommitField::Scope => CommitField::Type,
-            CommitField::Title => CommitField::Scope,
-            CommitField::Description => CommitField::Title,
-            CommitField::BreakingChange => CommitField::Description,
-            CommitField::TestDetails => CommitField::BreakingChange,
-            CommitField::Security => CommitField::TestDetails,
-            CommitField::MigracionesLentas => CommitField::Security,
-            CommitField::PartesAEjecutar => CommitField::MigracionesLentas,
-            CommitField::SelectedTasks => CommitField::PartesAEjecutar,
-        };
-
-        self.enter_edit_mode_if_text_field();
-    }
+    // Navigation functions moved to input_handlers.rs to avoid duplication
 
     fn handle_up_navigation(&mut self) {
         if self.ui_state.task_management_mode {
@@ -471,8 +436,24 @@ impl App {
             }
             _ => {
                 self.ui_state.input_mode = InputMode::Editing;
-                self.load_current_field_content();
-                self.ui_state.cursor_position = self.ui_state.current_input.len();
+                // Load the current field content into the appropriate textarea
+                let current_field = self.ui_state.current_field.clone();
+                if let Some(textarea) = self.ui_state.get_textarea_mut(&current_field) {
+                    let text = match current_field {
+                        CommitField::Scope => &self.commit_form.scope,
+                        CommitField::Title => &self.commit_form.title,
+                        CommitField::Description => &self.commit_form.description,
+                        CommitField::BreakingChange => &self.commit_form.breaking_change,
+                        CommitField::TestDetails => &self.commit_form.test_details,
+                        CommitField::Security => &self.commit_form.security,
+                        CommitField::MigracionesLentas => &self.commit_form.migraciones_lentas,
+                        CommitField::PartesAEjecutar => &self.commit_form.partes_a_ejecutar,
+                        _ => "",
+                    };
+                    textarea.select_all();
+                    textarea.delete_str(textarea.lines().join("\n").len());
+                    textarea.insert_str(text);
+                }
             }
         }
     }
@@ -496,61 +477,6 @@ impl App {
             use crate::app::task_operations::TaskOperations;
             self.update_task_selection();
             self.message = Some("Task removed from selection".to_string());
-        }
-    }
-
-    fn enter_edit_mode_if_text_field(&mut self) {
-        match self.ui_state.current_field {
-            CommitField::Type | CommitField::SelectedTasks => {
-                self.ui_state.input_mode = InputMode::Normal;
-            }
-            _ => {
-                self.ui_state.input_mode = InputMode::Editing;
-                self.load_current_field_content();
-                self.ui_state.cursor_position = self.ui_state.current_input.len();
-            }
-        }
-    }
-
-    fn load_current_field_content(&mut self) {
-        self.ui_state.current_input = match self.ui_state.current_field {
-            CommitField::Type => String::new(),
-            CommitField::Scope => self.commit_form.scope.clone(),
-            CommitField::Title => self.commit_form.title.clone(),
-            CommitField::Description => self.commit_form.description.clone(),
-            CommitField::BreakingChange => self.commit_form.breaking_change.clone(),
-            CommitField::TestDetails => self.commit_form.test_details.clone(),
-            CommitField::Security => self.commit_form.security.clone(),
-            CommitField::MigracionesLentas => self.commit_form.migraciones_lentas.clone(),
-            CommitField::PartesAEjecutar => self.commit_form.partes_a_ejecutar.clone(),
-            CommitField::SelectedTasks => String::new(),
-        };
-    }
-
-    pub fn save_current_field(&mut self) {
-        match self.ui_state.current_field {
-            CommitField::Type => {}
-            CommitField::Scope => self.commit_form.scope = self.ui_state.current_input.clone(),
-            CommitField::Title => self.commit_form.title = self.ui_state.current_input.clone(),
-            CommitField::Description => {
-                self.commit_form.description = self.ui_state.current_input.clone()
-            }
-            CommitField::BreakingChange => {
-                self.commit_form.breaking_change = self.ui_state.current_input.clone()
-            }
-            CommitField::TestDetails => {
-                self.commit_form.test_details = self.ui_state.current_input.clone()
-            }
-            CommitField::Security => {
-                self.commit_form.security = self.ui_state.current_input.clone()
-            }
-            CommitField::MigracionesLentas => {
-                self.commit_form.migraciones_lentas = self.ui_state.current_input.clone()
-            }
-            CommitField::PartesAEjecutar => {
-                self.commit_form.partes_a_ejecutar = self.ui_state.current_input.clone()
-            }
-            CommitField::SelectedTasks => {}
         }
     }
 
@@ -584,7 +510,6 @@ impl App {
                             );
                             self.current_screen = AppScreen::Main;
                             self.ui_state.input_mode = InputMode::Normal;
-                            self.ui_state.current_input.clear();
                             self.current_state = AppState::Normal;
                         }
                     }

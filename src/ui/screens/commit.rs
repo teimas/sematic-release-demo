@@ -1,13 +1,11 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::Line,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
 use crate::types::{CommitForm, CommitType};
-use crate::ui::scrollable_text::render_scrollable_text;
 use crate::ui::state::{CommitField, InputMode, UIState};
 
 pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_form: &CommitForm) {
@@ -27,8 +25,6 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
             Constraint::Min(0),    // Selected tasks
         ])
         .split(area);
-
-    // Use helper methods from UIState for consistent styling
 
     // Commit Type Selection
     let commit_types: Vec<ListItem> = CommitType::all()
@@ -66,282 +62,114 @@ pub fn draw_commit_screen(f: &mut Frame, area: Rect, ui_state: &UIState, commit_
 
     f.render_stateful_widget(commit_type_list, chunks[0], &mut list_state);
 
-    // Scope
-    let scope_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::Scope
-    {
-        &ui_state.current_input
-    } else if commit_form.scope.is_empty() {
-        "Enter scope (e.g., auth, ui, api)..."
-    } else {
-        &commit_form.scope
-    };
-    let scope = Paragraph::new(scope_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Scope (auto-edit on Tab)")
-                .border_style(ui_state.get_field_border_style(&CommitField::Scope)),
-        )
-        .style(ui_state.get_field_style(&CommitField::Scope));
-    f.render_widget(scope, chunks[1]);
+    // Render TextArea widgets with titles
+    let scope_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Scope (auto-edit on Tab)")
+        .border_style(ui_state.get_field_border_style(&CommitField::Scope));
+    let mut scope_textarea = ui_state.scope_textarea.clone();
+    scope_textarea.set_block(scope_block);
+    f.render_widget(&scope_textarea, chunks[1]);
 
-    // Title
-    let title_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::Title
-    {
-        &ui_state.current_input
-    } else if commit_form.title.is_empty() {
-        "Enter commit title..."
-    } else {
-        &commit_form.title
-    };
-    let title = Paragraph::new(title_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Title")
-                .border_style(ui_state.get_field_border_style(&CommitField::Title)),
-        )
-        .style(ui_state.get_field_style(&CommitField::Title));
-    f.render_widget(title, chunks[2]);
+    let title_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Title")
+        .border_style(ui_state.get_field_border_style(&CommitField::Title));
+    let mut title_textarea = ui_state.title_textarea.clone();
+    title_textarea.set_block(title_block);
+    f.render_widget(&title_textarea, chunks[2]);
 
-    // Description (multiline)
-    let desc_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::Description
-    {
-        &ui_state.current_input
-    } else if commit_form.description.is_empty() {
-        "Press 't' for comprehensive AI analysis, or type manually... (Enter for new line)"
-    } else {
-        &commit_form.description
-    };
-
-    let desc_block = Block::default()
+    let description_block = Block::default()
         .borders(Borders::ALL)
         .title("Description (multiline, 't' for comprehensive AI analysis)")
         .border_style(ui_state.get_field_border_style(&CommitField::Description));
-    let desc_style = ui_state.get_field_style(&CommitField::Description);
+    let mut description_textarea = ui_state.description_textarea.clone();
+    description_textarea.set_block(description_block);
+    f.render_widget(&description_textarea, chunks[3]);
 
-    render_scrollable_text(
-        f,
-        chunks[3],
-        desc_text,
-        &CommitField::Description,
-        ui_state,
-        desc_block,
-        desc_style,
-    );
+    let breaking_change_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Breaking Change")
+        .border_style(ui_state.get_field_border_style(&CommitField::BreakingChange));
+    let mut breaking_change_textarea = ui_state.breaking_change_textarea.clone();
+    breaking_change_textarea.set_block(breaking_change_block);
+    f.render_widget(&breaking_change_textarea, chunks[4]);
 
-    // Breaking Change
-    let breaking_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::BreakingChange
-    {
-        &ui_state.current_input
-    } else if commit_form.breaking_change.is_empty() {
-        "Enter breaking change details (if any)..."
-    } else {
-        &commit_form.breaking_change
-    };
-    let breaking = Paragraph::new(breaking_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Breaking Change")
-                .border_style(ui_state.get_field_border_style(&CommitField::BreakingChange)),
-        )
-        .style(ui_state.get_field_style(&CommitField::BreakingChange));
-    f.render_widget(breaking, chunks[4]);
-
-    // Test Details (multiline)
-    let test_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::TestDetails
-    {
-        &ui_state.current_input
-    } else if commit_form.test_details.is_empty() {
-        "Enter test details manually, or press 't' for AI analysis... (Enter for new line)"
-    } else {
-        &commit_form.test_details
-    };
-
-    let test_block = Block::default()
+    let test_details_block = Block::default()
         .borders(Borders::ALL)
         .title("Test Details (multiline, auto-filled by 't' AI analysis)")
         .border_style(ui_state.get_field_border_style(&CommitField::TestDetails));
-    let test_style = ui_state.get_field_style(&CommitField::TestDetails);
-
-    render_scrollable_text(
-        f,
-        chunks[5],
-        test_text,
-        &CommitField::TestDetails,
-        ui_state,
-        test_block,
-        test_style,
-    );
-
-    // Security (multiline)
-    let security_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::Security
-    {
-        &ui_state.current_input
-    } else if commit_form.security.is_empty() {
-        "Enter security info (or NA)... (Enter for new line)"
-    } else {
-        &commit_form.security
-    };
+    let mut test_details_textarea = ui_state.test_details_textarea.clone();
+    test_details_textarea.set_block(test_details_block);
+    f.render_widget(&test_details_textarea, chunks[5]);
 
     let security_block = Block::default()
         .borders(Borders::ALL)
         .title("Security (multiline)")
         .border_style(ui_state.get_field_border_style(&CommitField::Security));
-    let security_style = ui_state.get_field_style(&CommitField::Security);
+    let mut security_textarea = ui_state.security_textarea.clone();
+    security_textarea.set_block(security_block);
+    f.render_widget(&security_textarea, chunks[6]);
 
-    render_scrollable_text(
-        f,
-        chunks[6],
-        security_text,
-        &CommitField::Security,
-        ui_state,
-        security_block,
-        security_style,
-    );
-
-    // Migraciones Lentas (multiline)
-    let migraciones_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::MigracionesLentas
-    {
-        &ui_state.current_input
-    } else if commit_form.migraciones_lentas.is_empty() {
-        "Enter slow migrations details... (Enter for new line)"
-    } else {
-        &commit_form.migraciones_lentas
-    };
-
-    let migraciones_block = Block::default()
+    let migraciones_lentas_block = Block::default()
         .borders(Borders::ALL)
         .title("Migraciones Lentas (multiline)")
         .border_style(ui_state.get_field_border_style(&CommitField::MigracionesLentas));
-    let migraciones_style = ui_state.get_field_style(&CommitField::MigracionesLentas);
+    let mut migraciones_lentas_textarea = ui_state.migraciones_lentas_textarea.clone();
+    migraciones_lentas_textarea.set_block(migraciones_lentas_block);
+    f.render_widget(&migraciones_lentas_textarea, chunks[7]);
 
-    render_scrollable_text(
-        f,
-        chunks[7],
-        migraciones_text,
-        &CommitField::MigracionesLentas,
-        ui_state,
-        migraciones_block,
-        migraciones_style,
-    );
-
-    // Partes a Ejecutar (multiline)
-    let partes_text = if ui_state.input_mode == InputMode::Editing
-        && ui_state.current_field == CommitField::PartesAEjecutar
-    {
-        &ui_state.current_input
-    } else if commit_form.partes_a_ejecutar.is_empty() {
-        "Enter parts to execute... (Enter for new line)"
-    } else {
-        &commit_form.partes_a_ejecutar
-    };
-
-    let partes_block = Block::default()
+    let partes_a_ejecutar_block = Block::default()
         .borders(Borders::ALL)
         .title("Partes a Ejecutar (multiline)")
         .border_style(ui_state.get_field_border_style(&CommitField::PartesAEjecutar));
-    let partes_style = ui_state.get_field_style(&CommitField::PartesAEjecutar);
-
-    render_scrollable_text(
-        f,
-        chunks[8],
-        partes_text,
-        &CommitField::PartesAEjecutar,
-        ui_state,
-        partes_block,
-        partes_style,
-    );
+    let mut partes_a_ejecutar_textarea = ui_state.partes_a_ejecutar_textarea.clone();
+    partes_a_ejecutar_textarea.set_block(partes_a_ejecutar_block);
+    f.render_widget(&partes_a_ejecutar_textarea, chunks[8]);
 
     // Instructions
     let instructions = if ui_state.input_mode == InputMode::Editing {
-        if matches!(
-            ui_state.current_field,
-            CommitField::Description
-                | CommitField::TestDetails
-                | CommitField::Security
-                | CommitField::MigracionesLentas
-                | CommitField::PartesAEjecutar
-        ) {
-            "🔤 EDITING MULTILINE - Type text, Enter for new line, Tab/arrows to save & move, Esc to cancel"
+        if UIState::is_multiline_field(&ui_state.current_field) {
+            "🔤 EDITING MULTILINE - Advanced text editing with TextArea, Tab/arrows to save & move, Esc to cancel"
         } else {
-            "🔤 EDITING SINGLE LINE - Type text, Tab/arrows to save & move, Esc to cancel"
+            "🔤 EDITING SINGLE LINE - Advanced text editing with TextArea, Tab/arrows to save & move, Esc to cancel"
         }
     } else {
         "📋 Navigation: Tab/Shift+Tab to move & edit, ↑↓ for commit type/tasks, 's' Monday.com/'j' JIRA search, 't' AI analysis, 'm' manage tasks, 'c' commit, 'q' quit"
     };
     let instructions_widget = Paragraph::new(instructions)
-        .block(Block::default().borders(Borders::ALL).title("Instructions"))
+        .block(Block::default().borders(Borders::ALL).title("Instructions (TextArea Mode)"))
         .style(Style::default().fg(Color::Cyan))
         .wrap(Wrap { trim: true });
     f.render_widget(instructions_widget, chunks[9]);
 
-    // Selected Tasks - show both Monday and JIRA tasks
-    let mut task_items: Vec<ListItem> = Vec::new();
-    let mut task_index = 0;
+    // Render selected tasks if any
+    if !commit_form.selected_tasks.is_empty() {
+        let task_items: Vec<ListItem> = commit_form
+            .selected_tasks
+            .iter()
+            .map(|task| ListItem::new(format!("• {}", task.title)))
+            .collect();
 
-    // Add Monday tasks
-    for task in &commit_form.selected_monday_tasks {
-        let is_focused = ui_state.task_management_mode && task_index == ui_state.selected_tab;
-        let style = if is_focused {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-        };
-        let prefix = if is_focused { "→ " } else { "  " };
-        task_items.push(
-            ListItem::new(format!("{}{} (Monday ID: {})", prefix, task.title, task.id))
-                .style(style),
-        );
-        task_index += 1;
-    }
-
-    // Add JIRA tasks
-    for task in &commit_form.selected_jira_tasks {
-        let is_focused = ui_state.task_management_mode && task_index == ui_state.selected_tab;
-        let style = if is_focused {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-        };
-        let prefix = if is_focused { "→ " } else { "  " };
-        task_items.push(
-            ListItem::new(format!(
-                "{}{} (JIRA Key: {})",
-                prefix, task.summary, task.key
-            ))
-            .style(style),
-        );
-        task_index += 1;
-    }
-
-    let tasks_title = if ui_state.task_management_mode {
-        "Selected Tasks (Task Management Mode - Use Up/Down, Delete/Space to remove, 'm' to exit)"
-    } else {
-        "Selected Tasks (Press Enter to manage tasks)"
-    };
-
-    let tasks_list = List::new(task_items)
-        .block(
+        let selected_task_list = List::new(task_items).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(tasks_title)
+                .title(format!("Selected Tasks ({})", commit_form.selected_tasks.len()))
                 .border_style(ui_state.get_field_border_style(&CommitField::SelectedTasks)),
-        )
-        .style(ui_state.get_field_style(&CommitField::SelectedTasks));
-    f.render_widget(tasks_list, chunks[10]);
+        );
+
+        f.render_widget(selected_task_list, chunks[10]);
+    } else {
+        let no_tasks = Paragraph::new("No tasks selected. Use 's' for Monday.com or 'j' for JIRA search to add tasks.")
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Selected Tasks (0)")
+                    .border_style(ui_state.get_field_border_style(&CommitField::SelectedTasks)),
+            )
+            .style(Style::default().fg(Color::DarkGray));
+        f.render_widget(no_tasks, chunks[10]);
+    }
 }
 
 pub fn draw_commit_preview_screen(f: &mut Frame, area: Rect, ui_state: &UIState) {
@@ -354,29 +182,18 @@ pub fn draw_commit_preview_screen(f: &mut Frame, area: Rect, ui_state: &UIState)
         .split(area);
 
     // Instructions
-    let instructions = Paragraph::new(vec![
-        Line::from("📝 Commit Message Preview & Editor"),
-        Line::from(
-            "Edit with arrow keys, Home/End, Enter for new line. Ctrl+C to commit, Esc to cancel",
-        ),
-    ])
-    .block(Block::default().borders(Borders::ALL).title("Instructions"))
-    .style(Style::default().fg(Color::Cyan));
+    let instructions = Paragraph::new("📋 Commit Preview: Edit message above, 'c' to commit, Esc to go back")
+        .block(Block::default().borders(Borders::ALL).title("Instructions"))
+        .style(Style::default().fg(Color::Cyan))
+        .wrap(Wrap { trim: true });
     f.render_widget(instructions, chunks[0]);
 
-    // Commit message editor
-    let commit_editor = Paragraph::new(ui_state.current_input.as_str())
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Commit Message (editable)")
-                .border_style(Style::default().fg(Color::Green)),
-        )
-        .style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
-        .wrap(Wrap { trim: true });
-    f.render_widget(commit_editor, chunks[1]);
+    // Commit message editor using TextArea
+    let editor_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Commit Message Editor")
+        .border_style(Style::default().fg(Color::Green));
+    let mut commit_editor_textarea = ui_state.commit_preview_textarea.clone();
+    commit_editor_textarea.set_block(editor_block);
+    f.render_widget(&commit_editor_textarea, chunks[1]);
 }

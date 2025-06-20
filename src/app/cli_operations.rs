@@ -110,8 +110,11 @@ impl App {
         // Set screen to commit preview (like pressing 'c')
         app.current_screen = crate::types::AppScreen::CommitPreview;
         app.ui_state.input_mode = crate::ui::state::InputMode::Editing;
-        app.ui_state.current_input = app.preview_commit_message.clone();
-        app.ui_state.cursor_position = app.preview_commit_message.len();
+        
+        // Load the commit message into the preview textarea
+        app.ui_state.commit_preview_textarea.select_all();
+        app.ui_state.commit_preview_textarea.delete_str(app.ui_state.commit_preview_textarea.lines().join("\n").len());
+        app.ui_state.commit_preview_textarea.insert_str(&app.preview_commit_message);
 
         println!("📝 Opening commit editor...");
 
