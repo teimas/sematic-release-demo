@@ -1,15 +1,10 @@
 pub mod components;
-pub mod cursor;
 pub mod loading;
 pub mod screens;
-pub mod scrollable_text;
 pub mod state;
 
 // Re-export the main types and functions for easy access
 pub use components::{draw_status_bar, draw_title_bar};
-pub use cursor::{
-    set_commit_preview_cursor_position, set_cursor_position, set_search_cursor_position,
-};
 pub use loading::draw_loading_overlay;
 pub use screens::{
     draw_commit_preview_screen, draw_commit_screen, draw_config_screen, draw_main_screen,
@@ -55,6 +50,9 @@ pub fn draw(
     // Title bar
     draw_title_bar(f, chunks[0]);
 
+    // Update textarea styles before rendering
+    ui_state.update_textarea_styles();
+
     // Main content based on current screen
     match app_screen {
         AppScreen::Main => draw_main_screen(f, chunks[1], ui_state, git_status),
@@ -92,13 +90,6 @@ pub fn draw(
         draw_loading_overlay(f, f.area(), ui_state.animation_frame, message);
     }
 
-    // Set cursor position when editing
-    if ui_state.input_mode == InputMode::Editing {
-        match app_screen {
-            AppScreen::Commit => set_cursor_position(f, chunks[1], ui_state),
-            AppScreen::CommitPreview => set_commit_preview_cursor_position(f, chunks[1], ui_state),
-            AppScreen::TaskSearch => set_search_cursor_position(f, chunks[1], ui_state),
-            _ => {}
-        }
-    }
+    // Note: Cursor positioning is now handled by tui-textarea internally
+    // No need for manual cursor positioning for text fields
 }

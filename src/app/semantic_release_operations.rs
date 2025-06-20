@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;

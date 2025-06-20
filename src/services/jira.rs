@@ -1,8 +1,10 @@
-use anyhow::Result;
 use jira_query::{Auth, Issue, JiraInstance};
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::types::{AppConfig, JiraTask};
-use crate::utils;
+use crate::{
+    error::{Result, SemanticReleaseError},
+    types::{AppConfig, JiraTask},
+};
 
 // =============================================================================
 // CORE JIRA CLIENT STRUCTURE
@@ -14,25 +16,23 @@ pub struct JiraClient {
 }
 
 impl JiraClient {
-    fn log_debug(&self, message: &str) {
-        utils::log_debug("JIRA", message);
-    }
-
+    #[instrument(skip(config))]
     pub fn new(config: &AppConfig) -> Result<Self> {
+        info!("Initializing JIRA client");
+
         // Validate JIRA configuration
         let jira_instance = if let (Some(url), Some(username), Some(api_token)) = (
             &config.jira_url,
             &config.jira_username,
             &config.jira_api_token,
         ) {
-            // Log initialization before self is fully constructed
-            utils::log_debug(
-                "JIRA",
-                &format!("🔧 JIRA Client - Initializing with URL: {}", url),
-            );
+            info!(url = %url, username = %username, "Creating JIRA client instance");
 
             let instance = JiraInstance::at(url.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to create JIRA instance: {}", e))?
+                .map_err(|e| {
+                    error!(url = %url, error = %e, "Failed to create JIRA instance");
+                    SemanticReleaseError::jira_error(e)
+                })?
                 .authenticate(Auth::Basic {
                     user: username.clone(),
                     password: api_token.clone(),
@@ -40,109 +40,99 @@ impl JiraClient {
 
             Some(instance)
         } else {
-            utils::log_debug("JIRA", &format!("❌ JIRA configuration incomplete - missing URL: {}, username: {}, API token: {}",
-                config.jira_url.is_none(),
-                config.jira_username.is_none(),
-                config.jira_api_token.is_none()));
+            let missing_fields = [
+                ("url", config.jira_url.is_none()),
+                ("username", config.jira_username.is_none()),
+                ("api_token", config.jira_api_token.is_none()),
+            ]
+            .iter()
+            .filter(|(_, is_missing)| *is_missing)
+            .map(|(field, _)| *field)
+            .collect::<Vec<_>>();
+
+            warn!(missing_fields = ?missing_fields, "JIRA configuration incomplete");
             None
         };
 
-        Ok(Self {
+        let client = Self {
             config: config.clone(),
             jira_instance,
-        })
+        };
+
+        info!(
+            configured = client.jira_instance.is_some(),
+            project_key = ?config.jira_project_key,
+            "JIRA client initialized"
+        );
+
+        Ok(client)
     }
 
+    #[instrument(skip(self), fields(query = query))]
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<JiraTask>> {
-        let instance = self
-            .jira_instance
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("JIRA not configured properly"))?;
+        info!("Searching JIRA tasks");
+
+        let instance = self.jira_instance.as_ref().ok_or_else(|| {
+            error!("JIRA search attempted but client not configured");
+            SemanticReleaseError::config_error(
+                "JIRA not configured properly - missing URL, username, or API token",
+            )
+        })?;
 
         // Build JQL query for the configured project
         let jql = self.build_jql_query(query);
-        self.log_debug(&format!("🔍 JIRA Search - JQL Query: {}", jql));
+        debug!(jql = %jql, "Built JQL query for search");
 
         // Perform the search using jira_query
         match instance.search(&jql).await {
             Ok(issues) => {
-                self.log_debug(&format!(
-                    "✅ JIRA Search Success: Found {} issues",
-                    issues.len()
-                ));
+                info!(
+                    issue_count = issues.len(),
+                    "JIRA search completed successfully"
+                );
+
                 let mut tasks = Vec::new();
+                let mut conversion_errors = Vec::new();
+
                 for issue in issues {
                     match self.convert_jira_issue_to_task(issue) {
-                        Ok(task) => tasks.push(task),
+                        Ok(task) => {
+                            debug!(task_key = %task.key, "Successfully converted JIRA issue to task");
+                            tasks.push(task);
+                        }
                         Err(e) => {
-                            self.log_debug(&format!(
-                                "⚠️  Failed to convert JIRA issue to task: {}",
-                                e
-                            ));
+                            warn!(error = %e, "Failed to convert JIRA issue to task");
+                            conversion_errors.push(e.to_string());
                         }
                     }
                 }
+
+                if !conversion_errors.is_empty() {
+                    warn!(
+                        conversion_errors = conversion_errors.len(),
+                        successful_tasks = tasks.len(),
+                        "Some JIRA issues failed to convert"
+                    );
+                }
+
                 Ok(tasks)
             }
             Err(e) => {
-                self.log_debug(&format!("❌ JIRA Search Failed: {}", e));
-                Err(anyhow::anyhow!("JIRA search failed: {}", e))
+                error!(jql = %jql, error = %e, "JIRA search failed");
+                Err(SemanticReleaseError::jira_error(e))
             }
         }
     }
 
-    pub async fn get_task_details(&self, task_keys: &[String]) -> Result<Vec<JiraTask>> {
-        let instance = self
-            .jira_instance
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("JIRA not configured properly"))?;
-
-        let mut tasks = Vec::new();
-        let mut errors = Vec::new();
-
-        for key in task_keys {
-            self.log_debug(&format!("🔍 JIRA - Fetching task details for: {}", key));
-            match instance.issue(key).await {
-                Ok(issue) => match self.convert_jira_issue_to_task(issue) {
-                    Ok(task) => {
-                        self.log_debug(&format!("✅ JIRA - Successfully fetched task: {}", key));
-                        tasks.push(task);
-                    }
-                    Err(e) => {
-                        self.log_debug(&format!(
-                            "❌ JIRA - Failed to convert issue {}: {}",
-                            key, e
-                        ));
-                        errors.push(format!("{}: {}", key, e));
-                    }
-                },
-                Err(e) => {
-                    self.log_debug(&format!("❌ JIRA - Failed to fetch task {}: {}", key, e));
-                    errors.push(format!("{}: {}", key, e));
-                }
-            }
-        }
-
-        if !errors.is_empty() && tasks.is_empty() {
-            return Err(anyhow::anyhow!(
-                "Failed to fetch any JIRA tasks: {}",
-                errors.join(", ")
-            ));
-        }
-
-        if !errors.is_empty() {
-            self.log_debug(&format!(
-                "⚠️  Some JIRA tasks failed to load: {}",
-                errors.join(", ")
-            ));
-        }
-
-        Ok(tasks)
-    }
-
+    #[instrument(skip(self))]
     pub async fn test_connection(&self) -> Result<String> {
+        info!("Testing JIRA connection");
+
         let instance = self.jira_instance.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("JIRA configuration incomplete - missing URL, username, or API token")
+            error!("JIRA connection test attempted but client not configured");
+            SemanticReleaseError::config_error(
+                "JIRA configuration incomplete - missing URL, username, or API token",
+            )
         })?;
 
         // Try to search for any issue to test the connection
@@ -152,7 +142,7 @@ impl JiraClient {
             "ORDER BY created DESC".to_string()
         };
 
-        self.log_debug(&format!("🔍 JIRA Connection Test - JQL: {}", test_jql));
+        debug!(test_jql = %test_jql, "Testing JIRA connection with JQL query");
 
         match instance.search(&test_jql).await {
             Ok(issues) => {
@@ -160,13 +150,15 @@ impl JiraClient {
                     "✅ JIRA connection successful! Found {} issues",
                     issues.len()
                 );
-                self.log_debug(&message);
+                info!(
+                    issue_count = issues.len(),
+                    "JIRA connection test successful"
+                );
                 Ok(message)
             }
             Err(e) => {
-                let error_message = format!("❌ JIRA connection failed: {}", e);
-                self.log_debug(&error_message);
-                Err(anyhow::anyhow!(error_message))
+                error!(test_jql = %test_jql, error = %e, "JIRA connection test failed");
+                Err(SemanticReleaseError::jira_error(e))
             }
         }
     }
@@ -222,7 +214,7 @@ impl JiraClient {
 
         Ok(JiraTask {
             id: issue.id,
-            key: issue.key,
+            key: issue.key.clone(),
             summary: issue.fields.summary,
             description: issue.fields.description,
             status: issue.fields.status.name,

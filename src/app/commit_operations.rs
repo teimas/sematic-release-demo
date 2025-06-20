@@ -1,5 +1,5 @@
-use anyhow::Result;
-use log::{debug, error, info};
+use crate::error::Result;
+use tracing::{debug, error, info, instrument};
 
 use crate::{app::App, git::repository::GitRepo};
 
@@ -10,7 +10,10 @@ pub trait CommitOperations {
 }
 
 impl CommitOperations for App {
+    #[instrument(skip(self))]
     fn build_commit_message(&self) -> String {
+        debug!("Building commit message from form data");
+
         let mut message = String::new();
 
         // Type and scope
@@ -114,40 +117,36 @@ impl CommitOperations for App {
             }
         }
 
+        debug!(
+            message_len = message.len(),
+            "Commit message built successfully"
+        );
         message
     }
 
+    #[instrument(skip(self), fields(message_len = message.len()))]
     async fn create_commit_with_message(&self, message: &str) -> Result<()> {
-        debug!("Creating commit with custom message");
-
+        info!("Creating commit with custom message");
         debug!("Initializing git repository...");
-        let git_repo = match GitRepo::new() {
-            Ok(repo) => {
-                info!("Git repository initialized successfully");
-                repo
-            }
-            Err(e) => {
-                error!("Failed to initialize git repository: {}", e);
-                return Err(anyhow::anyhow!(
-                    "Git repository error: {}. Make sure you're in a git repository.",
-                    e
-                ));
-            }
-        };
 
-        info!("Creating commit with message:\n{}", message);
+        let git_repo = GitRepo::new().map_err(|e| {
+            error!(error = %e, "Failed to initialize git repository");
+            crate::error::SemanticReleaseError::git_error(e)
+        })?;
+
+        info!("Git repository initialized successfully");
+
+        info!("Creating commit with message (length: {})", message.len());
+        debug!("Commit message content:\n{}", message);
 
         // Create the commit
         debug!("Creating git commit...");
-        match git_repo.create_commit(message) {
-            Ok(_) => {
-                info!("Commit created successfully");
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to create commit: {}", e);
-                Err(anyhow::anyhow!("Failed to create commit: {}. Make sure you have staged changes or there are changes to commit.", e))
-            }
-        }
+        git_repo.create_commit(message).map_err(|e| {
+            error!(error = %e, "Failed to create commit");
+            crate::error::SemanticReleaseError::git_error(e)
+        })?;
+
+        info!("Commit created successfully");
+        Ok(())
     }
 }

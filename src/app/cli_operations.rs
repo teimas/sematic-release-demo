@@ -1,16 +1,24 @@
-use anyhow::Result;
+use crate::error::Result;
+use tracing::{debug, error, info, instrument};
 
 use crate::{app::App, git::GitRepo, services::MondayClient};
 
 impl App {
     // CLI methods for direct command usage
+    #[instrument(skip(self))]
     pub async fn commit_flow(&self) -> Result<()> {
-        println!("🚀 TEIMAS Release Committer (TERCO) - Opening Commit Interface...");
-        println!("💡 TIP: Use 't' for comprehensive AI analysis");
-        println!("📋 Press 'q' to quit, 'Tab' to navigate between fields");
+        info!("Starting commit flow via CLI");
+        crate::observability::log_user_message(
+            "🚀 TEIMAS Release Committer (TERCO) - Opening Commit Interface...",
+        );
+        crate::observability::log_user_message("💡 TIP: Use 't' for comprehensive AI analysis");
+        crate::observability::log_user_message(
+            "📋 Press 'q' to quit, 'Tab' to navigate between fields",
+        );
 
         // Create a new app instance specifically for commit flow
         let mut app = App::new().await?;
+        debug!("Created new app instance for commit flow");
 
         // Set the initial screen to commit instead of main
         app.current_screen = crate::types::AppScreen::Commit;
@@ -18,30 +26,39 @@ impl App {
         // Run the TUI starting on the commit screen
         app.run().await?;
 
+        info!("Commit flow completed successfully");
         Ok(())
     }
 
+    #[instrument(skip(self))]
     pub async fn autocommit_flow(&self) -> Result<()> {
-        println!("🚀 TEIMAS Release Committer (TERCO) - Auto-commit Flow");
-        println!("🧠 Running comprehensive AI analysis...");
+        info!("Starting autocommit flow via CLI");
+        crate::observability::log_user_message(
+            "🚀 TEIMAS Release Committer (TERCO) - Auto-commit Flow",
+        );
+        crate::observability::log_user_message("🧠 Running comprehensive AI analysis...");
 
         // Run comprehensive analysis directly without TUI state management
         let analysis_result = self.run_comprehensive_analysis_cli().await?;
+        debug!("Comprehensive analysis completed successfully");
 
-        println!("✅ AI analysis completed successfully!");
+        crate::observability::log_user_message("✅ AI analysis completed successfully!");
 
         // Create a new app instance for the commit editor
         let mut app = App::new().await?;
+        debug!("Created new app instance for commit editor");
 
         // Populate form with AI analysis results
         if let Some(title) = analysis_result.get("title").and_then(|v| v.as_str()) {
             if !title.is_empty() {
+                debug!(title = %title, "Populating title from AI analysis");
                 app.commit_form.title = title.to_string();
             }
         }
 
         if let Some(commit_type) = analysis_result.get("commitType").and_then(|v| v.as_str()) {
             if !commit_type.is_empty() {
+                debug!(commit_type = %commit_type, "Populating commit type from AI analysis");
                 use crate::types::CommitType;
                 let commit_type_enum = match commit_type {
                     "feat" => Some(CommitType::Feat),
@@ -69,12 +86,17 @@ impl App {
 
         if let Some(description) = analysis_result.get("description").and_then(|v| v.as_str()) {
             if !description.is_empty() {
+                debug!(
+                    description_len = description.len(),
+                    "Populating description from AI analysis"
+                );
                 app.commit_form.description = description.to_string();
             }
         }
 
         if let Some(scope) = analysis_result.get("scope").and_then(|v| v.as_str()) {
             if !scope.is_empty() && scope != "general" {
+                debug!(scope = %scope, "Populating scope from AI analysis");
                 app.commit_form.scope = scope.to_string();
             }
         }
@@ -84,6 +106,10 @@ impl App {
             .and_then(|v| v.as_str())
         {
             if !security.is_empty() {
+                debug!(
+                    security_len = security.len(),
+                    "Populating security analysis from AI"
+                );
                 app.commit_form.security = security.to_string();
             }
         }
@@ -93,12 +119,20 @@ impl App {
             .and_then(|v| v.as_str())
         {
             if !breaking.is_empty() {
+                debug!(
+                    breaking_len = breaking.len(),
+                    "Populating breaking changes from AI analysis"
+                );
                 app.commit_form.breaking_change = breaking.to_string();
             }
         }
 
         if let Some(test_analysis) = analysis_result.get("testAnalysis").and_then(|v| v.as_str()) {
             if !test_analysis.is_empty() {
+                debug!(
+                    test_analysis_len = test_analysis.len(),
+                    "Populating test analysis from AI"
+                );
                 app.commit_form.test_details = test_analysis.to_string();
             }
         }
@@ -106,76 +140,112 @@ impl App {
         // Generate commit message preview
         use crate::app::commit_operations::CommitOperations;
         app.preview_commit_message = app.build_commit_message();
+        debug!(
+            message_len = app.preview_commit_message.len(),
+            "Generated commit message preview"
+        );
 
         // Set screen to commit preview (like pressing 'c')
         app.current_screen = crate::types::AppScreen::CommitPreview;
         app.ui_state.input_mode = crate::ui::state::InputMode::Editing;
-        app.ui_state.current_input = app.preview_commit_message.clone();
-        app.ui_state.cursor_position = app.preview_commit_message.len();
 
-        println!("📝 Opening commit editor...");
+        // Load the commit message into the preview textarea
+        app.ui_state.commit_preview_textarea.select_all();
+        app.ui_state.commit_preview_textarea.delete_str(
+            app.ui_state
+                .commit_preview_textarea
+                .lines()
+                .join("\n")
+                .len(),
+        );
+        app.ui_state
+            .commit_preview_textarea
+            .insert_str(&app.preview_commit_message);
+
+        crate::observability::log_user_message("📝 Opening commit editor...");
 
         // Run the TUI starting on the commit preview screen
         app.run().await?;
 
+        info!("Autocommit flow completed successfully");
         Ok(())
     }
 
     /// CLI-only comprehensive analysis that doesn't involve TUI state management
+    #[instrument(skip(self))]
     async fn run_comprehensive_analysis_cli(&self) -> Result<serde_json::Value> {
         use crate::git::GitRepo;
         use crate::services::GeminiClient;
 
-        println!("🔍 Analyzing git repository changes...");
+        info!("Starting comprehensive analysis for CLI");
+        crate::observability::log_user_message("🔍 Analyzing git repository changes...");
 
         // Get git changes
         let git_repo = GitRepo::new()?;
         let changes = git_repo.get_detailed_changes()?;
+        debug!(changes_len = changes.len(), "Retrieved git changes");
 
         if changes.trim().is_empty() || changes.contains("No hay cambios detectados") {
-            return Err(anyhow::anyhow!("No git changes found to analyze"));
+            error!("No git changes found to analyze");
+            return Err(crate::error::SemanticReleaseError::git_error(
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "No git changes found to analyze",
+                ),
+            ));
         }
 
-        println!("🌐 Connecting to Gemini AI...");
+        crate::observability::log_user_message("🌐 Connecting to Gemini AI...");
 
         // Create Gemini client and run analysis
         let gemini_client = GeminiClient::new(&self.config)?;
+        debug!("Gemini client created successfully");
 
-        println!("🧠 Generating comprehensive commit analysis...");
+        crate::observability::log_user_message("🧠 Generating comprehensive commit analysis...");
 
         let result = gemini_client
             .generate_comprehensive_commit_analysis(&changes)
             .await?;
 
+        info!("Comprehensive analysis completed successfully");
         Ok(result)
     }
 
+    #[instrument(skip(self), fields(query = %query))]
     pub async fn search_tasks(&self, query: &str) -> Result<()> {
-        println!("🔍 Searching Monday.com tasks for: {}", query);
+        info!("Starting task search via CLI");
+        crate::observability::log_user_message(&format!(
+            "🔍 Searching Monday.com tasks for: {}",
+            query
+        ));
 
         let client = MondayClient::new(&self.config)?;
         let tasks = client.search_tasks(query).await?;
+        debug!(task_count = tasks.len(), "Retrieved tasks from Monday.com");
 
-        println!("📋 Found {} tasks:", tasks.len());
+        crate::observability::log_user_message(&format!("📋 Found {} tasks:", tasks.len()));
         for task in tasks {
-            println!(
+            crate::observability::log_user_message(&format!(
                 "  • {} [{}] (ID: {})",
                 task.title,
                 task.state.to_uppercase(),
                 task.id
-            );
-            println!("    State: {}", task.state);
+            ));
+            crate::observability::log_user_message(&format!("    State: {}", task.state));
             if let Some(board_name) = task.board_name {
-                println!("    Board: {}", board_name);
+                crate::observability::log_user_message(&format!("    Board: {}", board_name));
             }
-            println!();
+            crate::observability::log_user_message("");
         }
 
+        info!("Task search completed successfully");
         Ok(())
     }
 
     // Debug methods for troubleshooting
+    #[instrument(skip(self))]
     pub async fn debug_monday(&self) -> Result<()> {
+        info!("Starting Monday.com debug via CLI");
         println!("🔍 Debug: Testing Monday.com connection...");
 
         if self.config.monday_api_key.is_none() {
@@ -195,6 +265,7 @@ impl App {
         let client = MondayClient::new(&self.config)?;
         match client.test_connection().await {
             Ok(response) => {
+                debug!("Monday.com connection test successful");
                 println!("✅ Monday.com connection: SUCCESS");
                 println!("📋 Response: {}", response);
             }

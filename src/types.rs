@@ -62,7 +62,7 @@ pub struct JiraUser {
     pub email_address: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JiraTaskMention {
     pub key: String,
     pub summary: String,
@@ -98,22 +98,15 @@ impl TaskLike for JiraTask {
 pub struct GitCommit {
     pub hash: String,
     pub description: String,
-    pub author_name: String,
-    pub author_email: String,
-    pub commit_date: chrono::DateTime<chrono::FixedOffset>,
     pub commit_type: Option<String>,
     pub scope: Option<String>,
     pub body: String,
     pub breaking_changes: Vec<String>,
-    pub test_details: Vec<String>,
-    pub security: Option<String>,
     pub monday_tasks: Vec<String>,
-    pub monday_task_mentions: Vec<MondayTaskMention>,
     pub jira_tasks: Vec<String>,
-    pub jira_task_mentions: Vec<JiraTaskMention>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTaskMention {
     pub id: String,
     pub title: String,
@@ -251,27 +244,24 @@ pub enum AppState {
     ConfirmingStageAll,
 }
 
-#[derive(Debug, Clone)]
-pub struct ReleaseNotesAnalysisState {
-    pub status: Arc<Mutex<String>>,
-    pub finished: Arc<Mutex<bool>>,
-    pub success: Arc<Mutex<bool>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ComprehensiveAnalysisState {
-    pub status: Arc<Mutex<String>>,
-    pub finished: Arc<Mutex<bool>>,
-    pub success: Arc<Mutex<bool>>,
-    pub result: Arc<Mutex<serde_json::Value>>,
-}
-
+// Keep SemanticReleaseState for UI display compatibility
 #[derive(Debug, Clone)]
 pub struct SemanticReleaseState {
     pub status: Arc<Mutex<String>>,
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
     pub result: Arc<Mutex<String>>,
+}
+
+impl Default for SemanticReleaseState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new("Ready".to_string())),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(false)),
+            result: Arc::new(Mutex::new(String::new())),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -290,7 +280,6 @@ pub enum VersionType {
     Minor,
     Patch,
     None,
-    Unknown,
 }
 
 impl std::fmt::Display for VersionType {
@@ -300,7 +289,6 @@ impl std::fmt::Display for VersionType {
             VersionType::Minor => write!(f, "Minor"),
             VersionType::Patch => write!(f, "Patch"),
             VersionType::None => write!(f, "No Release"),
-            VersionType::Unknown => write!(f, "Unknown"),
         }
     }
 }
