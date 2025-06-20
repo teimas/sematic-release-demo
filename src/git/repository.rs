@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+
 use git2::Repository;
 use regex::Regex;
 use std::process::{Command, Stdio};
@@ -6,7 +6,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 use crate::{
     error::{Result, SemanticReleaseError},
-    types::{GitCommit, MondayTaskMention},
+    types::GitCommit,
 };
 
 // =============================================================================
@@ -108,22 +108,11 @@ impl GitRepo {
             String::new()
         };
 
-        let author = commit.author();
-        let author_name = String::from_utf8_lossy(author.name_bytes()).to_string();
-        let author_email = String::from_utf8_lossy(author.email_bytes()).to_string();
-
-        let commit_time = author.when();
-        let commit_date = DateTime::from_timestamp(commit_time.seconds(), 0).unwrap_or(Utc::now());
-
-        let monday_task_mentions = CommitParser::extract_monday_task_mentions(&body);
         let monday_tasks = CommitParser::extract_monday_tasks(&body);
-
-        let jira_task_mentions = CommitParser::extract_jira_task_mentions(&body);
         let jira_tasks = CommitParser::extract_jira_tasks(&body);
 
         debug!(
             hash = %oid,
-            author = %author_name,
             subject = %subject,
             monday_tasks_count = monday_tasks.len(),
             jira_tasks_count = jira_tasks.len(),
@@ -132,20 +121,13 @@ impl GitRepo {
 
         Ok(GitCommit {
             hash: oid.to_string(),
-            body: body.clone(),
-            author_name,
-            author_email,
-            commit_date: commit_date.into(),
+            description: CommitParser::extract_commit_description(&subject),
             commit_type: CommitParser::extract_commit_type(&subject),
             scope: CommitParser::extract_commit_scope(&subject),
-            description: CommitParser::extract_commit_description(&subject),
+            body: body.clone(),
             breaking_changes: CommitParser::extract_breaking_changes(&body),
-            test_details: CommitParser::extract_test_details(&body),
-            security: CommitParser::extract_security(&body),
             monday_tasks,
-            monday_task_mentions,
             jira_tasks,
-            jira_task_mentions,
         })
     }
 }
@@ -569,34 +551,7 @@ impl CommitParser {
         changes
     }
 
-    fn extract_test_details(body: &str) -> Vec<String> {
-        let mut tests = Vec::new();
-        let re = Regex::new(r"(?i)^test\s*(\d*)\s*:\s*(.+)$").unwrap();
 
-        for line in body.lines() {
-            if let Some(captures) = re.captures(line.trim()) {
-                if let Some(test_desc) = captures.get(2) {
-                    tests.push(test_desc.as_str().to_string());
-                }
-            }
-        }
-
-        tests
-    }
-
-    fn extract_security(body: &str) -> Option<String> {
-        let re = Regex::new(r"(?i)^security:\s*(.+)$").unwrap();
-
-        for line in body.lines() {
-            if let Some(captures) = re.captures(line.trim()) {
-                if let Some(security) = captures.get(1) {
-                    return Some(security.as_str().to_string());
-                }
-            }
-        }
-
-        None
-    }
 }
 
 // =============================================================================
@@ -633,44 +588,7 @@ impl CommitParser {
         tasks
     }
 
-    fn extract_monday_task_mentions(body: &str) -> Vec<MondayTaskMention> {
-        let mut mentions = Vec::new();
 
-        // Look for "MONDAY TASKS:" section in the body
-        if let Some(monday_section_start) = body.find("MONDAY TASKS:") {
-            let monday_section = &body[monday_section_start..];
-
-            // Find the end of the monday tasks section (next double newline or end of string)
-            let monday_text = if let Some(end) = monday_section.find("\n\n") {
-                &monday_section[..end]
-            } else {
-                monday_section
-            };
-
-            // Extract task lines
-            for line in monday_text.lines().skip(1) {
-                // Skip the "MONDAY TASKS:" line
-                let clean_line = line.trim().trim_start_matches('-').trim();
-
-                // Look for pattern: "Title (ID: 123456789, URL: url)"
-                if let Some(id_start) = clean_line.find("(ID: ") {
-                    if let Some(id_end) = clean_line[id_start + 5..].find(',') {
-                        let id = &clean_line[id_start + 5..id_start + 5 + id_end];
-
-                        // Extract title (everything before the (ID: part)
-                        let title = clean_line[..id_start].trim();
-
-                        mentions.push(MondayTaskMention {
-                            id: id.to_string(),
-                            title: title.to_string(),
-                        });
-                    }
-                }
-            }
-        }
-
-        mentions
-    }
 }
 
 // =============================================================================
@@ -697,44 +615,7 @@ impl CommitParser {
         tasks
     }
 
-    fn extract_jira_task_mentions(body: &str) -> Vec<crate::types::JiraTaskMention> {
-        let mut mentions = Vec::new();
 
-        // Look for "JIRA TASKS:" section in the body
-        if let Some(jira_section_start) = body.find("JIRA TASKS:") {
-            let jira_section = &body[jira_section_start..];
-
-            // Find the end of the jira tasks section (next double newline or end of string)
-            let jira_text = if let Some(end) = jira_section.find("\n\n") {
-                &jira_section[..end]
-            } else {
-                jira_section
-            };
-
-            // Extract task lines
-            for line in jira_text.lines().skip(1) {
-                // Skip the "JIRA TASKS:" line
-                let clean_line = line.trim().trim_start_matches('-').trim();
-
-                // Look for pattern: "Title (KEY: PROJECT-123)"
-                if let Some(key_start) = clean_line.find("(KEY: ") {
-                    if let Some(key_end) = clean_line[key_start + 6..].find(')') {
-                        let key = &clean_line[key_start + 6..key_start + 6 + key_end];
-
-                        // Extract title (everything before the (KEY: part)
-                        let title = clean_line[..key_start].trim();
-
-                        mentions.push(crate::types::JiraTaskMention {
-                            key: key.to_string(),
-                            summary: title.to_string(),
-                        });
-                    }
-                }
-            }
-        }
-
-        mentions
-    }
 }
 
 // =============================================================================
@@ -899,12 +780,4 @@ fn get_commit_count_since_last_tag() -> Result<usize> {
     }
 }
 
-/// Get the next semantic version
-#[instrument]
-pub fn get_next_version() -> Result<String> {
-    info!("Getting next semantic version");
-    
-    let (next_version, _, _) = execute_semantic_release_dry_run()?;
-    info!(next_version = %next_version, "Retrieved next version");
-    Ok(next_version)
-}
+

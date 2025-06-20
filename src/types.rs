@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use crate::app::background_operations::{BackgroundEvent, OperationStatus, BackgroundTaskManager};
-use async_broadcast::Receiver;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTask {
@@ -100,19 +99,12 @@ impl TaskLike for JiraTask {
 pub struct GitCommit {
     pub hash: String,
     pub description: String,
-    pub author_name: String,
-    pub author_email: String,
-    pub commit_date: chrono::DateTime<chrono::FixedOffset>,
     pub commit_type: Option<String>,
     pub scope: Option<String>,
     pub body: String,
     pub breaking_changes: Vec<String>,
-    pub test_details: Vec<String>,
-    pub security: Option<String>,
     pub monday_tasks: Vec<String>,
-    pub monday_task_mentions: Vec<MondayTaskMention>,
     pub jira_tasks: Vec<String>,
-    pub jira_task_mentions: Vec<JiraTaskMention>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,33 +245,7 @@ pub enum AppState {
     ConfirmingStageAll,
 }
 
-// Modern async-friendly background operation state
-#[derive(Debug, Clone)]
-pub struct AsyncOperationState {
-    pub operation_id: String,
-    pub task_manager: Arc<BackgroundTaskManager>,
-}
 
-impl AsyncOperationState {
-    pub fn new(operation_id: String, task_manager: Arc<BackgroundTaskManager>) -> Self {
-        Self {
-            operation_id,
-            task_manager,
-        }
-    }
-
-    pub async fn get_status(&self) -> Option<OperationStatus> {
-        self.task_manager.get_status(&self.operation_id).await
-    }
-
-    pub fn subscribe_to_events(&self) -> Receiver<BackgroundEvent> {
-        self.task_manager.subscribe()
-    }
-
-    pub async fn cancel(&self) -> crate::error::Result<()> {
-        self.task_manager.cancel_operation(&self.operation_id).await
-    }
-}
 
 // Keep SemanticReleaseState for UI display compatibility
 #[derive(Debug, Clone)]
@@ -301,111 +267,7 @@ impl Default for SemanticReleaseState {
     }
 }
 
-// Modern async equivalents - these replace the legacy structs completely
-#[derive(Debug, Clone)]
-pub struct AsyncReleaseNotesState {
-    pub operation_state: AsyncOperationState,
-}
 
-impl AsyncReleaseNotesState {
-    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
-        let operation_id = format!("release_notes_{}", uuid::Uuid::new_v4());
-        Self {
-            operation_state: AsyncOperationState::new(operation_id, task_manager),
-        }
-    }
-
-    pub async fn is_running(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Running { .. })
-        )
-    }
-
-    pub async fn is_finished(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
-        )
-    }
-
-    pub async fn is_successful(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. })
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AsyncComprehensiveAnalysisState {
-    pub operation_state: AsyncOperationState,
-}
-
-impl AsyncComprehensiveAnalysisState {
-    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
-        let operation_id = format!("comprehensive_analysis_{}", uuid::Uuid::new_v4());
-        Self {
-            operation_state: AsyncOperationState::new(operation_id, task_manager),
-        }
-    }
-
-    pub async fn is_running(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Running { .. })
-        )
-    }
-
-    pub async fn is_finished(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
-        )
-    }
-
-    pub async fn is_successful(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. })
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AsyncSemanticReleaseState {
-    pub operation_state: AsyncOperationState,
-}
-
-impl AsyncSemanticReleaseState {
-    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
-        let operation_id = format!("semantic_release_{}", uuid::Uuid::new_v4());
-        Self {
-            operation_state: AsyncOperationState::new(operation_id, task_manager),
-        }
-    }
-
-    pub async fn is_running(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Running { .. })
-        )
-    }
-
-    pub async fn is_finished(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
-        )
-    }
-
-    pub async fn is_successful(&self) -> bool {
-        matches!(
-            self.operation_state.get_status().await,
-            Some(OperationStatus::Completed { .. })
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct VersionInfo {
@@ -423,7 +285,7 @@ pub enum VersionType {
     Minor,
     Patch,
     None,
-    Unknown,
+
 }
 
 impl std::fmt::Display for VersionType {
@@ -433,7 +295,7 @@ impl std::fmt::Display for VersionType {
             VersionType::Minor => write!(f, "Minor"),
             VersionType::Patch => write!(f, "Patch"),
             VersionType::None => write!(f, "No Release"),
-            VersionType::Unknown => write!(f, "Unknown"),
+
         }
     }
 }

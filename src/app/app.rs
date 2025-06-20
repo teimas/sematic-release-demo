@@ -200,19 +200,8 @@ impl App {
                         self.current_state = AppState::Error(format!("Error en análisis: {}", error));
                         self.message = Some(format!("❌ {}", error));
                     }
-                    BackgroundEvent::SemanticReleaseProgress(status) => {
-                        self.message = Some(format!("🚀 {}", status));
-                    }
-                    BackgroundEvent::SemanticReleaseCompleted(result) => {
-                        self.current_state = AppState::Normal;
-                        self.message = Some("✅ Semantic release completado".to_string());
-                        tracing::info!("Semantic release completed: {}", result);
-                    }
-                    BackgroundEvent::SemanticReleaseError(error) => {
-                        self.current_state = AppState::Error(format!("Error en semantic release: {}", error));
-                        self.message = Some(format!("❌ {}", error));
-                    }
-                    BackgroundEvent::OperationStarted { operation_id, description: _ } => {
+
+                    BackgroundEvent::OperationStarted { operation_id } => {
                         self.current_state = AppState::Loading;
                         tracing::info!("Operation started: {}", operation_id);
                     }
@@ -220,11 +209,7 @@ impl App {
                         self.current_state = AppState::Normal;
                         tracing::info!("Operation completed: {}", operation_id);
                     }
-                    BackgroundEvent::OperationCancelled { operation_id } => {
-                        self.message = Some("❌ Operación cancelada".to_string());
-                        self.current_state = AppState::Normal;
-                        tracing::info!("Operation cancelled: {}", operation_id);
-                    }
+
                 }
             }
 
@@ -264,10 +249,7 @@ impl App {
         Ok(())
     }
 
-    async fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<()> {
-        use crate::app::event_handlers::EventHandlers;
-        self.handle_key_event_impl(key).await
-    }
+
 
     pub async fn run(mut self) -> Result<()> {
         use crossterm::{

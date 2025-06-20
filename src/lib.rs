@@ -1,4 +1,3 @@
-
 // Legacy modules (maintained for backward compatibility during migration)
 pub mod app;
 pub mod config;

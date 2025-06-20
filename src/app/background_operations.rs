@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_broadcast::{broadcast, Receiver, Sender};
 use serde_json::Value;
 use tokio::sync::RwLock;
-use tokio::time::{timeout, Duration};
+
 use tracing::{error, info, instrument, warn};
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     app::release_notes::generate_release_notes_task,
     git::repository::GitRepo,
     types::{AppState, AppConfig, GitCommit},
-    error::{Result, SemanticReleaseError},
+    error::Result,
 };
 
 /// Events emitted by background operations
@@ -26,25 +26,18 @@ pub enum BackgroundEvent {
     AnalysisCompleted(Value),
     AnalysisError(String),
 
-    // Semantic release events
-    SemanticReleaseProgress(String),
-    SemanticReleaseCompleted(String),
-    SemanticReleaseError(String),
-
     // General operation status
-    OperationStarted { operation_id: String, description: String },
+    OperationStarted { operation_id: String },
     OperationCompleted { operation_id: String },
-    OperationCancelled { operation_id: String },
 }
 
 /// Status of a background operation
 #[derive(Debug, Clone)]
 pub enum OperationStatus {
     NotStarted,
-    Running { progress: String },
-    Completed { result: String },
-    Failed { error: String },
-    Cancelled,
+    Running,
+    Completed,
+    Failed,
 }
 
 /// Manages background operations with async channels
@@ -79,12 +72,7 @@ impl BackgroundTaskManager {
         self.event_rx.clone()
     }
 
-    /// Get the current status of an operation
-    #[instrument(skip(self))]
-    pub async fn get_status(&self, operation_id: &str) -> Option<OperationStatus> {
-        let status_map = self.operation_status.read().await;
-        status_map.get(operation_id).cloned()
-    }
+
 
     /// Start a new background operation
     #[instrument(skip(self, operation))]
@@ -107,7 +95,6 @@ impl BackgroundTaskManager {
         // Emit started event
         if let Err(e) = self.event_tx.broadcast(BackgroundEvent::OperationStarted {
             operation_id: operation_id.clone(),
-            description: description.clone(),
         }).await {
             warn!("Failed to broadcast operation started event: {}", e);
         }
@@ -122,9 +109,7 @@ impl BackgroundTaskManager {
             // Update status to running
             {
                 let mut status_map = operation_status.write().await;
-                status_map.insert(operation_id_for_task.clone(), OperationStatus::Running {
-                    progress: "Starting...".to_string(),
-                });
+                status_map.insert(operation_id_for_task.clone(), OperationStatus::Running);
             }
 
             // Execute the operation
@@ -135,9 +120,7 @@ impl BackgroundTaskManager {
                 Ok(()) => {
                     {
                         let mut status_map = operation_status.write().await;
-                        status_map.insert(operation_id_for_task.clone(), OperationStatus::Completed {
-                            result: "Operation completed successfully".to_string(),
-                        });
+                        status_map.insert(operation_id_for_task.clone(), OperationStatus::Completed);
                     }
                     
                     if let Err(e) = event_tx.broadcast(BackgroundEvent::OperationCompleted {
@@ -150,9 +133,7 @@ impl BackgroundTaskManager {
                     let error_msg = error.to_string();
                     {
                         let mut status_map = operation_status.write().await;
-                        status_map.insert(operation_id_for_task.clone(), OperationStatus::Failed {
-                            error: error_msg.clone(),
-                        });
+                        status_map.insert(operation_id_for_task.clone(), OperationStatus::Failed);
                     }
                     
                     error!("Background operation '{}' failed: {}", operation_id_for_task, error_msg);
@@ -290,124 +271,7 @@ impl BackgroundTaskManager {
         Ok(operation_id)
     }
 
-    /// Cancel a background operation
-    #[instrument(skip(self))]
-    pub async fn cancel_operation(&self, operation_id: &str) -> Result<()> {
-        let mut tasks = self.active_tasks.write().await;
-        
-        if let Some(task) = tasks.remove(operation_id) {
-            task.abort();
-            
-            // Update status
-            {
-                let mut status_map = self.operation_status.write().await;
-                status_map.insert(operation_id.to_string(), OperationStatus::Cancelled);
-            }
 
-            // Emit cancellation event
-            if let Err(e) = self.event_tx.broadcast(BackgroundEvent::OperationCancelled {
-                operation_id: operation_id.to_string(),
-            }).await {
-                warn!("Failed to broadcast operation cancelled event: {}", e);
-            }
-
-            info!("Cancelled background operation: {}", operation_id);
-            Ok(())
-        } else {
-            Err(SemanticReleaseError::operation_error(
-                format!("No active operation found with ID: {}", operation_id)
-            ))
-        }
-    }
-
-    /// Cancel all active operations
-    #[instrument(skip(self))]
-    pub async fn cancel_all_operations(&self) -> Result<()> {
-        let task_ids: Vec<String> = {
-            let tasks = self.active_tasks.read().await;
-            tasks.keys().cloned().collect()
-        };
-
-        for operation_id in task_ids {
-            if let Err(e) = self.cancel_operation(&operation_id).await {
-                warn!("Failed to cancel operation {}: {}", operation_id, e);
-            }
-        }
-
-        info!("Cancelled all background operations");
-        Ok(())
-    }
-
-    /// Get list of active operation IDs
-    pub async fn get_active_operations(&self) -> Vec<String> {
-        let tasks = self.active_tasks.read().await;
-        tasks.keys().cloned().collect()
-    }
-
-    /// Helper to broadcast progress updates
-    pub async fn broadcast_progress(&self, operation_id: &str, progress: String) {
-        // Update internal status
-        {
-            let mut status_map = self.operation_status.write().await;
-            status_map.insert(operation_id.to_string(), OperationStatus::Running {
-                progress: progress.clone(),
-            });
-        }
-
-        // Broadcast appropriate event based on operation type
-        let event = if operation_id.starts_with("release_notes") {
-            BackgroundEvent::ReleaseNotesProgress(progress)
-        } else if operation_id.starts_with("comprehensive_analysis") {
-            BackgroundEvent::AnalysisProgress(progress)
-        } else if operation_id.starts_with("semantic_release") {
-            BackgroundEvent::SemanticReleaseProgress(progress)
-        } else {
-            // Generic progress - could extend this
-            return;
-        };
-
-        if let Err(e) = self.event_tx.broadcast(event).await {
-            warn!("Failed to broadcast progress event: {}", e);
-        }
-    }
-
-    /// Helper to broadcast completion with result
-    pub async fn broadcast_completion(&self, operation_id: &str, result: Value) {
-        let event = if operation_id.starts_with("comprehensive_analysis") {
-            BackgroundEvent::AnalysisCompleted(result)
-        } else if operation_id.starts_with("release_notes") {
-            BackgroundEvent::ReleaseNotesCompleted(result)
-        } else if operation_id.starts_with("semantic_release") {
-            if let Some(result_str) = result.as_str() {
-                BackgroundEvent::SemanticReleaseCompleted(result_str.to_string())
-            } else {
-                    return;
-                }
-        } else {
-            return;
-        };
-
-        if let Err(e) = self.event_tx.broadcast(event).await {
-            warn!("Failed to broadcast completion event: {}", e);
-        }
-    }
-
-    /// Helper to broadcast errors
-    pub async fn broadcast_error(&self, operation_id: &str, error: String) {
-        let event = if operation_id.starts_with("release_notes") {
-            BackgroundEvent::ReleaseNotesError(error)
-        } else if operation_id.starts_with("comprehensive_analysis") {
-            BackgroundEvent::AnalysisError(error)
-        } else if operation_id.starts_with("semantic_release") {
-            BackgroundEvent::SemanticReleaseError(error)
-        } else {
-            return;
-        };
-
-        if let Err(e) = self.event_tx.broadcast(event).await {
-            warn!("Failed to broadcast error event: {}", e);
-        }
-    }
 }
 
 impl Default for BackgroundTaskManager {
@@ -416,25 +280,7 @@ impl Default for BackgroundTaskManager {
     }
 }
 
-/// Convenience function to run an operation with timeout
-pub async fn run_with_timeout<F, T>(
-    operation: F,
-    timeout_duration: Duration,
-    operation_name: &str,
-) -> Result<T>
-where
-    F: std::future::Future<Output = Result<T>>,
-{
-    match timeout(timeout_duration, operation).await {
-        Ok(result) => result,
-        Err(_) => {
-            error!("Operation '{}' timed out after {:?}", operation_name, timeout_duration);
-            Err(SemanticReleaseError::operation_error(
-                format!("Operation '{}' timed out", operation_name)
-            ))
-        }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
@@ -478,27 +324,7 @@ mod tests {
         assert!(completed, "Operation should have completed");
     }
 
-    #[tokio::test]
-    async fn test_operation_cancellation() {
-        let manager = BackgroundTaskManager::new();
-        
-        // Start a long-running operation
-        manager.start_operation(
-            "long_op".to_string(),
-            "Long operation".to_string(),
-            |_event_tx, _operation_id| async move {
-                sleep(Duration::from_secs(10)).await; // Long operation
-                Ok(())
-            }
-        ).await.unwrap();
 
-        // Cancel it immediately
-        manager.cancel_operation("long_op").await.unwrap();
-
-        // Check status
-        let status = manager.get_status("long_op").await.unwrap();
-        matches!(status, OperationStatus::Cancelled);
-    }
 }
 
 impl ComprehensiveAnalysisOperations for App {

@@ -122,68 +122,7 @@ impl JiraClient {
         }
     }
 
-    #[instrument(skip(self), fields(task_count = task_keys.len()))]
-    pub async fn get_task_details(&self, task_keys: &[String]) -> Result<Vec<JiraTask>> {
-        info!("Fetching JIRA task details");
-        
-        let instance = self
-            .jira_instance
-            .as_ref()
-            .ok_or_else(|| {
-                error!("JIRA task details fetch attempted but client not configured");
-                SemanticReleaseError::config_error("JIRA not configured properly - missing URL, username, or API token")
-            })?;
 
-        let mut tasks = Vec::new();
-        let mut errors = Vec::new();
-
-        for key in task_keys {
-            debug!(task_key = %key, "Fetching JIRA task details");
-            
-            match instance.issue(key).await {
-                Ok(issue) => match self.convert_jira_issue_to_task(issue) {
-                    Ok(task) => {
-                        info!(task_key = %key, "Successfully fetched JIRA task");
-                        tasks.push(task);
-                    }
-                    Err(e) => {
-                        warn!(task_key = %key, error = %e, "Failed to convert JIRA issue");
-                        errors.push(format!("{}: {}", key, e));
-                    }
-                },
-                Err(e) => {
-                    warn!(task_key = %key, error = %e, "Failed to fetch JIRA task");
-                    errors.push(format!("{}: {}", key, e));
-                }
-            }
-        }
-
-        if !errors.is_empty() && tasks.is_empty() {
-            error!(error_count = errors.len(), "Failed to fetch any JIRA tasks");
-            return Err(SemanticReleaseError::jira_error(
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("Failed to fetch any JIRA tasks: {}", errors.join(", "))
-                )
-            ));
-        }
-
-        if !errors.is_empty() {
-            warn!(
-                successful_tasks = tasks.len(),
-                failed_tasks = errors.len(),
-                "Some JIRA tasks failed to load"
-            );
-        }
-
-        info!(
-            successful_tasks = tasks.len(),
-            failed_tasks = errors.len(),
-            "JIRA task details fetch completed"
-        );
-
-        Ok(tasks)
-    }
 
     #[instrument(skip(self))]
     pub async fn test_connection(&self) -> Result<String> {

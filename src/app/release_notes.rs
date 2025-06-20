@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::{
-    app::{App, background_operations::{BackgroundTaskManager, BackgroundEvent}},
+    app::{App, background_operations::BackgroundEvent},
     git::GitRepo,
     types::{AppConfig, AppState, GitCommit},
     error::SemanticReleaseError,
@@ -183,28 +183,7 @@ impl App {
     }
 }
 
-// Modern async implementation using BackgroundTaskManager
-pub async fn generate_release_notes_async(
-    task_manager: Arc<BackgroundTaskManager>,
-    config: &AppConfig,
-    commits: Vec<GitCommit>,
-) -> crate::error::Result<String> {
-    let operation_id = format!("release_notes_{}", uuid::Uuid::new_v4());
-    
-    let config_clone = config.clone();
-    let commits_clone = commits.clone();
-    
-    task_manager.start_operation(
-        operation_id.clone(),
-        "Generating release notes with AI analysis".to_string(),
-        |event_tx, op_id| async move {
-            generate_release_notes_task(event_tx, op_id, config_clone, commits_clone).await
-        }
-    ).await?;
-    
-    // Return the operation ID for tracking
-    Ok(operation_id)
-}
+
 
 #[instrument(skip(config, _commits, event_tx))]
 async fn analyze_commits_with_ai(

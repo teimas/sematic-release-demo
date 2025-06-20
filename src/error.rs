@@ -26,16 +26,7 @@ pub enum SemanticReleaseError {
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
-    #[error("Service integration failed: {service}")]
-    #[diagnostic(
-        code(semantic_release::service_error),
-        help("Check your API credentials and network connection")
-    )]
-    ServiceError {
-        service: String,
-        #[source]
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
+
 
     #[error("Monday.com API error")]
     #[diagnostic(
@@ -76,38 +67,7 @@ pub enum SemanticReleaseError {
     )]
     JsonError(#[from] serde_json::Error),
 
-    #[error("Terminal UI error")]
-    #[diagnostic(
-        code(semantic_release::ui_error),
-        help("Try resizing your terminal or check terminal compatibility")
-    )]
-    UiError {
-        component: String,
-        message: String,
-        #[source]
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
-    },
 
-    #[error("Background operation failed: {operation}")]
-    #[diagnostic(
-        code(semantic_release::background_error),
-        help("The operation was interrupted or failed unexpectedly")
-    )]
-    BackgroundOperationError {
-        operation: String,
-        #[source]
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
-    },
-
-    #[error("Semantic release execution failed")]
-    #[diagnostic(
-        code(semantic_release::semantic_release_error),
-        help("Check your semantic-release configuration and ensure all prerequisites are met")
-    )]
-    SemanticReleaseExecutionError {
-        stdout: String,
-        stderr: String,
-    },
 
     #[error("Command execution failed: {command}")]
     #[diagnostic(
@@ -120,27 +80,7 @@ pub enum SemanticReleaseError {
         stderr: String,
     },
 
-    #[error("Task operation failed")]
-    #[diagnostic(
-        code(semantic_release::task_error),
-        help("Check your task management service configuration")
-    )]
-    TaskError {
-        task: String,
-        #[source]
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
-    },
 
-    #[error("Validation error: {field}")]
-    #[diagnostic(
-        code(semantic_release::validation_error),
-        help("Ensure all required fields are properly filled")
-    )]
-    ValidationError {
-        field: String,
-        value: String,
-        reason: String,
-    },
 
     #[error("HTTP request failed")]
     #[diagnostic(code(semantic_release::http_error))]
@@ -184,16 +124,7 @@ impl SemanticReleaseError {
         }
     }
 
-    /// Create a service error
-    pub fn service_error(
-        service: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        Self::ServiceError {
-            service: service.into(),
-            source: Box::new(source),
-        }
-    }
+
 
     /// Create a JIRA error
     pub fn jira_error(source: impl std::error::Error + Send + Sync + 'static) -> Self {
@@ -216,38 +147,7 @@ impl SemanticReleaseError {
         }
     }
 
-    /// Create a UI error
-    pub fn ui_error(component: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::UiError {
-            component: component.into(),
-            message: message.into(),
-            source: None,
-        }
-    }
 
-    /// Create a background operation error
-    pub fn background_operation_error(operation: impl Into<String>) -> Self {
-        Self::BackgroundOperationError {
-            operation: operation.into(),
-            source: None,
-        }
-    }
-
-    /// Create a background operation error with source
-    pub fn background_operation_error_with_source(
-        operation: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        Self::BackgroundOperationError {
-            operation: operation.into(),
-            source: Some(Box::new(source)),
-        }
-    }
-
-    /// Create a semantic release execution error
-    pub fn semantic_release_execution_error(stdout: String, stderr: String) -> Self {
-        Self::SemanticReleaseExecutionError { stdout, stderr }
-    }
 
     /// Create a command error
     pub fn command_error(command: impl Into<String>, exit_code: Option<i32>, stderr: String) -> Self {
@@ -258,37 +158,7 @@ impl SemanticReleaseError {
         }
     }
 
-    /// Create a task error
-    pub fn task_error(task: impl Into<String>) -> Self {
-        Self::TaskError {
-            task: task.into(),
-            source: None,
-        }
-    }
 
-    /// Create a task error with source
-    pub fn task_error_with_source(
-        task: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        Self::TaskError {
-            task: task.into(),
-            source: Some(Box::new(source)),
-        }
-    }
-
-    /// Create a validation error
-    pub fn validation_error(
-        field: impl Into<String>,
-        value: impl Into<String>,
-        reason: impl Into<String>,
-    ) -> Self {
-        Self::ValidationError {
-            field: field.into(),
-            value: value.into(),
-            reason: reason.into(),
-        }
-    }
 
     /// Create a release operation error
     pub fn release_error(operation: impl Into<String>) -> Self {
@@ -298,37 +168,7 @@ impl SemanticReleaseError {
         }
     }
 
-    /// Create a release error with source
-    pub fn release_error_with_source(
-        operation: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        Self::ReleaseError {
-            operation: operation.into(),
-            source: Some(Box::new(source)),
-        }
-    }
 
-    /// Create a generic operation error
-    pub fn operation_error(message: impl Into<String>) -> Self {
-        Self::BackgroundOperationError {
-            operation: message.into(),
-            source: None,
-        }
-    }
-
-    /// Create a UI error with source
-    pub fn ui_error_with_source(
-        component: impl Into<String>,
-        message: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        Self::UiError {
-            component: component.into(),
-            message: message.into(),
-            source: Some(Box::new(source)),
-        }
-    }
 }
 
 /// Convert from anyhow::Error for gradual migration

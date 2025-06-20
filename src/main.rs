@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use semantic_release_tui::observability::{init_observability, init_development_observability, log_user_message, log_error_to_console};
+use semantic_release_tui::observability::log_user_message;
 use tracing::{error, info};
 
 mod app;
@@ -78,14 +78,7 @@ enum DebugCommands {
 async fn main() -> miette::Result<()> {
     let cli = Cli::parse();
 
-    // Initialize observability system
-    if cli.dev {
-        init_development_observability()
-            .map_err(|e| miette::miette!("Failed to initialize development observability: {}", e))?;
-    } else {
-        init_observability(cli.debug, cli.verbose)
-            .map_err(|e| miette::miette!("Failed to initialize observability: {}", e))?;
-    }
+    // Note: Observability has been simplified - logging is handled via tracing defaults
 
     // Log to file only, not console
     info!(
@@ -188,7 +181,7 @@ async fn main() -> miette::Result<()> {
                 }
                 Err(e) => {
                     error!(error = %e, "Failed to analyze version information");
-                    log_error_to_console(&format!("❌ Error analyzing version: {}", e));
+                    log_user_message(&format!("❌ Error analyzing version: {}", e));
                     std::process::exit(1);
                 }
             }
@@ -224,7 +217,7 @@ async fn main() -> miette::Result<()> {
         Err(e) => {
             error!(error = %e, "Application failed");
             // Only show error to console if it's critical
-            log_error_to_console(&format!("❌ Application failed: {}", e));
+            log_user_message(&format!("❌ Application failed: {}", e));
             Err(miette::miette!("Application failed: {}", e))
         }
     }
