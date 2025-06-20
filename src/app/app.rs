@@ -1,27 +1,24 @@
 use crate::error::Result;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event, KeyEventKind},
 };
 use ratatui::{
-    backend::{Backend, CrosstermBackend},
+    backend::Backend,
     Terminal,
 };
-use std::io;
 use tracing::{info, instrument};
 
 use crate::{
     app::background_operations::BackgroundTaskManager,
     config::load_config,
-    git::GitRepo,
     types::{
-        AppConfig, AppScreen, AppState, CommitForm, ComprehensiveAnalysisState, JiraTask,
-        MondayTask, ReleaseNotesAnalysisState, SemanticReleaseState,
+        AppConfig, AppScreen, AppState, CommitForm, JiraTask,
+        MondayTask, SemanticReleaseState,
     },
     ui::UIState,
 };
 
+#[derive(Debug)]
 pub struct App {
     pub config: AppConfig,
     pub current_screen: AppScreen,
@@ -39,9 +36,7 @@ pub struct App {
     // Modern async background operations
     pub background_task_manager: BackgroundTaskManager,
     
-    // Legacy state - to be deprecated after migration
-    pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
-    pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
+    // Keep semantic_release_state for UI results display
     pub semantic_release_state: Option<SemanticReleaseState>,
 }
 
@@ -68,61 +63,15 @@ impl App {
             // Initialize modern async background operations
             background_task_manager: BackgroundTaskManager::new(),
             
-            // Legacy state - to be deprecated
-            release_notes_analysis_state: None,
-            comprehensive_analysis_state: None,
+            // Keep for UI display
             semantic_release_state: None,
         })
     }
 
-    pub fn new_for_background(config: &AppConfig) -> Self {
-        Self {
-            config: config.clone(),
-            current_screen: AppScreen::Main,
-            current_state: AppState::Normal,
-            ui_state: UIState::default(),
-            commit_form: CommitForm::default(),
-            monday_tasks: Vec::new(),
-            jira_tasks: Vec::new(),
-            selected_monday_tasks: Vec::new(),
-            selected_jira_tasks: Vec::new(),
-            message: None,
-            should_quit: false,
-            preview_commit_message: String::new(),
-            
-            // Initialize modern async background operations
-            background_task_manager: BackgroundTaskManager::new(),
-            
-            // Legacy state - to be deprecated
-            release_notes_analysis_state: None,
-            comprehensive_analysis_state: None,
-            semantic_release_state: None,
-        }
-    }
-
-    pub async fn run(mut self) -> Result<()> {
-        // Setup terminal
-        enable_raw_mode()?;
-        let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-        let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend)?;
-
-        let result = self.run_app(&mut terminal).await;
-
-        // Restore terminal
-        disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
-        terminal.show_cursor()?;
-
-        result
-    }
-
-    async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
+    #[instrument(skip_all)]
+    pub async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
+        info!("Starting main application loop");
+        
         // Subscribe to background events
         let mut event_rx = self.background_task_manager.subscribe();
         
@@ -157,10 +106,95 @@ impl App {
                         self.message = Some(format!("🤖 {}", status));
                     }
                     BackgroundEvent::AnalysisCompleted(result) => {
-                        // Parse and populate commit form from AI analysis
-                        self.populate_commit_form_from_analysis(&result);
-                        self.message = Some("✅ Análisis completado".to_string());
                         self.current_state = AppState::Normal;
+                        self.message = Some("✅ Análisis completado - Formulario poblado automáticamente".to_string());
+                        
+                        // Populate commit form with analysis results
+                        if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
+                            if !title.is_empty() {
+                                self.commit_form.title = title.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.title_textarea.select_all();
+                                self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
+                                self.ui_state.title_textarea.insert_str(title);
+                            }
+                        }
+
+                        if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
+                            if !scope.is_empty() {
+                                self.commit_form.scope = scope.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.scope_textarea.select_all();
+                                self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
+                                self.ui_state.scope_textarea.insert_str(scope);
+                            }
+                        }
+
+                        if let Some(description) = result.get("description").and_then(|v| v.as_str()) {
+                            if !description.is_empty() {
+                                self.commit_form.description = description.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.description_textarea.select_all();
+                                self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
+                                self.ui_state.description_textarea.insert_str(description);
+                            }
+                        }
+
+                        if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str()) {
+                            // Parse the commit type string into CommitType enum
+                            let parsed_commit_type = match commit_type {
+                                "feat" => Some(crate::types::CommitType::Feat),
+                                "fix" => Some(crate::types::CommitType::Fix),
+                                "docs" => Some(crate::types::CommitType::Docs),
+                                "style" => Some(crate::types::CommitType::Style),
+                                "refactor" => Some(crate::types::CommitType::Refactor),
+                                "perf" => Some(crate::types::CommitType::Perf),
+                                "test" => Some(crate::types::CommitType::Test),
+                                "chore" => Some(crate::types::CommitType::Chore),
+                                "revert" => Some(crate::types::CommitType::Revert),
+                                _ => Some(crate::types::CommitType::Feat), // Default fallback
+                            };
+                            
+                            self.commit_form.commit_type = parsed_commit_type;
+                            
+                            // Update the selected commit type in UI
+                            let commit_types = vec!["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore"];
+                            if let Some(index) = commit_types.iter().position(|&t| t == commit_type) {
+                                self.ui_state.selected_commit_type = index;
+                            }
+                        }
+
+                        if let Some(security) = result.get("securityAnalysis").and_then(|v| v.as_str()) {
+                            if !security.is_empty() && security != "N/A" {
+                                self.commit_form.security = security.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.security_textarea.select_all();
+                                self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
+                                self.ui_state.security_textarea.insert_str(security);
+                            }
+                        }
+
+                        if let Some(breaking) = result.get("breakingChanges").and_then(|v| v.as_str()) {
+                            if !breaking.is_empty() && breaking != "N/A" {
+                                self.commit_form.breaking_change = breaking.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.breaking_change_textarea.select_all();
+                                self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
+                                self.ui_state.breaking_change_textarea.insert_str(breaking);
+                            }
+                        }
+
+                        if let Some(test_details) = result.get("testAnalysis").and_then(|v| v.as_str()) {
+                            if !test_details.is_empty() && test_details != "N/A" {
+                                self.commit_form.test_details = test_details.to_string();
+                                // Update the UI textarea as well
+                                self.ui_state.test_details_textarea.select_all();
+                                self.ui_state.test_details_textarea.delete_str(self.ui_state.test_details_textarea.lines().join("\n").len());
+                                self.ui_state.test_details_textarea.insert_str(test_details);
+                            }
+                        }
+
+                        tracing::info!("Analysis completed and form populated with comprehensive data");
                     }
                     BackgroundEvent::AnalysisError(error) => {
                         self.current_state = AppState::Error(format!("Error en análisis: {}", error));
@@ -170,19 +204,20 @@ impl App {
                         self.message = Some(format!("🚀 {}", status));
                     }
                     BackgroundEvent::SemanticReleaseCompleted(result) => {
-                        self.message = Some("✅ Semantic release completado".to_string());
                         self.current_state = AppState::Normal;
-                        self.current_screen = AppScreen::Main;
-                        tracing::info!("Semantic release completed: {:?}", result);
+                        self.message = Some("✅ Semantic release completado".to_string());
+                        tracing::info!("Semantic release completed: {}", result);
                     }
                     BackgroundEvent::SemanticReleaseError(error) => {
                         self.current_state = AppState::Error(format!("Error en semantic release: {}", error));
                         self.message = Some(format!("❌ {}", error));
                     }
-                    BackgroundEvent::OperationStarted { operation_id, .. } => {
+                    BackgroundEvent::OperationStarted { operation_id, description: _ } => {
+                        self.current_state = AppState::Loading;
                         tracing::info!("Operation started: {}", operation_id);
                     }
                     BackgroundEvent::OperationCompleted { operation_id } => {
+                        self.current_state = AppState::Normal;
                         tracing::info!("Operation completed: {}", operation_id);
                     }
                     BackgroundEvent::OperationCancelled { operation_id } => {
@@ -193,207 +228,7 @@ impl App {
                 }
             }
 
-            // Legacy polling (to be removed after full migration)
-            if let Some(analysis_state) = &self.release_notes_analysis_state {
-                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
-
-                if is_finished {
-                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
-                    if success {
-                        self.current_state = AppState::Normal;
-                        self.message = Some(
-                            "✅ Notas de versión generadas internamente exitosamente".to_string(),
-                        );
-                        self.current_screen = AppScreen::Main;
-                    } else {
-                        let status = analysis_state
-                            .status
-                            .lock()
-                            .map(|s| s.clone())
-                            .unwrap_or("Error desconocido".to_string());
-                        self.current_state =
-                            AppState::Error(format!("Error en generación: {}", status));
-                    }
-
-                    self.release_notes_analysis_state = None;
-                } else {
-                    // Update status message if it changed
-                    if let Ok(status) = analysis_state.status.lock() {
-                        let current_message = self.message.as_deref().unwrap_or("");
-                        if *status != current_message {
-                            self.message = Some(status.clone());
-                        }
-                    }
-                }
-            }
-
-            // Check for completed Comprehensive Analysis
-            if let Some(analysis_state) = &self.comprehensive_analysis_state {
-                let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
-
-                if is_finished {
-                    let success = analysis_state.success.lock().map(|s| *s).unwrap_or(false);
-                    if success {
-                        // Extract results from JSON and populate form
-                        if let Ok(result) = analysis_state.result.lock() {
-                            // Parse and populate all fields from the JSON response
-                            if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
-                                if !title.is_empty() {
-                                    self.commit_form.title = title.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.title_textarea.select_all();
-                                    self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
-                                    self.ui_state.title_textarea.insert_str(title);
-                                }
-                            }
-
-                            if let Some(commit_type) =
-                                result.get("commitType").and_then(|v| v.as_str())
-                            {
-                                if !commit_type.is_empty() {
-                                    use crate::types::CommitType;
-                                    let commit_type_enum = match commit_type {
-                                        "feat" => Some(CommitType::Feat),
-                                        "fix" => Some(CommitType::Fix),
-                                        "docs" => Some(CommitType::Docs),
-                                        "style" => Some(CommitType::Style),
-                                        "refactor" => Some(CommitType::Refactor),
-                                        "perf" => Some(CommitType::Perf),
-                                        "test" => Some(CommitType::Test),
-                                        "chore" => Some(CommitType::Chore),
-                                        "revert" => Some(CommitType::Revert),
-                                        _ => None,
-                                    };
-
-                                    if let Some(ct) = commit_type_enum {
-                                        self.commit_form.commit_type = Some(ct.clone());
-                                        // Update UI state to reflect the selected commit type
-                                        let commit_types = CommitType::all();
-                                        if let Some(index) =
-                                            commit_types.iter().position(|t| *t == ct)
-                                        {
-                                            self.ui_state.selected_commit_type = index;
-                                        }
-                                    }
-                                }
-                            }
-
-                            if let Some(description) =
-                                result.get("description").and_then(|v| v.as_str())
-                            {
-                                if !description.is_empty() {
-                                    self.commit_form.description = description.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.description_textarea.select_all();
-                                    self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
-                                    self.ui_state.description_textarea.insert_str(description);
-                                }
-                            }
-
-                            if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
-                                if !scope.is_empty() && scope != "general" {
-                                    self.commit_form.scope = scope.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.scope_textarea.select_all();
-                                    self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
-                                    self.ui_state.scope_textarea.insert_str(scope);
-                                }
-                            }
-
-                            if let Some(security) =
-                                result.get("securityAnalysis").and_then(|v| v.as_str())
-                            {
-                                if !security.is_empty() {
-                                    self.commit_form.security = security.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.security_textarea.select_all();
-                                    self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
-                                    self.ui_state.security_textarea.insert_str(security);
-                                }
-                            }
-
-                            if let Some(breaking) =
-                                result.get("breakingChanges").and_then(|v| v.as_str())
-                            {
-                                if !breaking.is_empty() {
-                                    self.commit_form.breaking_change = breaking.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.breaking_change_textarea.select_all();
-                                    self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
-                                    self.ui_state.breaking_change_textarea.insert_str(breaking);
-                                }
-                            }
-
-                            if let Some(test_analysis) =
-                                result.get("testAnalysis").and_then(|v| v.as_str())
-                            {
-                                if !test_analysis.is_empty() {
-                                    self.commit_form.test_details = test_analysis.to_string();
-                                    // Also update the textarea
-                                    self.ui_state.test_details_textarea.select_all();
-                                    self.ui_state.test_details_textarea.delete_str(self.ui_state.test_details_textarea.lines().join("\n").len());
-                                    self.ui_state.test_details_textarea.insert_str(test_analysis);
-                                }
-                            }
-                        }
-
-                        self.current_state = AppState::Normal;
-                        self.message = Some("✅ Análisis completo completado - Todos los campos actualizados automáticamente".to_string());
-                    } else {
-                        let status = analysis_state
-                            .status
-                            .lock()
-                            .map(|s| s.clone())
-                            .unwrap_or("Error desconocido".to_string());
-                        self.current_state =
-                            AppState::Error(format!("Error en análisis completo: {}", status));
-                    }
-
-                    self.comprehensive_analysis_state = None;
-                } else {
-                    // Update status message if it changed
-                    if let Ok(status) = analysis_state.status.lock() {
-                        let current_message = self.message.as_deref().unwrap_or("");
-                        if *status != current_message {
-                            self.message = Some(status.clone());
-                        }
-                    }
-                }
-            }
-
-            // Check for completed Semantic Release operation
-            if let Some(release_state) = &self.semantic_release_state {
-                let is_finished = release_state.finished.lock().map(|f| *f).unwrap_or(false);
-
-                if is_finished {
-                    let _success = release_state.success.lock().map(|s| *s).unwrap_or(false);
-                    // Stay on semantic release screen to show results
-                    self.current_state = AppState::Normal;
-                    let status = release_state
-                        .status
-                        .lock()
-                        .map(|s| s.clone())
-                        .unwrap_or("Completado".to_string());
-                    self.message = Some(status);
-                    // Don't clear the state or change screen - keep results visible
-                } else {
-                    // Update status message if it changed
-                    if let Ok(status) = release_state.status.lock() {
-                        let current_message = self.message.as_deref().unwrap_or("");
-                        if *status != current_message {
-                            self.message = Some(status.clone());
-                        }
-                    }
-                }
-            }
-
-            // Get git status for help screen
-            let git_status = if self.current_screen == AppScreen::Main {
-                GitRepo::new().ok().and_then(|repo| repo.get_status().ok())
-            } else {
-                None
-            };
-
+            // Draw UI
             terminal.draw(|f| {
                 crate::ui::draw(
                     f,
@@ -405,117 +240,63 @@ impl App {
                     &self.jira_tasks,
                     &self.config,
                     self.message.as_deref(),
-                    git_status.as_ref(),
+                    None, // git_status - not needed in the simplified version
                     self.semantic_release_state.as_ref(),
                 );
             })?;
 
+            // Handle input events
+            if event::poll(std::time::Duration::from_millis(50))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        use crate::app::event_handlers::EventHandlers;
+                        self.handle_key_event_impl(key).await?;
+                    }
+                }
+            }
+
             if self.should_quit {
                 break;
             }
-
-            // Use timeout to allow animation updates during loading
-            let timeout = if matches!(self.current_state, AppState::Loading) {
-                std::time::Duration::from_millis(100) // 10 FPS for smooth animation
-            } else {
-                std::time::Duration::from_millis(1000) // 1 FPS when not loading
-            };
-
-            if event::poll(timeout)? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        self.handle_key_event(key).await?;
-                    }
-                }
-            }
         }
 
+        info!("Application loop ended");
         Ok(())
-    }
-
-    /// Populates commit form from AI analysis results (modern async approach)
-    fn populate_commit_form_from_analysis(&mut self, result: &serde_json::Value) {
-        // Parse and populate all fields from the JSON response
-        if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
-            if !title.is_empty() {
-                self.commit_form.title = title.to_string();
-                // Also update the textarea
-                self.ui_state.title_textarea.select_all();
-                self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
-                self.ui_state.title_textarea.insert_str(title);
-            }
-        }
-
-        if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str()) {
-            if !commit_type.is_empty() {
-                use crate::types::CommitType;
-                let commit_type_enum = match commit_type {
-                    "feat" => Some(CommitType::Feat),
-                    "fix" => Some(CommitType::Fix),
-                    "docs" => Some(CommitType::Docs),
-                    "style" => Some(CommitType::Style),
-                    "refactor" => Some(CommitType::Refactor),
-                    "perf" => Some(CommitType::Perf),
-                    "test" => Some(CommitType::Test),
-                    "chore" => Some(CommitType::Chore),
-                    "revert" => Some(CommitType::Revert),
-                    _ => None,
-                };
-
-                if let Some(ct) = commit_type_enum {
-                    self.commit_form.commit_type = Some(ct.clone());
-                    // Update UI state to reflect the selected commit type
-                    let commit_types = CommitType::all();
-                    if let Some(index) = commit_types.iter().position(|t| *t == ct) {
-                        self.ui_state.selected_commit_type = index;
-                    }
-                }
-            }
-        }
-
-        if let Some(description) = result.get("description").and_then(|v| v.as_str()) {
-            if !description.is_empty() {
-                self.commit_form.description = description.to_string();
-                // Also update the textarea
-                self.ui_state.description_textarea.select_all();
-                self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
-                self.ui_state.description_textarea.insert_str(description);
-            }
-        }
-
-        if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
-            if !scope.is_empty() && scope != "general" {
-                self.commit_form.scope = scope.to_string();
-                // Also update the textarea
-                self.ui_state.scope_textarea.select_all();
-                self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
-                self.ui_state.scope_textarea.insert_str(scope);
-            }
-        }
-
-        if let Some(security) = result.get("securityAnalysis").and_then(|v| v.as_str()) {
-            if !security.is_empty() {
-                self.commit_form.security = security.to_string();
-                // Also update the textarea
-                self.ui_state.security_textarea.select_all();
-                self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
-                self.ui_state.security_textarea.insert_str(security);
-            }
-        }
-
-        if let Some(breaking) = result.get("breakingChanges").and_then(|v| v.as_str()) {
-            if !breaking.is_empty() {
-                self.commit_form.breaking_change = breaking.to_string();
-                // Also update the textarea  
-                self.ui_state.breaking_change_textarea.select_all();
-                self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
-                self.ui_state.breaking_change_textarea.insert_str(breaking);
-            }
-        }
     }
 
     async fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<()> {
         use crate::app::event_handlers::EventHandlers;
         self.handle_key_event_impl(key).await
+    }
+
+    pub async fn run(mut self) -> Result<()> {
+        use crossterm::{
+            execute,
+            terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        };
+        use ratatui::{
+            backend::CrosstermBackend,
+            Terminal,
+        };
+        use std::io;
+
+        // Setup terminal
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.run_app(&mut terminal).await;
+
+        // Restore terminal
+        disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen
+        )?;
+        terminal.show_cursor()?;
+
+        result
     }
 }

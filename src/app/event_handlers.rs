@@ -162,11 +162,11 @@ impl App {
                 self.handle_commit_preview();
             }
             KeyCode::Char('t') => {
-                if !matches!(self.current_state, AppState::Loading)
-                    && self.comprehensive_analysis_state.is_none()
-                {
-                    use crate::app::background_operations::BackgroundOperations;
-                    self.start_comprehensive_analysis_wrapper().await;
+                if !matches!(self.current_state, AppState::Loading) {
+                    use crate::app::background_operations::ComprehensiveAnalysisOperations;
+                    if let Err(e) = self.handle_comprehensive_analysis().await {
+                        self.current_state = AppState::Error(format!("Error: {}", e));
+                    }
                 }
             }
             KeyCode::Char('m') => {
@@ -189,6 +189,15 @@ impl App {
             }
             KeyCode::Delete | KeyCode::Char(' ') => {
                 self.handle_task_deletion();
+            }
+            KeyCode::Char('g') => {
+                // Only allow if not already processing
+                if matches!(self.current_state, AppState::Normal) {
+                    use crate::app::background_operations::ComprehensiveAnalysisOperations;
+                    if let Err(e) = self.handle_comprehensive_analysis().await {
+                        self.current_state = AppState::Error(format!("Error: {}", e));
+                    }
+                }
             }
             _ => {}
         }

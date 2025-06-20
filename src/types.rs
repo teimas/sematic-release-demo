@@ -281,43 +281,7 @@ impl AsyncOperationState {
     }
 }
 
-// Legacy structs for backwards compatibility during migration
-#[derive(Debug, Clone)]
-pub struct ReleaseNotesAnalysisState {
-    pub status: Arc<Mutex<String>>,
-    pub finished: Arc<Mutex<bool>>,
-    pub success: Arc<Mutex<bool>>,
-}
-
-impl Default for ReleaseNotesAnalysisState {
-    fn default() -> Self {
-        Self {
-            status: Arc::new(Mutex::new("Ready".to_string())),
-            finished: Arc::new(Mutex::new(false)),
-            success: Arc::new(Mutex::new(false)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ComprehensiveAnalysisState {
-    pub status: Arc<Mutex<String>>,
-    pub finished: Arc<Mutex<bool>>,
-    pub success: Arc<Mutex<bool>>,
-    pub result: Arc<Mutex<serde_json::Value>>,
-}
-
-impl Default for ComprehensiveAnalysisState {
-    fn default() -> Self {
-        Self {
-            status: Arc::new(Mutex::new("Ready".to_string())),
-            finished: Arc::new(Mutex::new(false)),
-            success: Arc::new(Mutex::new(false)),
-            result: Arc::new(Mutex::new(serde_json::Value::Null)),
-        }
-    }
-}
-
+// Keep SemanticReleaseState for UI display compatibility
 #[derive(Debug, Clone)]
 pub struct SemanticReleaseState {
     pub status: Arc<Mutex<String>>,
@@ -337,7 +301,7 @@ impl Default for SemanticReleaseState {
     }
 }
 
-// Modern async equivalents - these will replace the legacy structs
+// Modern async equivalents - these replace the legacy structs completely
 #[derive(Debug, Clone)]
 pub struct AsyncReleaseNotesState {
     pub operation_state: AsyncOperationState,

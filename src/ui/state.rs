@@ -1,6 +1,7 @@
 use ratatui::style::{Color, Style};
 use tui_textarea::TextArea;
 
+#[derive(Debug)]
 pub struct UIState {
     pub selected_tab: usize,
     pub selected_commit_type: usize,
