@@ -155,6 +155,7 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[allow(dead_code)]
     #[instrument(skip(self))]
     pub fn get_last_tag(&self) -> Result<Option<String>> {
         debug!("Getting last git tag");
