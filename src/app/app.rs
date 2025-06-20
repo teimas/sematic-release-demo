@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
@@ -9,6 +9,7 @@ use ratatui::{
     Terminal,
 };
 use std::io;
+use tracing::{info, instrument};
 
 use crate::{
     config::load_config,
@@ -39,7 +40,9 @@ pub struct App {
 }
 
 impl App {
+    #[instrument]
     pub async fn new() -> Result<Self> {
+        info!("Initializing new app instance");
         let config = load_config().unwrap_or_default();
 
         Ok(Self {

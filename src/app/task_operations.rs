@@ -1,6 +1,7 @@
-use anyhow::Result;
+use crate::error::Result;
 use std::fs::OpenOptions;
 use std::io::Write;
+use tracing::{instrument, debug, error};
 
 use crate::{
     app::App,
@@ -16,7 +17,10 @@ pub trait TaskOperations {
 }
 
 impl TaskOperations for App {
+    #[instrument(skip(self), fields(query = %query))]
     async fn search_monday_tasks(&self, query: &str) -> Result<Vec<MondayTask>> {
+        debug!("Starting Monday.com task search");
+
         // Write debug to file
         let mut debug_file = OpenOptions::new()
             .create(true)
@@ -32,11 +36,13 @@ impl TaskOperations for App {
         .ok();
 
         let client = MondayClient::new(&self.config)?;
+        debug!("Monday.com client created successfully");
         writeln!(debug_file, "DEBUG: MondayClient created successfully").ok();
 
         let result = client.search_tasks(query).await;
         match &result {
             Ok(tasks) => {
+                debug!("Search returned {} tasks", tasks.len());
                 writeln!(debug_file, "DEBUG: Search returned {} tasks", tasks.len()).ok();
                 for (i, task) in tasks.iter().enumerate().take(3) {
                     writeln!(
@@ -48,6 +54,7 @@ impl TaskOperations for App {
                 }
             }
             Err(e) => {
+                error!("Search failed with error: {}", e);
                 writeln!(debug_file, "DEBUG: Search failed with error: {}", e).ok();
             }
         }
@@ -55,7 +62,10 @@ impl TaskOperations for App {
         result
     }
 
+    #[instrument(skip(self), fields(query = %query))]
     async fn search_jira_tasks(&self, query: &str) -> Result<Vec<JiraTask>> {
+        debug!("Starting JIRA task search");
+
         // Write debug to file
         let mut debug_file = OpenOptions::new()
             .create(true)
@@ -71,11 +81,13 @@ impl TaskOperations for App {
         .ok();
 
         let client = JiraClient::new(&self.config)?;
+        debug!("JIRA client created successfully");
         writeln!(debug_file, "DEBUG: JiraClient created successfully").ok();
 
         let result = client.search_tasks(query).await;
         match &result {
             Ok(tasks) => {
+                debug!("JIRA search returned {} tasks", tasks.len());
                 writeln!(
                     debug_file,
                     "DEBUG: JIRA Search returned {} tasks",
@@ -92,6 +104,7 @@ impl TaskOperations for App {
                 }
             }
             Err(e) => {
+                error!("JIRA search failed with error: {}", e);
                 writeln!(debug_file, "DEBUG: JIRA Search failed with error: {}", e).ok();
             }
         }
@@ -99,12 +112,16 @@ impl TaskOperations for App {
         result
     }
 
+    #[instrument(skip(self))]
     fn update_task_selection(&mut self) {
         use crate::types::TaskLike;
+
+        debug!("Updating task selection based on current task system");
 
         // Update commit form with latest selections and sync unified interface
         match self.config.get_task_system() {
             crate::types::TaskSystem::Monday => {
+                debug!("Updating selection for Monday.com tasks");
                 self.commit_form.selected_tasks = self.selected_monday_tasks.clone();
                 self.commit_form.selected_monday_tasks = self.selected_monday_tasks.clone();
                 self.commit_form.selected_jira_tasks.clear();
@@ -120,8 +137,10 @@ impl TaskOperations for App {
                 } else {
                     task_ids.join("|")
                 };
+                debug!("Updated scope with {} Monday task IDs", task_ids.len());
             }
             crate::types::TaskSystem::Jira => {
+                debug!("Updating selection for JIRA tasks");
                 // For JIRA, we need to convert to Monday tasks for the unified interface
                 // This is a temporary workaround until we implement a proper unified task type
                 self.commit_form.selected_tasks.clear(); // Clear Monday tasks when using JIRA
@@ -139,8 +158,10 @@ impl TaskOperations for App {
                 } else {
                     task_ids.join("|")
                 };
+                debug!("Updated scope with {} JIRA task IDs", task_ids.len());
             }
             crate::types::TaskSystem::None => {
+                debug!("Clearing all task selections (task system set to None)");
                 self.commit_form.selected_tasks.clear();
                 self.commit_form.selected_monday_tasks.clear();
                 self.commit_form.selected_jira_tasks.clear();

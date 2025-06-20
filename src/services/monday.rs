@@ -1,8 +1,11 @@
-use anyhow::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::types::{AppConfig, MondayColumnValue, MondayTask, MondayUpdate, MondayUser};
+use crate::{
+    error::{Result, SemanticReleaseError},
+    types::{AppConfig, MondayColumnValue, MondayTask, MondayUpdate, MondayUser},
+};
 
 // =============================================================================
 // CORE MONDAY.COM CLIENT STRUCTURE
@@ -17,20 +20,35 @@ pub struct MondayClient {
 }
 
 impl MondayClient {
+    #[instrument(skip(config))]
     pub fn new(config: &AppConfig) -> Result<Self> {
+        info!("Initializing Monday.com client");
+        
         let api_key = config
             .monday_api_key
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Monday.com API key not configured"))?
+            .ok_or_else(|| {
+                error!("Monday.com API key not configured");
+                SemanticReleaseError::config_error("Monday.com API key not configured")
+            })?
             .clone();
 
-        Ok(Self {
+        let client = Self {
             client: Client::new(),
             api_key,
             account_slug: config.monday_account_slug.clone(),
             board_id: config.monday_board_id.clone(),
             url_template: config.monday_url_template.clone(),
-        })
+        };
+
+        info!(
+            account_slug = ?client.account_slug,
+            board_id = ?client.board_id,
+            has_url_template = client.url_template.is_some(),
+            "Monday.com client initialized"
+        );
+
+        Ok(client)
     }
 }
 
@@ -39,13 +57,23 @@ impl MondayClient {
 // =============================================================================
 
 impl MondayClient {
+    #[instrument(skip(self), fields(query = query))]
     pub async fn search_tasks(&self, query: &str) -> Result<Vec<MondayTask>> {
+        info!("Searching Monday.com tasks");
+        
         let graphql_query = self.build_search_query(query);
+        debug!(query_type = if self.board_id.is_some() { "board_specific" } else { "global" }, "Built GraphQL search query");
 
         let response = self.execute_graphql_request(&graphql_query).await?;
-        let result: Value = response.json().await?;
+        let result: Value = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Monday.com search response as JSON");
+            SemanticReleaseError::monday_error(e)
+        })?;
 
-        self.parse_search_results(result)
+        let tasks = self.parse_search_results(result)?;
+        info!(task_count = tasks.len(), "Monday.com search completed successfully");
+        
+        Ok(tasks)
     }
 
     fn build_search_query(&self, query: &str) -> Value {
@@ -138,14 +166,23 @@ impl MondayClient {
 // =============================================================================
 
 impl MondayClient {
+    #[instrument(skip(self), fields(task_count = task_ids.len()))]
     pub async fn get_task_details(&self, task_ids: &[String]) -> Result<Vec<MondayTask>> {
+        info!("Fetching Monday.com task details");
+        
         let ids: Vec<&str> = task_ids.iter().map(|s| s.as_str()).collect();
 
         let graphql_query = self.build_task_details_query(&ids);
         let response = self.execute_graphql_request(&graphql_query).await?;
-        let result: Value = response.json().await?;
+        let result: Value = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Monday.com task details response as JSON");
+            SemanticReleaseError::monday_error(e)
+        })?;
 
-        self.parse_task_details_results(result)
+        let tasks = self.parse_task_details_results(result)?;
+        info!(task_count = tasks.len(), "Monday.com task details fetch completed");
+        
+        Ok(tasks)
     }
 
     fn build_task_details_query(&self, ids: &[&str]) -> Value {
@@ -184,12 +221,24 @@ impl MondayClient {
 
     fn parse_task_details_results(&self, result: Value) -> Result<Vec<MondayTask>> {
         if let Some(items) = result["data"]["items"].as_array() {
-            let tasks = items
+            let tasks: Vec<MondayTask> = items
                 .iter()
-                .filter_map(|item| self.parse_task_item(item))
+                .filter_map(|item| match self.parse_task_item(item) {
+                    Some(task) => {
+                        debug!(task_id = %task.id, task_title = %task.title, "Successfully parsed Monday.com task");
+                        Some(task)
+                    }
+                    None => {
+                        warn!(item = ?item, "Failed to parse Monday.com task item");
+                        None
+                    }
+                })
                 .collect();
+            
+            debug!(parsed_tasks = tasks.len(), total_items = items.len(), "Parsed Monday.com task details");
             Ok(tasks)
         } else {
+            warn!("No task details found in Monday.com response");
             Ok(Vec::new())
         }
     }
@@ -200,7 +249,10 @@ impl MondayClient {
 // =============================================================================
 
 impl MondayClient {
+    #[instrument(skip(self, query))]
     async fn execute_graphql_request(&self, query: &Value) -> Result<reqwest::Response> {
+        debug!("Executing Monday.com GraphQL request");
+        
         let response = self
             .client
             .post("https://api.monday.com/v2")
@@ -209,8 +261,24 @@ impl MondayClient {
             .header("API-Version", "2024-10")
             .json(query)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Monday.com GraphQL request failed");
+                SemanticReleaseError::monday_error(e)
+            })?;
 
+        if !response.status().is_success() {
+            let status = response.status();
+            error!(status = %status, "Monday.com API returned error status");
+            return Err(SemanticReleaseError::monday_error(
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Monday.com API error: HTTP {}", status)
+                )
+            ));
+        }
+
+        debug!(status = %response.status(), "Monday.com GraphQL request successful");
         Ok(response)
     }
 }
@@ -226,9 +294,11 @@ impl MondayClient {
         if let Some(_board_id) = &self.board_id {
             // Parse board-specific results
             tasks.extend(self.parse_board_specific_results(&result));
+            debug!(task_count = tasks.len(), "Parsed board-specific search results");
         } else {
             // Parse global search results
             tasks.extend(self.parse_global_search_results(&result));
+            debug!(task_count = tasks.len(), "Parsed global search results");
         }
 
         Ok(tasks)
@@ -244,7 +314,10 @@ impl MondayClient {
                         for item in items {
                             if let Some(task) = self.parse_task_item(item) {
                                 if task.state == "active" {
+                                    debug!(task_id = %task.id, "Found active Monday.com task");
                                     tasks.push(task);
+                                } else {
+                                    debug!(task_id = %task.id, state = %task.state, "Skipping non-active Monday.com task");
                                 }
                             }
                         }
@@ -264,7 +337,10 @@ impl MondayClient {
                 for item in items {
                     if let Some(task) = self.parse_task_item(item) {
                         if task.state == "active" {
+                            debug!(task_id = %task.id, "Found active Monday.com task");
                             tasks.push(task);
+                        } else {
+                            debug!(task_id = %task.id, state = %task.state, "Skipping non-active Monday.com task");
                         }
                     }
                 }
@@ -393,15 +469,24 @@ impl MondayClient {
 // =============================================================================
 
 impl MondayClient {
+    #[instrument(skip(self))]
     pub async fn test_connection(&self) -> Result<String> {
+        info!("Testing Monday.com connection");
+        
         let query = json!({
             "query": "query { me { name email } }"
         });
 
         let response = self.execute_graphql_request(&query).await?;
-        let result: Value = response.json().await?;
+        let result: Value = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Monday.com connection test response as JSON");
+            SemanticReleaseError::monday_error(e)
+        })?;
 
-        self.parse_connection_test_result(result)
+        let user_info = self.parse_connection_test_result(result)?;
+        info!(user_info = %user_info, "Monday.com connection test successful");
+        
+        Ok(user_info)
     }
 
     fn parse_connection_test_result(&self, result: Value) -> Result<String> {
@@ -410,7 +495,13 @@ impl MondayClient {
             let email = me["email"].as_str().unwrap_or("Unknown");
             Ok(format!("{} ({})", name, email))
         } else {
-            Err(anyhow::anyhow!("Failed to get user information"))
+            error!(response = ?result, "Monday.com connection test returned invalid response structure");
+            Err(SemanticReleaseError::monday_error(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Failed to get user information from Monday.com API"
+                )
+            ))
         }
     }
 }

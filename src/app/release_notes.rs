@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use chrono::Utc;
 use std::collections::HashSet;
 use std::fs;
@@ -812,7 +812,7 @@ impl App {
         // Check if npm succeeded
         let success = npm_success.lock().map(|s| *s).unwrap_or(false);
         if !success {
-            return Err(anyhow::anyhow!("{}", current_status));
+            return Err(crate::error::SemanticReleaseError::release_error(format!("Release notes operation failed: {}", current_status)));
         }
 
         Ok(())

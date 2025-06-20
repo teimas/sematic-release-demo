@@ -1,10 +1,12 @@
-use anyhow::Result;
 use clap::{Parser, Subcommand};
-use log::info;
+use semantic_release_tui::observability::{init_observability, init_development_observability, log_user_message, log_error_to_console};
+use tracing::{error, info};
 
 mod app;
 mod config;
+mod error;
 mod git;
+mod observability;
 mod services;
 mod types;
 mod ui;
@@ -31,6 +33,10 @@ struct Cli {
     /// Auto-commit: Run comprehensive AI analysis and open commit editor directly
     #[arg(long, global = true)]
     autocommit: bool,
+
+    /// Enable development mode with hierarchical logging
+    #[arg(long, global = true)]
+    dev: bool,
 }
 
 #[derive(Subcommand)]
@@ -56,7 +62,7 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum DebugCommands {
     /// Test Monday.com connection
     Monday,
@@ -69,111 +75,157 @@ enum DebugCommands {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> miette::Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging based on flags
-    if cli.debug {
-        env_logger::Builder::from_default_env()
-            .filter_level(log::LevelFilter::Debug)
-            .init();
-        info!("Debug logging enabled");
-    } else if cli.verbose {
-        env_logger::Builder::from_default_env()
-            .filter_level(log::LevelFilter::Info)
-            .init();
-        info!("Verbose logging enabled");
+    // Initialize observability system
+    if cli.dev {
+        init_development_observability()
+            .map_err(|e| miette::miette!("Failed to initialize development observability: {}", e))?;
+    } else {
+        init_observability(cli.debug, cli.verbose)
+            .map_err(|e| miette::miette!("Failed to initialize observability: {}", e))?;
     }
+
+    // Log to file only, not console
+    info!(
+        version = env!("CARGO_PKG_VERSION"),
+        autocommit = cli.autocommit,
+        debug = cli.debug,
+        verbose = cli.verbose,
+        dev = cli.dev,
+        "🚀 Starting Semantic Release TUI"
+    );
 
     // Handle --autocommit flag
     if cli.autocommit {
-        let app = App::new().await?;
-        app.autocommit_flow().await?;
+        // File logging only
+        info!("🤖 Running autocommit flow");
+        let app = App::new().await
+            .map_err(|e| miette::miette!("Failed to initialize app for autocommit: {}", e))?;
+        app.autocommit_flow().await
+            .map_err(|e| miette::miette!("Autocommit flow failed: {}", e))?;
         return Ok(());
     }
 
-    match cli.command.unwrap_or(Commands::Tui) {
+    let result = match cli.command.unwrap_or(Commands::Tui) {
         Commands::Tui => {
-            let app = App::new().await?;
-            app.run().await?;
+            // File logging only
+            info!("🖥️ Starting TUI interface");
+            let app = App::new().await
+                .map_err(|e| miette::miette!("Failed to initialize app for TUI: {}", e))?;
+            app.run().await
         }
         Commands::Config => {
-            config::run_config().await?;
+            // File logging only
+            info!("⚙️ Running configuration");
+            config::run_config().await
         }
         Commands::Commit => {
-            let app = App::new().await?;
-            app.commit_flow().await?;
+            // File logging only
+            info!("📝 Running commit flow");
+            let app = App::new().await
+                .map_err(|e| miette::miette!("Failed to initialize app for commit: {}", e))?;
+            app.commit_flow().await
         }
         Commands::ReleaseNotes => {
-            let mut app = App::new().await?;
+            // File logging only
+            info!("📝 Running release notes generation");
+            let mut app = App::new().await
+                .map_err(|e| miette::miette!("Failed to initialize app for release notes: {}", e))?;
             app.current_screen = AppScreen::ReleaseNotes;
-            app.run().await?;
+            app.run().await
         }
         Commands::Search { query } => {
-            let app = App::new().await?;
+            // File logging only
+            info!(?query, "🔍 Running task search");
+            let app = App::new().await
+                .map_err(|e| miette::miette!("Failed to initialize app for search: {}", e))?;
             if let Some(query) = query {
-                app.search_tasks(&query).await?;
+                app.search_tasks(&query).await
             } else {
-                println!("Please provide a search query");
+                log_user_message("Please provide a search query");
+                Ok(())
             }
         }
         Commands::SetupTemplate => {
-            config::setup_commit_template().await?;
+            // File logging only
+            info!("🔧 Setting up commit template");
+            config::setup_commit_template().await
         }
         Commands::VersionInfo => {
-            println!("🔍 Analyzing version information...");
+            // File logging only
+            info!("📦 Analyzing version information");
+            log_user_message("🔍 Analyzing version information...");
             match git::repository::get_version_info() {
                 Ok(version_info) => {
-                    println!("\n📦 VERSION INFORMATION");
-                    println!("{}", "=".repeat(50));
+                    log_user_message("\n📦 VERSION INFORMATION");
+                    log_user_message(&"=".repeat(50));
 
                     if let Some(current) = &version_info.current_version {
-                        println!("🏷️  Current version: {}", current);
+                        log_user_message(&format!("🏷️  Current version: {}", current));
                     } else {
-                        println!("🏷️  Current version: No previous versions");
+                        log_user_message("🏷️  Current version: No previous versions");
                     }
 
-                    println!("🚀 Next version: {}", version_info.next_version);
-                    println!("📊 Release type: {}", version_info.version_type);
-                    println!(
+                    log_user_message(&format!("🚀 Next version: {}", version_info.next_version));
+                    log_user_message(&format!("📊 Release type: {}", version_info.version_type));
+                    log_user_message(&format!(
                         "📈 Commits since last version: {}",
                         version_info.commit_count
-                    );
+                    ));
 
                     if version_info.has_unreleased_changes {
-                        println!("✅ Has changes to release");
+                        log_user_message("✅ Has changes to release");
                     } else {
-                        println!("⚠️  No changes to release");
+                        log_user_message("⚠️  No changes to release");
                     }
 
-                    println!("\n🔍 DETAILED ANALYSIS");
-                    println!("{}", "=".repeat(50));
-                    println!("{}", version_info.dry_run_output);
+                    log_user_message("\n🔍 DETAILED ANALYSIS");
+                    log_user_message(&"=".repeat(50));
+                    log_user_message(&version_info.dry_run_output);
+                    Ok(())
                 }
                 Err(e) => {
-                    eprintln!("❌ Error analyzing version: {}", e);
+                    error!(error = %e, "Failed to analyze version information");
+                    log_error_to_console(&format!("❌ Error analyzing version: {}", e));
                     std::process::exit(1);
                 }
             }
         }
         Commands::Debug { debug_command } => {
-            let app = App::new().await?;
+            // File logging only
+            info!(?debug_command, "🐛 Running debug command");
+            let app = App::new().await
+                .map_err(|e| miette::miette!("Failed to initialize app for debug: {}", e))?;
             match debug_command {
                 DebugCommands::Monday => {
-                    app.debug_monday().await?;
+                    app.debug_monday().await
                 }
                 DebugCommands::Gemini => {
-                    app.debug_gemini().await?;
+                    app.debug_gemini().await
                 }
                 DebugCommands::Git => {
-                    app.debug_git().await?;
+                    app.debug_git().await
                 }
                 DebugCommands::Commit => {
-                    app.debug_commit().await?;
+                    app.debug_commit().await
                 }
             }
         }
-    }
+    };
 
-    Ok(())
+    match result {
+        Ok(_) => {
+            // File logging only
+            info!("✅ Application completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            error!(error = %e, "Application failed");
+            // Only show error to console if it's critical
+            log_error_to_console(&format!("❌ Application failed: {}", e));
+            Err(miette::miette!("Application failed: {}", e))
+        }
+    }
 }

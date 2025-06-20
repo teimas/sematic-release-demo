@@ -1,10 +1,13 @@
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use git2::Repository;
 use regex::Regex;
 use std::process::{Command, Stdio};
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::types::{GitCommit, MondayTaskMention};
+use crate::{
+    error::{Result, SemanticReleaseError},
+    types::{GitCommit, MondayTaskMention},
+};
 
 // =============================================================================
 // CORE GIT REPOSITORY STRUCTURE
@@ -22,8 +25,15 @@ pub struct GitStatus {
 }
 
 impl GitRepo {
+    #[instrument]
     pub fn new() -> Result<Self> {
-        let repo = Repository::open(".")?;
+        debug!("Initializing git repository");
+        let repo = Repository::open(".").map_err(|e| {
+            error!(error = %e, "Failed to open git repository");
+            SemanticReleaseError::GitError(e)
+        })?;
+        
+        info!("Git repository initialized successfully");
         Ok(Self { repo })
     }
 }
@@ -33,24 +43,45 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[instrument(skip(self))]
     pub fn get_commits_since_tag(&self, tag: Option<&str>) -> Result<Vec<GitCommit>> {
+        info!(?tag, "Retrieving commits since tag");
         let mut commits = Vec::new();
 
-        let mut revwalk = self.repo.revwalk()?;
-        revwalk.push_head()?;
+        let mut revwalk = self.repo.revwalk().map_err(|e| {
+            error!(error = %e, "Failed to create revwalk");
+            SemanticReleaseError::GitError(e)
+        })?;
+        
+        revwalk.push_head().map_err(|e| {
+            error!(error = %e, "Failed to push HEAD to revwalk");
+            SemanticReleaseError::GitError(e)
+        })?;
 
         if let Some(tag) = tag {
             if let Ok(tag_obj) = self.repo.revparse_single(tag) {
-                revwalk.hide(tag_obj.id())?;
+                if let Err(e) = revwalk.hide(tag_obj.id()) {
+                    warn!(tag = %tag, error = %e, "Failed to hide tag in revwalk");
+                }
+            } else {
+                warn!(tag = %tag, "Tag not found in repository");
             }
         }
 
         for oid in revwalk {
-            let oid = oid?;
-            let commit = self.repo.find_commit(oid)?;
+            let oid = oid.map_err(|e| {
+                error!(error = %e, "Failed to get OID from revwalk");
+                SemanticReleaseError::GitError(e)
+            })?;
+            
+            let commit = self.repo.find_commit(oid).map_err(|e| {
+                error!(oid = %oid, error = %e, "Failed to find commit");
+                SemanticReleaseError::GitError(e)
+            })?;
 
             // Skip merge commits
             if commit.parent_count() > 1 {
+                debug!(oid = %oid, "Skipping merge commit");
                 continue;
             }
 
@@ -58,9 +89,11 @@ impl GitRepo {
             commits.push(git_commit);
         }
 
+        info!(commit_count = commits.len(), "Retrieved commits successfully");
         Ok(commits)
     }
 
+    #[instrument(skip(self, commit))]
     fn build_git_commit_from_raw(
         &self,
         oid: git2::Oid,
@@ -88,6 +121,15 @@ impl GitRepo {
         let jira_task_mentions = CommitParser::extract_jira_task_mentions(&body);
         let jira_tasks = CommitParser::extract_jira_tasks(&body);
 
+        debug!(
+            hash = %oid,
+            author = %author_name,
+            subject = %subject,
+            monday_tasks_count = monday_tasks.len(),
+            jira_tasks_count = jira_tasks.len(),
+            "Built git commit from raw data"
+        );
+
         Ok(GitCommit {
             hash: oid.to_string(),
             body: body.clone(),
@@ -113,22 +155,34 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[instrument(skip(self))]
     pub fn get_last_tag(&self) -> Result<Option<String>> {
+        debug!("Getting last git tag");
         // Use git command to get the last tag, as git2 doesn't have a simple way
         let output = Command::new("git")
             .args(["describe", "--tags", "--abbrev=0"])
-            .output();
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git describe command");
+                SemanticReleaseError::command_error("git describe --tags --abbrev=0", None, e.to_string())
+            })?;
 
-        match output {
-            Ok(output) if output.status.success() => {
+        match output.status.success() {
+            true => {
                 let tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if tag.is_empty() {
+                    info!("No tags found in repository");
                     Ok(None)
                 } else {
+                    info!(tag = %tag, "Found last tag");
                     Ok(Some(tag))
                 }
             }
-            _ => Ok(None),
+            false => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                debug!(stderr = %stderr, "No tags found or git describe failed");
+                Ok(None)
+            }
         }
     }
 }
@@ -138,35 +192,65 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[instrument(skip(self))]
     pub fn create_commit(&self, message: &str) -> Result<String> {
+        info!(message_length = message.len(), "Creating git commit");
+        
         // Use git command for committing
         let output = Command::new("git")
             .args(["commit", "-m", message])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git commit command");
+                SemanticReleaseError::command_error("git commit", None, e.to_string())
+            })?;
 
         if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            info!("Git commit created successfully");
+            debug!(output = %stdout, "Git commit output");
+            Ok(stdout)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(anyhow::anyhow!("Git commit failed: {}", error))
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            error!(stderr = %stderr, "Git commit failed");
+            Err(SemanticReleaseError::command_error(
+                "git commit",
+                output.status.code(),
+                stderr,
+            ))
         }
     }
 
+    #[instrument(skip(self))]
     pub fn stage_all(&self) -> Result<String> {
+        info!("Staging all changes");
+        
         // Use git command for staging all changes (equivalent to git add -A)
         let output = Command::new("git")
             .args(["add", "-A"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git add command");
+                SemanticReleaseError::command_error("git add -A", None, e.to_string())
+            })?;
 
         if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            info!("All changes staged successfully");
+            debug!(output = %stdout, "Git add output");
+            Ok(stdout)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(anyhow::anyhow!("Git add failed: {}", error))
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            error!(stderr = %stderr, "Git staging failed");
+            Err(SemanticReleaseError::command_error(
+                "git add -A",
+                output.status.code(),
+                stderr,
+            ))
         }
     }
 }
@@ -176,32 +260,55 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[instrument(skip(self))]
     pub fn get_current_branch(&self) -> Result<String> {
+        debug!("Getting current branch");
+        
         let output = Command::new("git")
             .args(["branch", "--show-current"])
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git branch command");
+                SemanticReleaseError::command_error("git branch --show-current", None, e.to_string())
+            })?;
 
         if output.status.success() {
             let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if branch.is_empty() {
-                Ok("HEAD".to_string()) // Detached HEAD state
+            let result = if branch.is_empty() {
+                info!("Repository is in detached HEAD state");
+                "HEAD".to_string() // Detached HEAD state
             } else {
-                Ok(branch)
-            }
+                info!(branch = %branch, "Retrieved current branch");
+                branch
+            };
+            Ok(result)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            Err(anyhow::anyhow!("Failed to get current branch: {}", error))
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            error!(stderr = %stderr, "Failed to get current branch");
+            Err(SemanticReleaseError::command_error(
+                "git branch --show-current",
+                output.status.code(),
+                stderr,
+            ))
         }
     }
 
+    #[instrument(skip(self))]
     pub fn get_repository_url(&self) -> Result<Option<String>> {
+        debug!("Getting repository URL");
+        
         let output = Command::new("git")
             .args(["remote", "get-url", "origin"])
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git remote command");
+                SemanticReleaseError::command_error("git remote get-url origin", None, e.to_string())
+            })?;
 
         if output.status.success() {
             let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if url.is_empty() {
+                debug!("No remote origin URL found");
                 Ok(None)
             } else {
                 // Convert SSH URL to HTTPS if needed
@@ -222,14 +329,18 @@ impl GitRepo {
                     url
                 };
 
+                info!(url = %formatted_url, "Retrieved repository URL");
                 Ok(Some(formatted_url))
             }
         } else {
+            debug!("No remote origin found");
             Ok(None)
         }
     }
 
+    #[instrument(skip(self))]
     pub fn get_status(&self) -> Result<GitStatus> {
+        debug!("Getting git repository status");
         let mut status = GitStatus {
             staged: Vec::new(),
             modified: Vec::new(),
@@ -239,7 +350,11 @@ impl GitRepo {
         // Get staged files
         let staged_output = Command::new("git")
             .args(["diff", "--cached", "--name-only"])
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git diff --cached command");
+                SemanticReleaseError::command_error("git diff --cached --name-only", None, e.to_string())
+            })?;
 
         if staged_output.status.success() {
             status.staged = String::from_utf8_lossy(&staged_output.stdout)
@@ -247,10 +362,18 @@ impl GitRepo {
                 .map(|s| s.to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
+        } else {
+            warn!("Failed to get staged files");
         }
 
         // Get modified files
-        let modified_output = Command::new("git").args(["diff", "--name-only"]).output()?;
+        let modified_output = Command::new("git")
+            .args(["diff", "--name-only"])
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git diff command");
+                SemanticReleaseError::command_error("git diff --name-only", None, e.to_string())
+            })?;
 
         if modified_output.status.success() {
             status.modified = String::from_utf8_lossy(&modified_output.stdout)
@@ -258,12 +381,18 @@ impl GitRepo {
                 .map(|s| s.to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
+        } else {
+            warn!("Failed to get modified files");
         }
 
         // Get untracked files
         let untracked_output = Command::new("git")
             .args(["ls-files", "--others", "--exclude-standard"])
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git ls-files command");
+                SemanticReleaseError::command_error("git ls-files --others --exclude-standard", None, e.to_string())
+            })?;
 
         if untracked_output.status.success() {
             status.untracked = String::from_utf8_lossy(&untracked_output.stdout)
@@ -271,7 +400,16 @@ impl GitRepo {
                 .map(|s| s.to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
+        } else {
+            warn!("Failed to get untracked files");
         }
+
+        info!(
+            staged_count = status.staged.len(),
+            modified_count = status.modified.len(),
+            untracked_count = status.untracked.len(),
+            "Retrieved git status"
+        );
 
         Ok(status)
     }
@@ -282,11 +420,19 @@ impl GitRepo {
 // =============================================================================
 
 impl GitRepo {
+    #[instrument(skip(self))]
     pub fn get_detailed_changes(&self) -> Result<String> {
+        debug!("Getting detailed git changes");
         let mut changes = String::new();
 
         // Get staged changes with diff
-        let staged_output = Command::new("git").args(["diff", "--cached"]).output()?;
+        let staged_output = Command::new("git")
+            .args(["diff", "--cached"])
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git diff --cached command");
+                SemanticReleaseError::command_error("git diff --cached", None, e.to_string())
+            })?;
 
         if staged_output.status.success() {
             let staged_diff = String::from_utf8_lossy(&staged_output.stdout);
@@ -294,11 +440,18 @@ impl GitRepo {
                 changes.push_str("=== CAMBIOS PREPARADOS (STAGED) ===\n");
                 changes.push_str(&staged_diff);
                 changes.push_str("\n\n");
+                debug!("Added staged changes to detailed diff");
             }
         }
 
         // Get unstaged changes with diff
-        let unstaged_output = Command::new("git").args(["diff"]).output()?;
+        let unstaged_output = Command::new("git")
+            .args(["diff"])
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git diff command");
+                SemanticReleaseError::command_error("git diff", None, e.to_string())
+            })?;
 
         if unstaged_output.status.success() {
             let unstaged_diff = String::from_utf8_lossy(&unstaged_output.stdout);
@@ -306,13 +459,18 @@ impl GitRepo {
                 changes.push_str("=== CAMBIOS NO PREPARADOS (UNSTAGED) ===\n");
                 changes.push_str(&unstaged_diff);
                 changes.push_str("\n\n");
+                debug!("Added unstaged changes to detailed diff");
             }
         }
 
         // Get untracked files
         let untracked_output = Command::new("git")
             .args(["ls-files", "--others", "--exclude-standard"])
-            .output()?;
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git ls-files command for untracked files");
+                SemanticReleaseError::command_error("git ls-files --others --exclude-standard", None, e.to_string())
+            })?;
 
         if untracked_output.status.success() {
             let untracked_files = String::from_utf8_lossy(&untracked_output.stdout);
@@ -324,13 +482,16 @@ impl GitRepo {
                     }
                 }
                 changes.push('\n');
+                debug!("Added untracked files to detailed diff");
             }
         }
 
         if changes.trim().is_empty() {
             changes = "No hay cambios detectados en el repositorio.".to_string();
+            debug!("No changes detected in repository");
         }
 
+        info!(changes_length = changes.len(), "Retrieved detailed git changes");
         Ok(changes)
     }
 }
@@ -582,7 +743,10 @@ impl CommitParser {
 use crate::types::{VersionInfo, VersionType};
 
 /// Enhanced function to get comprehensive version information
+#[instrument]
 pub fn get_version_info() -> Result<VersionInfo> {
+    info!("Getting comprehensive version information");
+    
     // 1. Get current version from last tag
     let current_version = get_current_version().ok();
 
@@ -595,6 +759,15 @@ pub fn get_version_info() -> Result<VersionInfo> {
     // 4. Check if there are unreleased changes
     let has_unreleased_changes = commit_count > 0;
 
+    info!(
+        current_version = ?current_version,
+        next_version = %next_version,
+        version_type = ?version_type,
+        commit_count = commit_count,
+        has_unreleased_changes = has_unreleased_changes,
+        "Version information retrieved"
+    );
+
     Ok(VersionInfo {
         next_version,
         current_version,
@@ -605,11 +778,17 @@ pub fn get_version_info() -> Result<VersionInfo> {
     })
 }
 
+#[instrument]
 fn execute_semantic_release_dry_run() -> Result<(String, VersionType, String)> {
+    debug!("Executing semantic-release dry run");
+    
     let output = Command::new("npx")
         .args(["semantic-release", "--dry-run"])
         .output()
-        .map_err(|e| anyhow::anyhow!("Failed to execute semantic-release: {}", e))?;
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute semantic-release command");
+            SemanticReleaseError::command_error("npx semantic-release --dry-run", None, e.to_string())
+        })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -628,6 +807,12 @@ fn execute_semantic_release_dry_run() -> Result<(String, VersionType, String)> {
     // Determine version type
     let version_type = determine_version_type(&full_output);
 
+    debug!(
+        next_version = %next_version,
+        version_type = ?version_type,
+        "Semantic release dry run completed"
+    );
+
     Ok((next_version, version_type, full_output))
 }
 
@@ -641,51 +826,84 @@ fn determine_version_type(output: &str) -> VersionType {
     } else if output.contains("no release") || output.contains("No release published") {
         VersionType::None
     } else {
-        VersionType::Unknown
+        VersionType::None
     }
 }
 
+#[instrument]
 fn get_current_version() -> Result<String> {
+    debug!("Getting current version from git tags");
+    
     let output = Command::new("git")
         .args(["describe", "--tags", "--abbrev=0"])
-        .output()?;
+        .output()
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute git describe command");
+            SemanticReleaseError::command_error("git describe --tags --abbrev=0", None, e.to_string())
+        })?;
 
     if output.status.success() {
         let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        info!(version = %version, "Retrieved current version");
         Ok(version)
     } else {
-        Err(anyhow::anyhow!("No tags found"))
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        debug!(stderr = %stderr, "No current version found");
+        Err(SemanticReleaseError::command_error(
+            "git describe --tags --abbrev=0",
+            output.status.code(),
+            stderr.to_string(),
+        ))
     }
 }
 
+#[instrument]
 fn get_commit_count_since_last_tag() -> Result<usize> {
-    // Get last tag
-    let last_tag_output = Command::new("git")
-        .args(["describe", "--tags", "--abbrev=0"])
-        .output();
-
-    let range = match last_tag_output {
-        Ok(output) if output.status.success() => {
-            let last_tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            format!("{}..HEAD", last_tag)
-        }
-        _ => "HEAD".to_string(), // No tags found, count all commits
-    };
-
+    debug!("Getting commit count since last tag");
+    
     let output = Command::new("git")
-        .args(["rev-list", "--count", &range])
-        .output()?;
+        .args(["rev-list", "--count", "HEAD", "^$(git describe --tags --abbrev=0 2>/dev/null || echo '')"])
+        .output()
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute git rev-list command");
+            SemanticReleaseError::command_error("git rev-list --count", None, e.to_string())
+        })?;
 
     if output.status.success() {
-        let count_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Ok(count_str.parse().unwrap_or(0))
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let count_str = output_str.trim();
+        let count = count_str.parse::<usize>().unwrap_or(0);
+        debug!(count = count, "Retrieved commit count since last tag");
+        Ok(count)
     } else {
-        Ok(0)
+        // Fallback: just count all commits
+        let output = Command::new("git")
+            .args(["rev-list", "--count", "HEAD"])
+            .output()
+            .map_err(|e| {
+                error!(error = %e, "Failed to execute git rev-list fallback command");
+                SemanticReleaseError::command_error("git rev-list --count HEAD", None, e.to_string())
+            })?;
+
+        if output.status.success() {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            let count_str = output_str.trim();
+            let count = count_str.parse::<usize>().unwrap_or(0);
+            debug!(count = count, "Retrieved total commit count as fallback");
+            Ok(count)
+        } else {
+            warn!("Failed to get commit count, returning 0");
+            Ok(0)
+        }
     }
 }
 
-/// Simple function for backward compatibility
+/// Get the next semantic version
+#[instrument]
 pub fn get_next_version() -> Result<String> {
-    let version_info = get_version_info()?;
-    Ok(version_info.next_version)
+    info!("Getting next semantic version");
+    
+    let (next_version, _, _) = execute_semantic_release_dry_run()?;
+    info!(next_version = %next_version, "Retrieved next version");
+    Ok(next_version)
 }

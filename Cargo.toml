@@ -25,7 +25,6 @@ genai = "0.3.0"
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5.0"
 config = "0.14"
-anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.0", features = ["derive"] }
 uuid = { version = "1.0", features = ["v4"] }
@@ -34,8 +33,19 @@ dialoguer = "0.11"
 git2 = "0.19"
 toml = "0.8"
 dotenv = "0.15"
-log = "0.4"
-env_logger = "0.11" 
 jira_query = "1.6.0"
 openssl = "0.10" 
 tui-textarea = { version = "0.7.0", features = ["crossterm"] } 
+
+# Modern Error Handling & Observability
+miette = { version = "7.0", features = ["fancy"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
+tracing-tree = "0.3"
+tracing-appender = "0.2"
+
+# Keep anyhow temporarily for gradual migration
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.11" 

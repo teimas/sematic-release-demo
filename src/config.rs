@@ -1,13 +1,17 @@
-use anyhow::Result;
 use dialoguer::{Input, Password, Select};
 use dirs::home_dir;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::types::AppConfig;
+use crate::{
+    error::{Result, SemanticReleaseError},
+    types::AppConfig,
+};
 
+#[instrument]
 pub fn get_env_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
@@ -19,30 +23,46 @@ pub fn get_env_paths() -> Vec<PathBuf> {
         paths.push(home.join(".env"));
     }
 
+    debug!(path_count = paths.len(), "Generated environment file paths");
     paths
 }
 
+#[instrument]
 pub fn load_config() -> Result<AppConfig> {
+    info!("Loading application configuration");
+    
     let env_paths = get_env_paths();
 
     // Try to load from each .env file in order of priority
     for env_path in &env_paths {
         if env_path.exists() {
+            info!(config_file = %env_path.display(), "Found configuration file");
             return load_config_from_env(env_path);
         }
     }
 
+    warn!("No configuration file found, loading from environment variables");
     // If no .env file exists, try to load from environment variables
     load_config_from_env_vars()
 }
 
+#[instrument(skip(env_path), fields(config_file = %env_path.display()))]
 fn load_config_from_env(env_path: &Path) -> Result<AppConfig> {
-    dotenv::from_path(env_path).ok(); // Load .env file into environment
+    debug!("Loading configuration from file");
+    
+    dotenv::from_path(env_path).map_err(|e| {
+        error!(config_file = %env_path.display(), error = %e, "Failed to load environment file");
+        SemanticReleaseError::config_error(&format!("Failed to load config file {}: {}", env_path.display(), e))
+    })?; // Load .env file into environment
+    
     load_config_from_env_vars()
 }
 
+#[instrument]
 fn load_config_from_env_vars() -> Result<AppConfig> {
-    Ok(AppConfig {
+    debug!("Loading configuration from environment variables");
+    
+    let config = AppConfig {
         monday_api_key: env::var("MONDAY_API_KEY").ok(),
         monday_account_slug: env::var("ACCOUNT_SLUG").ok(),
         monday_board_id: env::var("MONDAY_BOARD_ID").ok(),
@@ -52,21 +72,40 @@ fn load_config_from_env_vars() -> Result<AppConfig> {
         jira_api_token: env::var("JIRA_API_TOKEN").ok(),
         jira_project_key: env::var("JIRA_PROJECT_KEY").ok(),
         gemini_token: env::var("GEMINI_TOKEN").ok(),
-    })
+    };
+
+    debug!(
+        has_monday_key = config.monday_api_key.is_some(),
+        has_jira_config = config.jira_url.is_some() && config.jira_username.is_some(),
+        has_gemini_token = config.gemini_token.is_some(),
+        "Configuration loaded successfully"
+    );
+
+    Ok(config)
 }
 
+#[instrument(skip(config))]
 pub fn save_config(config: &AppConfig) -> Result<()> {
+    info!("Saving application configuration");
+    
     // Save to .env in current directory (same as original project)
     let env_path = PathBuf::from(".env");
     save_config_to_env(&env_path, config)
 }
 
+#[instrument(skip(config), fields(config_file = %env_path.display()))]
 fn save_config_to_env(env_path: &Path, config: &AppConfig) -> Result<()> {
+    debug!("Saving configuration to file");
+    
     let mut env_content = String::new();
 
     // Load existing .env content if it exists
     if env_path.exists() {
-        let existing_content = fs::read_to_string(env_path)?;
+        let existing_content = fs::read_to_string(env_path).map_err(|e| {
+            error!(config_file = %env_path.display(), error = %e, "Failed to read existing config file");
+            SemanticReleaseError::config_error(&format!("Failed to read existing config file {}: {}", env_path.display(), e))
+        })?;
+        
         let mut lines: Vec<String> = existing_content.lines().map(|s| s.to_string()).collect();
 
         // Remove existing keys that we're about to set
@@ -125,11 +164,19 @@ fn save_config_to_env(env_path: &Path, config: &AppConfig) -> Result<()> {
         env_content.push_str(&format!("GEMINI_TOKEN={}\n", gemini_token));
     }
 
-    fs::write(env_path, env_content)?;
+    fs::write(env_path, env_content).map_err(|e| {
+        error!(config_file = %env_path.display(), error = %e, "Failed to write config file");
+        SemanticReleaseError::config_error(&format!("Failed to write config file {}: {}", env_path.display(), e))
+    })?;
+    
+    info!(config_file = %env_path.display(), "Configuration saved successfully");
     Ok(())
 }
 
+#[instrument]
 pub async fn run_config() -> Result<()> {
+    info!("Starting interactive configuration setup");
+    
     println!("📚 Semantic Release TUI Configuration");
     println!("=====================================");
 
@@ -145,30 +192,45 @@ pub async fn run_config() -> Result<()> {
         crate::types::TaskSystem::None => 0, // Default to Monday
     };
 
+    debug!(current_system = ?current_system, default_selection = default_selection, "Determined current task system");
+
     let selection = Select::new()
         .with_prompt("Choose task management system (Monday.com and JIRA are mutually exclusive):")
         .items(&task_system_options)
         .default(default_selection)
-        .interact()?;
+        .interact()
+        .map_err(|e| {
+            error!(error = %e, "User interaction failed during task system selection");
+            SemanticReleaseError::config_error(&format!("Failed to get user input: {}", e))
+        })?;
 
     let mut config = AppConfig::default();
 
     match selection {
         0 => {
             // Monday.com configuration
+            info!("Configuring Monday.com integration");
             println!("\n🔵 Configuring Monday.com integration...");
 
             let monday_api_key = if current_config.monday_api_key.is_some() {
                 let update: bool = dialoguer::Confirm::new()
                     .with_prompt("Monday.com API key is already configured. Update it?")
                     .default(false)
-                    .interact()?;
+                    .interact()
+                    .map_err(|e| {
+                        error!(error = %e, "Failed to get confirmation for Monday.com API key update");
+                        SemanticReleaseError::config_error(&format!("Failed to get user input: {}", e))
+                    })?;
 
                 if update {
                     Some(
                         Password::new()
                             .with_prompt("Enter your Monday.com API key")
-                            .interact()?,
+                            .interact()
+                            .map_err(|e| {
+                                error!(error = %e, "Failed to get Monday.com API key input");
+                                SemanticReleaseError::config_error(&format!("Failed to get password input: {}", e))
+                            })?,
                     )
                 } else {
                     current_config.monday_api_key
@@ -177,20 +239,32 @@ pub async fn run_config() -> Result<()> {
                 Some(
                     Password::new()
                         .with_prompt("Enter your Monday.com API key")
-                        .interact()?,
+                        .interact()
+                        .map_err(|e| {
+                            error!(error = %e, "Failed to get Monday.com API key input");
+                            SemanticReleaseError::config_error(&format!("Failed to get password input: {}", e))
+                        })?,
                 )
             };
 
             let monday_account_slug = Input::new()
                 .with_prompt("Monday.com account slug (subdomain)")
                 .default(current_config.monday_account_slug.unwrap_or_default())
-                .interact_text()?;
+                .interact_text()
+                .map_err(|e| {
+                    error!(error = %e, "Failed to get Monday.com account slug input");
+                    SemanticReleaseError::config_error(&format!("Failed to get text input: {}", e))
+                })?;
 
             let monday_board_id = Input::new()
                 .with_prompt("Monday.com board ID (optional)")
                 .default(current_config.monday_board_id.unwrap_or_default())
                 .allow_empty(true)
-                .interact_text()?;
+                .interact_text()
+                .map_err(|e| {
+                    error!(error = %e, "Failed to get Monday.com board ID input");
+                    SemanticReleaseError::config_error(&format!("Failed to get text input: {}", e))
+                })?;
 
             let monday_url_template = if !monday_account_slug.is_empty() {
                 Some(format!(
@@ -349,7 +423,10 @@ pub async fn run_config() -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip(config))]
 async fn test_monday_connection(config: &AppConfig) -> Result<String> {
+    info!("Testing Monday.com connection");
+    
     if let Some(api_key) = &config.monday_api_key {
         let client = reqwest::Client::new();
         let query = r#"{"query": "query { me { name email } }"}"#;
@@ -361,30 +438,55 @@ async fn test_monday_connection(config: &AppConfig) -> Result<String> {
             .header("API-Version", "2024-10")
             .body(query)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Monday.com connection test request failed");
+                SemanticReleaseError::monday_error(e)
+            })?;
 
-        let result: serde_json::Value = response.json().await?;
+        let result: serde_json::Value = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Monday.com connection test response");
+            SemanticReleaseError::monday_error(e)
+        })?;
 
         if let Some(me) = result["data"]["me"].as_object() {
             let name = me["name"].as_str().unwrap_or("Unknown");
             let email = me["email"].as_str().unwrap_or("Unknown");
-            Ok(format!("{} ({})", name, email))
+            let user_info = format!("{} ({})", name, email);
+            info!(user_info = %user_info, "Monday.com connection test successful");
+            Ok(user_info)
         } else {
-            Err(anyhow::anyhow!("Invalid response from Monday.com API"))
+            error!(response = ?result, "Monday.com API returned invalid response structure");
+            Err(SemanticReleaseError::monday_error(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid response from Monday.com API"
+                )
+            ))
         }
     } else {
-        Err(anyhow::anyhow!("No Monday.com API key configured"))
+        error!("Monday.com connection test attempted but no API key configured");
+        Err(SemanticReleaseError::config_error("No Monday.com API key configured"))
     }
 }
 
+#[instrument(skip(config))]
 async fn test_jira_connection(config: &AppConfig) -> Result<String> {
+    info!("Testing JIRA connection");
+    
     use crate::services::JiraClient;
 
     let client = JiraClient::new(config)?;
-    client.test_connection().await
+    let result = client.test_connection().await?;
+    
+    info!("JIRA connection test completed successfully");
+    Ok(result)
 }
 
+#[instrument]
 pub async fn setup_commit_template() -> Result<()> {
+    info!("Setting up Git commit template");
+    
     println!("🚀 TEIMAS Release Committer (TERCO) - Git Commit Template Setup");
     println!("======================================================");
     println!();
@@ -393,7 +495,8 @@ pub async fn setup_commit_template() -> Result<()> {
     let template_path = if let Some(home) = home_dir() {
         home.join(".gitmessage")
     } else {
-        return Err(anyhow::anyhow!("Could not determine home directory"));
+        error!("Could not determine home directory for template setup");
+        return Err(SemanticReleaseError::config_error("Could not determine home directory"));
     };
 
     // Create the commit template content
@@ -478,7 +581,12 @@ RELATED TASKS:
 "#;
 
     // Write the template file
-    fs::write(&template_path, template_content)?;
+    fs::write(&template_path, template_content).map_err(|e| {
+        error!(template_path = %template_path.display(), error = %e, "Failed to write commit template file");
+        SemanticReleaseError::config_error(&format!("Failed to write template file: {}", e))
+    })?;
+    
+    info!(template_path = %template_path.display(), "Commit template file created successfully");
     println!("📝 Created commit template at: {}", template_path.display());
     println!();
 
@@ -493,7 +601,11 @@ RELATED TASKS:
         .with_prompt("Choose setup type:")
         .items(&setup_options)
         .default(0)
-        .interact()?;
+        .interact()
+        .map_err(|e| {
+            error!(error = %e, "Failed to get setup type selection");
+            SemanticReleaseError::config_error(&format!("Failed to get user input: {}", e))
+        })?;
 
     match selection {
         0 => {
@@ -540,7 +652,10 @@ RELATED TASKS:
     Ok(())
 }
 
+#[instrument(skip(template_path), fields(template_path = %template_path.display()))]
 fn setup_git_config_global(template_path: &Path) -> Result<()> {
+    debug!("Setting up global git config for commit template");
+    
     let output = Command::new("git")
         .args([
             "config",
@@ -548,27 +663,48 @@ fn setup_git_config_global(template_path: &Path) -> Result<()> {
             "commit.template",
             &template_path.to_string_lossy(),
         ])
-        .output()?;
+        .output()
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute git config global command");
+            SemanticReleaseError::git_error(e)
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!(
-            "Failed to set global git config: {}",
-            stderr
+        error!(stderr = %stderr, "Git config global command failed");
+        return Err(SemanticReleaseError::git_error(
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to set global git config: {}", stderr)
+            )
         ));
     }
 
+    info!("Global git commit template configured successfully");
     Ok(())
 }
 
+#[instrument(skip(template_path), fields(template_path = %template_path.display()))]
 fn setup_git_config_local(template_path: &Path) -> Result<()> {
+    debug!("Setting up local git config for commit template");
+    
     // Check if we're in a git repository
     let git_check = Command::new("git")
         .args(["rev-parse", "--git-dir"])
-        .output()?;
+        .output()
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute git rev-parse command");
+            SemanticReleaseError::git_error(e)
+        })?;
 
     if !git_check.status.success() {
-        return Err(anyhow::anyhow!("Not in a git repository. Please run this command from inside a git repository or choose global setup."));
+        warn!("Not in a git repository for local config setup");
+        return Err(SemanticReleaseError::git_error(
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Not in a git repository. Please run this command from inside a git repository or choose global setup."
+            )
+        ));
     }
 
     let output = Command::new("git")
@@ -577,23 +713,34 @@ fn setup_git_config_local(template_path: &Path) -> Result<()> {
             "commit.template",
             &template_path.to_string_lossy(),
         ])
-        .output()?;
+        .output()
+        .map_err(|e| {
+            error!(error = %e, "Failed to execute git config local command");
+            SemanticReleaseError::git_error(e)
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!(
-            "Failed to set local git config: {}",
-            stderr
+        error!(stderr = %stderr, "Git config local command failed");
+        return Err(SemanticReleaseError::git_error(
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to set local git config: {}", stderr)
+            )
         ));
     }
 
+    info!("Local git commit template configured successfully");
     println!("✅ Local git commit template configured");
     println!("💡 This will apply only to the current repository");
 
     Ok(())
 }
 
+#[instrument]
 fn ensure_env_in_gitignore() -> Result<()> {
+    debug!("Ensuring .env files are in .gitignore");
+    
     use std::fs;
     use std::path::Path;
 
@@ -601,8 +748,12 @@ fn ensure_env_in_gitignore() -> Result<()> {
 
     // Read existing .gitignore or create empty string if it doesn't exist
     let mut gitignore_content = if gitignore_path.exists() {
-        fs::read_to_string(gitignore_path)?
+        fs::read_to_string(gitignore_path).map_err(|e| {
+            error!(gitignore_path = %gitignore_path.display(), error = %e, "Failed to read .gitignore file");
+            SemanticReleaseError::config_error(&format!("Failed to read .gitignore: {}", e))
+        })?
     } else {
+        debug!(".gitignore file does not exist, will create new one");
         String::new()
     };
 
@@ -635,29 +786,42 @@ fn ensure_env_in_gitignore() -> Result<()> {
         gitignore_content.push_str(".env.*.local\n");
 
         // Write the updated .gitignore
-        fs::write(gitignore_path, gitignore_content)?;
+        fs::write(gitignore_path, gitignore_content).map_err(|e| {
+            error!(gitignore_path = %gitignore_path.display(), error = %e, "Failed to write .gitignore file");
+            SemanticReleaseError::config_error(&format!("Failed to write .gitignore: {}", e))
+        })?;
 
+        info!("Updated .gitignore to include .env files");
         println!("✅ Updated .gitignore to include .env files");
     } else {
+        debug!(".gitignore already protects .env files");
         println!("✅ .gitignore already protects .env files");
     }
 
     Ok(())
 }
 
+#[instrument]
 fn ensure_plantilla_template_exists() -> Result<()> {
+    debug!("Ensuring plantilla template file exists");
+    
     let plantilla_path = PathBuf::from("scripts/plantilla.md");
 
     // Check if the file already exists
     if plantilla_path.exists() {
+        debug!(plantilla_path = %plantilla_path.display(), "Plantilla template file already exists");
         return Ok(());
     }
 
+    info!("Creating scripts/plantilla.md template file");
     println!("📄 Creating scripts/plantilla.md template file...");
 
     // Create the scripts directory if it doesn't exist
     if let Some(parent) = plantilla_path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).map_err(|e| {
+            error!(parent_dir = %parent.display(), error = %e, "Failed to create scripts directory");
+            SemanticReleaseError::config_error(&format!("Failed to create scripts directory: {}", e))
+        })?;
     }
 
     // Template content
@@ -816,8 +980,12 @@ feat(8851673176|8872179232|8838736619): Improvements | Improvements with new lin
 "#;
 
     // Write the file
-    fs::write(&plantilla_path, template_content)?;
+    fs::write(&plantilla_path, template_content).map_err(|e| {
+        error!(plantilla_path = %plantilla_path.display(), error = %e, "Failed to write plantilla template file");
+        SemanticReleaseError::config_error(&format!("Failed to write plantilla template: {}", e))
+    })?;
 
+    info!(plantilla_path = %plantilla_path.display(), "Plantilla template file created successfully");
     println!("✅ Created scripts/plantilla.md template file");
 
     Ok(())

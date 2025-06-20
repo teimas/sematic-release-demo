@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
