@@ -309,6 +309,14 @@ impl SemanticReleaseError {
         }
     }
 
+    /// Create a generic operation error
+    pub fn operation_error(message: impl Into<String>) -> Self {
+        Self::BackgroundOperationError {
+            operation: message.into(),
+            source: None,
+        }
+    }
+
     /// Create a UI error with source
     pub fn ui_error_with_source(
         component: impl Into<String>,

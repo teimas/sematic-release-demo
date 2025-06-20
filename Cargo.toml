@@ -44,6 +44,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
 tracing-tree = "0.3"
 tracing-appender = "0.2"
+tokio-util = "0.7"
+async-broadcast = "0.7"
+pin-project = "1.0"
 
 # Keep anyhow temporarily for gradual migration
 anyhow = "1.0"

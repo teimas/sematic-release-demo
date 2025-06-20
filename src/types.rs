@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use crate::app::background_operations::{BackgroundEvent, OperationStatus, BackgroundTaskManager};
+use async_broadcast::Receiver;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MondayTask {
@@ -251,11 +253,50 @@ pub enum AppState {
     ConfirmingStageAll,
 }
 
+// Modern async-friendly background operation state
+#[derive(Debug, Clone)]
+pub struct AsyncOperationState {
+    pub operation_id: String,
+    pub task_manager: Arc<BackgroundTaskManager>,
+}
+
+impl AsyncOperationState {
+    pub fn new(operation_id: String, task_manager: Arc<BackgroundTaskManager>) -> Self {
+        Self {
+            operation_id,
+            task_manager,
+        }
+    }
+
+    pub async fn get_status(&self) -> Option<OperationStatus> {
+        self.task_manager.get_status(&self.operation_id).await
+    }
+
+    pub fn subscribe_to_events(&self) -> Receiver<BackgroundEvent> {
+        self.task_manager.subscribe()
+    }
+
+    pub async fn cancel(&self) -> crate::error::Result<()> {
+        self.task_manager.cancel_operation(&self.operation_id).await
+    }
+}
+
+// Legacy structs for backwards compatibility during migration
 #[derive(Debug, Clone)]
 pub struct ReleaseNotesAnalysisState {
     pub status: Arc<Mutex<String>>,
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
+}
+
+impl Default for ReleaseNotesAnalysisState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new("Ready".to_string())),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(false)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -266,12 +307,140 @@ pub struct ComprehensiveAnalysisState {
     pub result: Arc<Mutex<serde_json::Value>>,
 }
 
+impl Default for ComprehensiveAnalysisState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new("Ready".to_string())),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(false)),
+            result: Arc::new(Mutex::new(serde_json::Value::Null)),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SemanticReleaseState {
     pub status: Arc<Mutex<String>>,
     pub finished: Arc<Mutex<bool>>,
     pub success: Arc<Mutex<bool>>,
     pub result: Arc<Mutex<String>>,
+}
+
+impl Default for SemanticReleaseState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new("Ready".to_string())),
+            finished: Arc::new(Mutex::new(false)),
+            success: Arc::new(Mutex::new(false)),
+            result: Arc::new(Mutex::new(String::new())),
+        }
+    }
+}
+
+// Modern async equivalents - these will replace the legacy structs
+#[derive(Debug, Clone)]
+pub struct AsyncReleaseNotesState {
+    pub operation_state: AsyncOperationState,
+}
+
+impl AsyncReleaseNotesState {
+    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
+        let operation_id = format!("release_notes_{}", uuid::Uuid::new_v4());
+        Self {
+            operation_state: AsyncOperationState::new(operation_id, task_manager),
+        }
+    }
+
+    pub async fn is_running(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Running { .. })
+        )
+    }
+
+    pub async fn is_finished(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
+        )
+    }
+
+    pub async fn is_successful(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. })
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AsyncComprehensiveAnalysisState {
+    pub operation_state: AsyncOperationState,
+}
+
+impl AsyncComprehensiveAnalysisState {
+    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
+        let operation_id = format!("comprehensive_analysis_{}", uuid::Uuid::new_v4());
+        Self {
+            operation_state: AsyncOperationState::new(operation_id, task_manager),
+        }
+    }
+
+    pub async fn is_running(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Running { .. })
+        )
+    }
+
+    pub async fn is_finished(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
+        )
+    }
+
+    pub async fn is_successful(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. })
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AsyncSemanticReleaseState {
+    pub operation_state: AsyncOperationState,
+}
+
+impl AsyncSemanticReleaseState {
+    pub fn new(task_manager: Arc<BackgroundTaskManager>) -> Self {
+        let operation_id = format!("semantic_release_{}", uuid::Uuid::new_v4());
+        Self {
+            operation_state: AsyncOperationState::new(operation_id, task_manager),
+        }
+    }
+
+    pub async fn is_running(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Running { .. })
+        )
+    }
+
+    pub async fn is_finished(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. } | OperationStatus::Failed { .. } | OperationStatus::Cancelled)
+        )
+    }
+
+    pub async fn is_successful(&self) -> bool {
+        matches!(
+            self.operation_state.get_status().await,
+            Some(OperationStatus::Completed { .. })
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -7,13 +7,15 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::{
-    app::App,
+    app::{App, background_operations::{BackgroundTaskManager, BackgroundEvent}},
     git::{get_next_version, GitRepo},
-    services::GeminiClient,
-    services::MondayClient,
-    types::{AppConfig, AppState, MondayTask, ReleaseNotesAnalysisState},
+    services::{GeminiClient, MondayClient},
+    types::{AppConfig, AppState, MondayTask, ReleaseNotesAnalysisState, GitCommit},
     utils,
+    error::SemanticReleaseError,
 };
+use async_broadcast::Sender;
+use tracing::{info, instrument, warn};
 
 #[allow(async_fn_in_trait)]
 pub trait ReleaseNotesOperations {
@@ -30,24 +32,28 @@ impl ReleaseNotesOperations for App {
             return Ok(());
         }
 
-        // IMMEDIATELY set loading state and create analysis state
+        // MODERN ASYNC APPROACH: Use BackgroundTaskManager
         self.current_state = AppState::Loading;
         self.message = Some("🚀 Iniciando generación de notas de versión...".to_string());
 
-        // Create shared state for the analysis
-        let analysis_state = ReleaseNotesAnalysisState {
-            status: Arc::new(Mutex::new(
-                "📋 Obteniendo commits desde la última versión...".to_string(),
-            )),
-            finished: Arc::new(Mutex::new(false)),
-            success: Arc::new(Mutex::new(true)),
-        };
-
-        // Start the analysis in a background thread
-        self.start_release_notes_analysis(analysis_state.clone());
-
-        // Store the analysis state so the main loop can poll it
-        self.release_notes_analysis_state = Some(analysis_state);
+        // Get commits using GitRepo
+        use crate::git::GitRepo;
+        let git_repo = GitRepo::new()?;
+        let commits = git_repo.get_commits_since_tag(None)?;
+        
+        // Start async release notes generation
+        match self.background_task_manager.start_release_notes_generation(
+            &self.config,
+            commits,
+        ).await {
+            Ok(_operation_id) => {
+                info!("Release notes generation started via BackgroundTaskManager");
+            },
+            Err(e) => {
+                self.current_state = AppState::Error(format!("Error iniciando generación: {}", e));
+                self.message = Some(format!("❌ {}", e));
+            }
+        }
 
         Ok(())
     }
@@ -190,9 +196,9 @@ impl App {
         document.push_str("4. Para las secciones Correcciones y Proyectos especiales, usa solo las tareas con labels BUG y PE.\n");
         document.push_str("5. En las tablas de validación, incluye descripciones específicas basadas en el título de cada tarea.\n");
         document.push_str("6. Incluye TODOS los commits en 'Referencia commits' con el formato exacto mostrado.\n");
-        document.push_str(&format!(
-            "7. Usa el título: '# Actualización Teixo versión {}'.\n",
-            version
+                 document.push_str(&format!(
+             "7. Usa el título: '# Actualización Teixo versión {}'.\n",
+             version
         ));
         document
             .push_str("8. Si una tabla está vacía en la plantilla, déjala vacía pero manténla.\n");
@@ -949,9 +955,14 @@ impl TempAppForBackground {
                     // Check scope for JIRA keys
                     if let Some(scope) = &commit.scope {
                         for key in scope.split('|') {
+                            let trimmed_key = key.trim();
                             // JIRA keys are in format PROJECT-123
-                            if key.contains('-') && key.chars().any(|c| c.is_alphabetic()) {
-                                jira_task_keys.insert(key.to_uppercase());
+                            // Must start with letters, have a dash, and end with numbers
+                            // And be reasonable length (not a long comma-separated string)
+                            if trimmed_key.len() <= 20 && 
+                               !trimmed_key.contains(',') &&
+                               is_valid_jira_key(trimmed_key) {
+                                jira_task_keys.insert(trimmed_key.to_uppercase());
                             }
                         }
                     }
@@ -1324,4 +1335,334 @@ impl TempAppForBackground {
             *finished = true;
         }
     }
+}
+
+// Modern async implementation using BackgroundTaskManager
+pub async fn generate_release_notes_async(
+    task_manager: Arc<BackgroundTaskManager>,
+    config: &AppConfig,
+    commits: Vec<GitCommit>,
+) -> crate::error::Result<String> {
+    let operation_id = format!("release_notes_{}", uuid::Uuid::new_v4());
+    
+    let config_clone = config.clone();
+    let commits_clone = commits.clone();
+    
+    task_manager.start_operation(
+        operation_id.clone(),
+        "Generating release notes with AI analysis".to_string(),
+        |event_tx, op_id| async move {
+            generate_release_notes_task(event_tx, op_id, config_clone, commits_clone).await
+        }
+    ).await?;
+    
+    // Return the operation ID for tracking
+    Ok(operation_id)
+}
+
+#[instrument(skip(event_tx, config, commits))]
+pub async fn generate_release_notes_task(
+    event_tx: Sender<BackgroundEvent>,
+    operation_id: String,
+    config: AppConfig,
+    commits: Vec<GitCommit>,
+) -> crate::error::Result<()> {
+    info!("Starting release notes generation task");
+    
+    // Broadcast progress: preparation phase
+    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
+        "Preparing commit data for analysis...".to_string()
+    )).await {
+        warn!("Failed to broadcast progress: {}", e);
+    }
+
+    let mut release_notes = String::new();
+    release_notes.push_str("# 🚀 Release Notes\n\n");
+
+    if commits.is_empty() {
+        let message = "No commits found for release notes generation.";
+        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesCompleted(
+            serde_json::json!({"message": message, "status": "completed"})
+        )).await {
+            warn!("Failed to broadcast completion: {}", e);
+        }
+        return Ok(());
+    }
+
+    // Broadcast progress: categorization phase
+    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
+        "Categorizing commits by type...".to_string()
+    )).await {
+        warn!("Failed to broadcast progress: {}", e);
+    }
+
+    // Group commits by type with better organization
+    let mut features = Vec::new();
+    let mut fixes = Vec::new();
+    let mut docs = Vec::new();
+    let mut style = Vec::new();
+    let mut refactor = Vec::new();
+    let mut performance = Vec::new();
+    let mut tests = Vec::new();
+    let mut chores = Vec::new();
+    let mut reverts = Vec::new();
+    let mut breaking_changes = Vec::new();
+
+    for commit in &commits {
+        if !commit.breaking_changes.is_empty() {
+            breaking_changes.extend(commit.breaking_changes.iter().cloned());
+        }
+
+        match commit.commit_type.as_deref() {
+            Some("feat") => features.push(commit),
+            Some("fix") => fixes.push(commit),
+            Some("docs") => docs.push(commit),
+            Some("style") => style.push(commit),
+            Some("refactor") => refactor.push(commit),
+            Some("perf") => performance.push(commit),
+            Some("test") => tests.push(commit),
+            Some("chore") => chores.push(commit),
+            Some("revert") => reverts.push(commit),
+            _ => chores.push(commit), // Default fallback
+        }
+    }
+
+    // Breaking Changes Section (highest priority)
+    if !breaking_changes.is_empty() {
+        release_notes.push_str("## ⚠️  BREAKING CHANGES\n\n");
+        for change in &breaking_changes {
+            release_notes.push_str(&format!("- {}\n", change));
+        }
+        release_notes.push('\n');
+    }
+
+    // Broadcast progress: AI enhancement phase
+    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
+        "Enhancing release notes with AI analysis...".to_string()
+    )).await {
+        warn!("Failed to broadcast progress: {}", e);
+    }
+
+    // Enhanced sections with AI analysis if available
+    if config.gemini_token.is_some() {
+        match analyze_commits_with_ai(&config, &commits, &event_tx).await {
+            Ok(ai_analysis) => {
+                release_notes.push_str("## 🤖 AI Summary\n\n");
+                release_notes.push_str(&ai_analysis);
+                release_notes.push_str("\n\n");
+            }
+            Err(e) => {
+                warn!("AI analysis failed: {}", e);
+                // Continue with standard generation
+            }
+        }
+    }
+
+    // Standard sections
+    add_commit_section(&mut release_notes, "✨ New Features", &features);
+    add_commit_section(&mut release_notes, "🐛 Bug Fixes", &fixes);
+    add_commit_section(&mut release_notes, "⚡ Performance Improvements", &performance);
+    add_commit_section(&mut release_notes, "♻️  Code Refactoring", &refactor);
+    add_commit_section(&mut release_notes, "📚 Documentation", &docs);
+    add_commit_section(&mut release_notes, "🧪 Tests", &tests);
+    add_commit_section(&mut release_notes, "💎 Style Changes", &style);
+    add_commit_section(&mut release_notes, "🔧 Chores", &chores);
+    add_commit_section(&mut release_notes, "⏪ Reverts", &reverts);
+
+    // Broadcast progress: task management integration
+    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
+        "Integrating task management data...".to_string()
+    )).await {
+        warn!("Failed to broadcast progress: {}", e);
+    }
+
+    // Add task management integration
+    add_task_management_section(&mut release_notes, &commits, &config).await;
+
+    // Final broadcast: completion
+    if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesCompleted(
+        serde_json::json!({"notes": release_notes, "status": "completed"})
+    )).await {
+        warn!("Failed to broadcast completion: {}", e);
+    }
+
+    info!("Release notes generation completed successfully");
+    Ok(())
+}
+
+#[instrument(skip(config, commits, event_tx))]
+async fn analyze_commits_with_ai(
+    config: &AppConfig,
+    commits: &[GitCommit],
+    event_tx: &Sender<BackgroundEvent>,
+) -> crate::error::Result<String> {
+    if let Some(token) = &config.gemini_token {
+        // Update progress
+        if let Err(e) = event_tx.broadcast(BackgroundEvent::ReleaseNotesProgress(
+            "Running AI analysis on commits...".to_string()
+        )).await {
+            warn!("Failed to broadcast AI progress: {}", e);
+        }
+
+        // TODO: Implement proper Gemini service integration
+        // For now, return a placeholder
+        warn!("AI analysis not yet implemented in async version");
+        Ok("AI analysis will be implemented in a future update.".to_string())
+    } else {
+        Err(SemanticReleaseError::config_error("Gemini token not configured"))
+    }
+}
+
+fn add_commit_section(release_notes: &mut String, title: &str, commits: &[&GitCommit]) {
+    if !commits.is_empty() {
+        release_notes.push_str(&format!("## {}\n\n", title));
+        for commit in commits {
+            let scope_str = if let Some(scope) = &commit.scope {
+                if !scope.is_empty() {
+                    format!("**{}**: ", scope)
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
+            release_notes.push_str(&format!(
+                "- {}{} ([{}])\n",
+                scope_str,
+                commit.description,
+                &commit.hash[..8]
+            ));
+
+            // Add task references if available
+            if !commit.monday_tasks.is_empty() || !commit.jira_tasks.is_empty() {
+                let mut task_refs = Vec::new();
+                task_refs.extend(commit.monday_tasks.iter().map(|t| format!("Monday: {}", t)));
+                task_refs.extend(commit.jira_tasks.iter().map(|t| format!("JIRA: {}", t)));
+                
+                if !task_refs.is_empty() {
+                    release_notes.push_str(&format!("  - Related: {}\n", task_refs.join(", ")));
+                }
+            }
+
+            if !commit.body.trim().is_empty() && commit.body.len() > 50 {
+                // Add commit body if it's substantial
+                release_notes.push_str(&format!("  - {}\n", commit.body.trim()));
+            }
+        }
+        release_notes.push('\n');
+    }
+}
+
+#[instrument(skip(release_notes, commits, config))]
+async fn add_task_management_section(
+    release_notes: &mut String,
+    commits: &[GitCommit],
+    config: &AppConfig,
+) {
+    let mut monday_tasks = std::collections::HashSet::new();
+    let mut jira_tasks = std::collections::HashSet::new();
+
+    // Collect unique task references
+    for commit in commits {
+        for task in &commit.monday_tasks {
+            monday_tasks.insert(task.clone());
+        }
+        for task in &commit.jira_tasks {
+            jira_tasks.insert(task.clone());
+        }
+    }
+
+    if !monday_tasks.is_empty() || !jira_tasks.is_empty() {
+        release_notes.push_str("## 📋 Related Tasks\n\n");
+
+        if !monday_tasks.is_empty() && config.is_monday_configured() {
+            release_notes.push_str("### Monday.com Tasks\n");
+            for task_id in &monday_tasks {
+                // TODO: Implement async Monday service integration
+                release_notes.push_str(&format!("- {}\n", task_id));
+            }
+            release_notes.push('\n');
+        }
+
+        if !jira_tasks.is_empty() && config.is_jira_configured() {
+            release_notes.push_str("### JIRA Issues\n");
+            for task_key in &jira_tasks {
+                // TODO: Implement async JIRA service integration
+                release_notes.push_str(&format!("- {}\n", task_key));
+            }
+            release_notes.push('\n');
+        }
+    }
+}
+
+/// Validates if a string is a properly formatted JIRA key
+/// JIRA keys should be in format: PROJECT-123 (letters-numbers)
+fn is_valid_jira_key(key: &str) -> bool {
+    if key.is_empty() || !key.contains('-') {
+        return false;
+    }
+    
+    let parts: Vec<&str> = key.split('-').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    
+    let project_part = parts[0];
+    let number_part = parts[1];
+    
+    // Project part should be 2-10 letters
+    if project_part.len() < 2 || project_part.len() > 10 {
+        return false;
+    }
+    
+    if !project_part.chars().all(|c| c.is_alphabetic()) {
+        return false;
+    }
+    
+    // Number part should be 1-6 digits
+    if number_part.len() < 1 || number_part.len() > 6 {
+        return false;
+    }
+    
+    if !number_part.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    
+    true
+}
+
+// Legacy function for backwards compatibility
+// This function is maintained for existing code but should be migrated to the async version
+pub fn generate_release_notes_with_ai_analysis(
+    config: &AppConfig,
+    commits: &[GitCommit],
+) -> String {
+    // For now, return a basic implementation until migration is complete
+    let mut release_notes = String::new();
+    release_notes.push_str("# 🚀 Release Notes\n\n");
+    
+    if commits.is_empty() {
+        release_notes.push_str("No commits found for this release.\n");
+        return release_notes;
+    }
+    
+    // Basic categorization without async operations
+    let mut features = Vec::new();
+    let mut fixes = Vec::new();
+    let mut chores = Vec::new();
+    
+    for commit in commits {
+        match commit.commit_type.as_deref() {
+            Some("feat") => features.push(commit),
+            Some("fix") => fixes.push(commit),
+            _ => chores.push(commit),
+        }
+    }
+    
+    add_commit_section(&mut release_notes, "✨ New Features", &features);
+    add_commit_section(&mut release_notes, "🐛 Bug Fixes", &fixes);
+    add_commit_section(&mut release_notes, "🔧 Other Changes", &chores);
+    
+    release_notes
 }

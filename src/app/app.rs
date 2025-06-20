@@ -12,6 +12,7 @@ use std::io;
 use tracing::{info, instrument};
 
 use crate::{
+    app::background_operations::BackgroundTaskManager,
     config::load_config,
     git::GitRepo,
     types::{
@@ -34,6 +35,11 @@ pub struct App {
     pub message: Option<String>,
     pub should_quit: bool,
     pub preview_commit_message: String,
+    
+    // Modern async background operations
+    pub background_task_manager: BackgroundTaskManager,
+    
+    // Legacy state - to be deprecated after migration
     pub release_notes_analysis_state: Option<ReleaseNotesAnalysisState>,
     pub comprehensive_analysis_state: Option<ComprehensiveAnalysisState>,
     pub semantic_release_state: Option<SemanticReleaseState>,
@@ -58,6 +64,11 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
+            
+            // Initialize modern async background operations
+            background_task_manager: BackgroundTaskManager::new(),
+            
+            // Legacy state - to be deprecated
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
             semantic_release_state: None,
@@ -78,6 +89,11 @@ impl App {
             message: None,
             should_quit: false,
             preview_commit_message: String::new(),
+            
+            // Initialize modern async background operations
+            background_task_manager: BackgroundTaskManager::new(),
+            
+            // Legacy state - to be deprecated
             release_notes_analysis_state: None,
             comprehensive_analysis_state: None,
             semantic_release_state: None,
@@ -107,8 +123,77 @@ impl App {
     }
 
     async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
+        // Subscribe to background events
+        let mut event_rx = self.background_task_manager.subscribe();
+        
         loop {
-            // Check for completed Release Notes analysis
+            // Handle background task events (modern async approach)
+            while let Ok(event) = event_rx.try_recv() {
+                use crate::app::background_operations::BackgroundEvent;
+                match event {
+                    BackgroundEvent::ReleaseNotesProgress(status) => {
+                        self.message = Some(format!("🔄 {}", status));
+                    }
+                    BackgroundEvent::ReleaseNotesCompleted(result) => {
+                        // Extract and display results
+                        if let Some(notes) = result.get("notes").and_then(|v| v.as_str()) {
+                            self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
+                            self.current_state = AppState::Normal;
+                            self.current_screen = AppScreen::Main;
+                            tracing::info!("Release notes completed: {} characters", notes.len());
+                        } else {
+                            // Handle case where result is a direct string
+                            self.message = Some("✅ Notas de versión generadas exitosamente".to_string());
+                            self.current_state = AppState::Normal;
+                            self.current_screen = AppScreen::Main;
+                            tracing::info!("Release notes completed: {:?}", result);
+                        }
+                    }
+                    BackgroundEvent::ReleaseNotesError(error) => {
+                        self.current_state = AppState::Error(format!("Error en generación: {}", error));
+                        self.message = Some(format!("❌ {}", error));
+                    }
+                    BackgroundEvent::AnalysisProgress(status) => {
+                        self.message = Some(format!("🤖 {}", status));
+                    }
+                    BackgroundEvent::AnalysisCompleted(result) => {
+                        // Parse and populate commit form from AI analysis
+                        self.populate_commit_form_from_analysis(&result);
+                        self.message = Some("✅ Análisis completado".to_string());
+                        self.current_state = AppState::Normal;
+                    }
+                    BackgroundEvent::AnalysisError(error) => {
+                        self.current_state = AppState::Error(format!("Error en análisis: {}", error));
+                        self.message = Some(format!("❌ {}", error));
+                    }
+                    BackgroundEvent::SemanticReleaseProgress(status) => {
+                        self.message = Some(format!("🚀 {}", status));
+                    }
+                    BackgroundEvent::SemanticReleaseCompleted(result) => {
+                        self.message = Some("✅ Semantic release completado".to_string());
+                        self.current_state = AppState::Normal;
+                        self.current_screen = AppScreen::Main;
+                        tracing::info!("Semantic release completed: {:?}", result);
+                    }
+                    BackgroundEvent::SemanticReleaseError(error) => {
+                        self.current_state = AppState::Error(format!("Error en semantic release: {}", error));
+                        self.message = Some(format!("❌ {}", error));
+                    }
+                    BackgroundEvent::OperationStarted { operation_id, .. } => {
+                        tracing::info!("Operation started: {}", operation_id);
+                    }
+                    BackgroundEvent::OperationCompleted { operation_id } => {
+                        tracing::info!("Operation completed: {}", operation_id);
+                    }
+                    BackgroundEvent::OperationCancelled { operation_id } => {
+                        self.message = Some("❌ Operación cancelada".to_string());
+                        self.current_state = AppState::Normal;
+                        tracing::info!("Operation cancelled: {}", operation_id);
+                    }
+                }
+            }
+
+            // Legacy polling (to be removed after full migration)
             if let Some(analysis_state) = &self.release_notes_analysis_state {
                 let is_finished = analysis_state.finished.lock().map(|f| *f).unwrap_or(false);
 
@@ -346,6 +431,87 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Populates commit form from AI analysis results (modern async approach)
+    fn populate_commit_form_from_analysis(&mut self, result: &serde_json::Value) {
+        // Parse and populate all fields from the JSON response
+        if let Some(title) = result.get("title").and_then(|v| v.as_str()) {
+            if !title.is_empty() {
+                self.commit_form.title = title.to_string();
+                // Also update the textarea
+                self.ui_state.title_textarea.select_all();
+                self.ui_state.title_textarea.delete_str(self.ui_state.title_textarea.lines().join("\n").len());
+                self.ui_state.title_textarea.insert_str(title);
+            }
+        }
+
+        if let Some(commit_type) = result.get("commitType").and_then(|v| v.as_str()) {
+            if !commit_type.is_empty() {
+                use crate::types::CommitType;
+                let commit_type_enum = match commit_type {
+                    "feat" => Some(CommitType::Feat),
+                    "fix" => Some(CommitType::Fix),
+                    "docs" => Some(CommitType::Docs),
+                    "style" => Some(CommitType::Style),
+                    "refactor" => Some(CommitType::Refactor),
+                    "perf" => Some(CommitType::Perf),
+                    "test" => Some(CommitType::Test),
+                    "chore" => Some(CommitType::Chore),
+                    "revert" => Some(CommitType::Revert),
+                    _ => None,
+                };
+
+                if let Some(ct) = commit_type_enum {
+                    self.commit_form.commit_type = Some(ct.clone());
+                    // Update UI state to reflect the selected commit type
+                    let commit_types = CommitType::all();
+                    if let Some(index) = commit_types.iter().position(|t| *t == ct) {
+                        self.ui_state.selected_commit_type = index;
+                    }
+                }
+            }
+        }
+
+        if let Some(description) = result.get("description").and_then(|v| v.as_str()) {
+            if !description.is_empty() {
+                self.commit_form.description = description.to_string();
+                // Also update the textarea
+                self.ui_state.description_textarea.select_all();
+                self.ui_state.description_textarea.delete_str(self.ui_state.description_textarea.lines().join("\n").len());
+                self.ui_state.description_textarea.insert_str(description);
+            }
+        }
+
+        if let Some(scope) = result.get("scope").and_then(|v| v.as_str()) {
+            if !scope.is_empty() && scope != "general" {
+                self.commit_form.scope = scope.to_string();
+                // Also update the textarea
+                self.ui_state.scope_textarea.select_all();
+                self.ui_state.scope_textarea.delete_str(self.ui_state.scope_textarea.lines().join("\n").len());
+                self.ui_state.scope_textarea.insert_str(scope);
+            }
+        }
+
+        if let Some(security) = result.get("securityAnalysis").and_then(|v| v.as_str()) {
+            if !security.is_empty() {
+                self.commit_form.security = security.to_string();
+                // Also update the textarea
+                self.ui_state.security_textarea.select_all();
+                self.ui_state.security_textarea.delete_str(self.ui_state.security_textarea.lines().join("\n").len());
+                self.ui_state.security_textarea.insert_str(security);
+            }
+        }
+
+        if let Some(breaking) = result.get("breakingChanges").and_then(|v| v.as_str()) {
+            if !breaking.is_empty() {
+                self.commit_form.breaking_change = breaking.to_string();
+                // Also update the textarea  
+                self.ui_state.breaking_change_textarea.select_all();
+                self.ui_state.breaking_change_textarea.delete_str(self.ui_state.breaking_change_textarea.lines().join("\n").len());
+                self.ui_state.breaking_change_textarea.insert_str(breaking);
+            }
+        }
     }
 
     async fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<()> {
