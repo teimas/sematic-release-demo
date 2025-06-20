@@ -512,9 +512,16 @@ impl ComprehensiveAnalysisOperations for App {
         self.current_state = AppState::Loading;
         self.message = Some("🤖 Iniciando análisis completo con IA...".to_string());
 
-        // Get commits for analysis
+        // Get commits since last tag for analysis
         let git_repo = GitRepo::new()?;
-        let commits = git_repo.get_commits_since_tag(None)?;
+        let last_tag = git_repo.get_last_tag()?;
+        let commits = git_repo.get_commits_since_tag(last_tag.as_deref())?;
+        
+        if let Some(tag) = &last_tag {
+            info!("Running comprehensive analysis for commits since tag: {}", tag);
+        } else {
+            info!("No previous tag found, analyzing all commits");
+        }
 
         // Start comprehensive analysis using background task manager
         match self.background_task_manager.start_comprehensive_analysis(&self.config, commits).await {

@@ -29,9 +29,16 @@ impl ReleaseNotesOperations for App {
         self.current_state = AppState::Loading;
         self.message = Some("🚀 Iniciando generación de notas de versión...".to_string());
 
-        // Get commits using GitRepo
+        // Get commits since last tag only (for release notes)
         let git_repo = GitRepo::new()?;
-        let commits = git_repo.get_commits_since_tag(None)?;
+        let last_tag = git_repo.get_last_tag()?;
+        let commits = git_repo.get_commits_since_tag(last_tag.as_deref())?;
+        
+        if let Some(tag) = &last_tag {
+            info!("Generating release notes for commits since tag: {}", tag);
+        } else {
+            info!("No previous tag found, generating release notes for all commits");
+        }
         
         // Start async release notes generation
         match self.background_task_manager.start_release_notes_generation(
