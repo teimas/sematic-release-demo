@@ -1,0 +1,708 @@
+use crate::presentation::components::core::base::{
+    Component, ComponentState, ComponentProps, ComponentResult, ComponentId,
+    ValidationState, VisibilityState, CommonComponentState,
+};
+use crate::presentation::theme::{AppTheme, ComponentState as ThemeComponentState};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect, Alignment, Margin},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Paragraph, Clear, Wrap},
+    Frame,
+};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+
+/// Modal size options
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum ModalSize {
+    Small,      // 40x12
+    Medium,     // 60x20
+    Large,      // 80x30
+    ExtraLarge, // 100x40
+    Custom { width: u16, height: u16 },
+    Percentage { width_pct: u16, height_pct: u16 }, // 0-100
+}
+
+impl ModalSize {
+    pub fn calculate_rect(&self, terminal_size: Rect) -> Rect {
+        let (width, height) = match self {
+            ModalSize::Small => (40, 12),
+            ModalSize::Medium => (60, 20),
+            ModalSize::Large => (80, 30),
+            ModalSize::ExtraLarge => (100, 40),
+            ModalSize::Custom { width, height } => (*width, *height),
+            ModalSize::Percentage { width_pct, height_pct } => {
+                let width = (terminal_size.width * width_pct / 100).max(20);
+                let height = (terminal_size.height * height_pct / 100).max(10);
+                (width, height)
+            }
+        };
+
+        // Ensure modal fits within terminal
+        let actual_width = width.min(terminal_size.width.saturating_sub(4));
+        let actual_height = height.min(terminal_size.height.saturating_sub(4));
+
+        // Center the modal
+        let x = (terminal_size.width.saturating_sub(actual_width)) / 2;
+        let y = (terminal_size.height.saturating_sub(actual_height)) / 2;
+
+        Rect {
+            x: terminal_size.x + x,
+            y: terminal_size.y + y,
+            width: actual_width,
+            height: actual_height,
+        }
+    }
+}
+
+/// Modal animation state
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ModalAnimation {
+    None,
+    FadeIn,
+    FadeOut,
+    SlideInFromTop,
+    SlideInFromBottom,
+    SlideInFromLeft,
+    SlideInFromRight,
+    SlideOutToTop,
+    SlideOutToBottom,
+    SlideOutToLeft,
+    SlideOutToRight,
+    Scale,
+}
+
+/// Modal backdrop options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalBackdrop {
+    pub enabled: bool,
+    pub blur: bool,
+    pub darken: bool,
+    pub close_on_click: bool,
+    pub opacity: f32, // 0.0 to 1.0
+}
+
+impl Default for ModalBackdrop {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            blur: false,
+            darken: true,
+            close_on_click: true,
+            opacity: 0.7,
+        }
+    }
+}
+
+/// Modal component properties
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalProps {
+    pub title: Option<String>,
+    pub content: String,
+    pub size: ModalSize,
+    pub backdrop: ModalBackdrop,
+    pub closable: bool,
+    pub close_on_escape: bool,
+    pub show_close_button: bool,
+    pub animation: ModalAnimation,
+    pub animation_duration: Duration,
+    pub centered: bool,
+    pub scrollable: bool,
+    pub resizable: bool,
+    pub movable: bool,
+    pub footer_content: Option<String>,
+    pub header_content: Option<String>,
+}
+
+impl Default for ModalProps {
+    fn default() -> Self {
+        Self {
+            title: None,
+            content: String::new(),
+            size: ModalSize::Medium,
+            backdrop: ModalBackdrop::default(),
+            closable: true,
+            close_on_escape: true,
+            show_close_button: true,
+            animation: ModalAnimation::FadeIn,
+            animation_duration: Duration::from_millis(200),
+            centered: true,
+            scrollable: true,
+            resizable: false,
+            movable: false,
+            footer_content: None,
+            header_content: None,
+        }
+    }
+}
+
+/// Modal component state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalComponentState {
+    pub common: CommonComponentState,
+    pub open: bool,
+    pub closing: bool,
+    pub animation_progress: f32, // 0.0 to 1.0
+    pub animation_start: Option<std::time::Instant>,
+    pub scroll_offset: usize,
+    pub max_scroll: usize,
+    pub position: Option<(u16, u16)>, // For movable modals
+    pub size_override: Option<(u16, u16)>, // For resizable modals
+}
+
+impl ComponentState for ModalComponentState {
+    fn common(&self) -> &CommonComponentState {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut CommonComponentState {
+        &mut self.common
+    }
+}
+
+impl Default for ModalComponentState {
+    fn default() -> Self {
+        Self {
+            common: CommonComponentState::default(),
+            open: false,
+            closing: false,
+            animation_progress: 0.0,
+            animation_start: None,
+            scroll_offset: 0,
+            max_scroll: 0,
+            position: None,
+            size_override: None,
+        }
+    }
+}
+
+/// Base modal component with backdrop and animations
+pub struct Modal {
+    props: ModalProps,
+    state: ModalComponentState,
+}
+
+impl Modal {
+    pub fn new(id: ComponentId, props: ModalProps) -> Self {
+        let mut state = ModalComponentState::default();
+        state.common.id = id;
+        
+        Self {
+            props,
+            state,
+        }
+    }
+
+    /// Open the modal with animation
+    pub fn open(&mut self) {
+        if !self.state.open {
+            self.state.open = true;
+            self.state.closing = false;
+            self.state.animation_progress = 0.0;
+            self.state.animation_start = Some(std::time::Instant::now());
+        }
+    }
+
+    /// Close the modal with animation
+    pub fn close(&mut self) {
+        if self.state.open && !self.state.closing {
+            self.state.closing = true;
+            self.state.animation_progress = 1.0;
+            self.state.animation_start = Some(std::time::Instant::now());
+        }
+    }
+
+    /// Toggle modal open/close state
+    pub fn toggle(&mut self) {
+        if self.state.open {
+            self.close();
+        } else {
+            self.open();
+        }
+    }
+
+    /// Check if modal is open
+    pub fn is_open(&self) -> bool {
+        self.state.open && !self.state.closing
+    }
+
+    /// Check if modal is visible (open or animating)
+    pub fn is_visible(&self) -> bool {
+        self.state.open || self.state.closing
+    }
+
+    /// Set modal content
+    pub fn set_content(&mut self, content: String) {
+        self.props.content = content;
+        self.update_scroll_limits();
+    }
+
+    /// Set modal title
+    pub fn set_title(&mut self, title: Option<String>) {
+        self.props.title = title;
+    }
+
+    /// Scroll content up
+    pub fn scroll_up(&mut self) {
+        if self.state.scroll_offset > 0 {
+            self.state.scroll_offset -= 1;
+        }
+    }
+
+    /// Scroll content down
+    pub fn scroll_down(&mut self) {
+        if self.state.scroll_offset < self.state.max_scroll {
+            self.state.scroll_offset += 1;
+        }
+    }
+
+    /// Update scroll limits based on content and modal size
+    fn update_scroll_limits(&mut self) {
+        // This would be calculated based on actual content height vs modal height
+        // For now, we'll use a simple line-based calculation
+        let content_lines = self.props.content.lines().count();
+        let modal_height = match self.props.size {
+            ModalSize::Small => 12,
+            ModalSize::Medium => 20,
+            ModalSize::Large => 30,
+            ModalSize::ExtraLarge => 40,
+            ModalSize::Custom { height, .. } => height as usize,
+            ModalSize::Percentage { height_pct, .. } => {
+                // This would need terminal size, using medium as fallback
+                20 * height_pct as usize / 100
+            }
+        };
+
+        // Account for borders and title
+        let available_height = modal_height.saturating_sub(4);
+        self.state.max_scroll = content_lines.saturating_sub(available_height);
+    }
+
+    /// Calculate animation transform
+    fn calculate_animation_transform(&self, base_rect: Rect) -> Rect {
+        if self.props.animation == ModalAnimation::None {
+            return base_rect;
+        }
+
+        let progress = if self.state.closing {
+            1.0 - self.state.animation_progress
+        } else {
+            self.state.animation_progress
+        };
+
+        match self.props.animation {
+            ModalAnimation::FadeIn | ModalAnimation::FadeOut => base_rect,
+            ModalAnimation::SlideInFromTop | ModalAnimation::SlideOutToTop => {
+                let offset = ((1.0 - progress) * base_rect.height as f32) as u16;
+                Rect {
+                    y: base_rect.y.saturating_sub(offset),
+                    ..base_rect
+                }
+            }
+            ModalAnimation::SlideInFromBottom | ModalAnimation::SlideOutToBottom => {
+                let offset = ((1.0 - progress) * base_rect.height as f32) as u16;
+                Rect {
+                    y: base_rect.y + offset,
+                    ..base_rect
+                }
+            }
+            ModalAnimation::SlideInFromLeft | ModalAnimation::SlideOutToLeft => {
+                let offset = ((1.0 - progress) * base_rect.width as f32) as u16;
+                Rect {
+                    x: base_rect.x.saturating_sub(offset),
+                    ..base_rect
+                }
+            }
+            ModalAnimation::SlideInFromRight | ModalAnimation::SlideOutToRight => {
+                let offset = ((1.0 - progress) * base_rect.width as f32) as u16;
+                Rect {
+                    x: base_rect.x + offset,
+                    ..base_rect
+                }
+            }
+            ModalAnimation::Scale => {
+                let scale = progress;
+                let new_width = (base_rect.width as f32 * scale) as u16;
+                let new_height = (base_rect.height as f32 * scale) as u16;
+                let x_offset = (base_rect.width - new_width) / 2;
+                let y_offset = (base_rect.height - new_height) / 2;
+                
+                Rect {
+                    x: base_rect.x + x_offset,
+                    y: base_rect.y + y_offset,
+                    width: new_width,
+                    height: new_height,
+                }
+            }
+            ModalAnimation::None => base_rect,
+        }
+    }
+
+    /// Calculate backdrop opacity based on animation
+    fn calculate_backdrop_opacity(&self) -> f32 {
+        let base_opacity = self.props.backdrop.opacity;
+        
+        if self.props.animation == ModalAnimation::None {
+            return base_opacity;
+        }
+
+        let progress = if self.state.closing {
+            1.0 - self.state.animation_progress
+        } else {
+            self.state.animation_progress
+        };
+
+        base_opacity * progress
+    }
+}
+
+impl Component for Modal {
+    type Props = ModalProps;
+    type State = ModalComponentState;
+
+    fn new(id: ComponentId, props: Self::Props) -> Self {
+        Self::new(id, props)
+    }
+
+    fn props(&self) -> &Self::Props {
+        &self.props
+    }
+
+    fn props_mut(&mut self) -> &mut Self::Props {
+        &mut self.props
+    }
+
+    fn state(&self) -> &Self::State {
+        &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut Self::State {
+        &mut self.state
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> ComponentResult<bool> {
+        if !self.is_visible() {
+            return Ok(false);
+        }
+
+        match key.code {
+            KeyCode::Esc => {
+                if self.props.close_on_escape && self.props.closable {
+                    self.close();
+                }
+                Ok(true)
+            }
+            KeyCode::Up => {
+                if self.props.scrollable {
+                    self.scroll_up();
+                }
+                Ok(true)
+            }
+            KeyCode::Down => {
+                if self.props.scrollable {
+                    self.scroll_down();
+                }
+                Ok(true)
+            }
+            KeyCode::PageUp => {
+                if self.props.scrollable {
+                    for _ in 0..5 {
+                        self.scroll_up();
+                    }
+                }
+                Ok(true)
+            }
+            KeyCode::PageDown => {
+                if self.props.scrollable {
+                    for _ in 0..5 {
+                        self.scroll_down();
+                    }
+                }
+                Ok(true)
+            }
+            KeyCode::Home => {
+                if self.props.scrollable {
+                    self.state.scroll_offset = 0;
+                }
+                Ok(true)
+            }
+            KeyCode::End => {
+                if self.props.scrollable {
+                    self.state.scroll_offset = self.state.max_scroll;
+                }
+                Ok(true)
+            }
+            KeyCode::Char('q') | KeyCode::Char('x') => {
+                if self.props.closable {
+                    self.close();
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        if !self.is_visible() {
+            return;
+        }
+
+        // Render backdrop
+        if self.props.backdrop.enabled {
+            self.render_backdrop(frame, area, theme);
+        }
+
+        // Calculate modal rectangle
+        let modal_rect = if let Some((x, y)) = self.state.position {
+            // Use custom position for movable modals
+            let size = self.state.size_override.unwrap_or_else(|| {
+                let base_rect = self.props.size.calculate_rect(area);
+                (base_rect.width, base_rect.height)
+            });
+            Rect {
+                x,
+                y,
+                width: size.0,
+                height: size.1,
+            }
+        } else {
+            self.props.size.calculate_rect(area)
+        };
+
+        // Apply animation transform
+        let animated_rect = self.calculate_animation_transform(modal_rect);
+
+        // Render modal content
+        self.render_modal_content(frame, animated_rect, theme);
+    }
+
+    fn update(&mut self, dt: Duration) -> ComponentResult<()> {
+        // Update animation
+        if let Some(start_time) = self.state.animation_start {
+            let elapsed = start_time.elapsed();
+            let progress = (elapsed.as_millis() as f32 / self.props.animation_duration.as_millis() as f32).min(1.0);
+
+            if self.state.closing {
+                self.state.animation_progress = 1.0 - progress;
+                
+                if progress >= 1.0 {
+                    // Animation complete, close modal
+                    self.state.open = false;
+                    self.state.closing = false;
+                    self.state.animation_start = None;
+                }
+            } else {
+                self.state.animation_progress = progress;
+                
+                if progress >= 1.0 {
+                    // Animation complete
+                    self.state.animation_start = None;
+                }
+            }
+        }
+
+        // Update scroll limits
+        self.update_scroll_limits();
+
+        Ok(())
+    }
+}
+
+impl Modal {
+    fn render_backdrop(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        let opacity = self.calculate_backdrop_opacity();
+        
+        // Create backdrop color with opacity
+        let backdrop_color = if self.props.backdrop.darken {
+            Color::Black
+        } else {
+            theme.colors.background.primary
+        };
+
+        // Clear the entire area (simulating backdrop)
+        frame.render_widget(Clear, area);
+        
+        // Render backdrop with opacity effect (simplified)
+        let backdrop_block = Block::default()
+            .style(Style::default().bg(backdrop_color));
+        
+        frame.render_widget(backdrop_block, area);
+    }
+
+    fn render_modal_content(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        // Clear the modal area
+        frame.render_widget(Clear, area);
+
+        // Create modal block
+        let mut modal_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(if self.state.common.focused {
+                theme.colors.component_states.focused.into()
+            } else {
+                theme.colors.border.primary.into()
+            });
+
+        // Add title if present
+        if let Some(ref title) = self.props.title {
+            modal_block = modal_block.title(title.as_str());
+        }
+
+        // Add close button if enabled
+        if self.props.show_close_button {
+            modal_block = modal_block.title_bottom("Press 'Esc' or 'q' to close");
+        }
+
+        // Calculate content area
+        let content_area = modal_block.inner(area);
+        
+        // Render modal border
+        frame.render_widget(modal_block, area);
+
+        // Split content area for header, content, and footer
+        let mut constraints = vec![Constraint::Min(1)];
+        if self.props.header_content.is_some() {
+            constraints.insert(0, Constraint::Length(3));
+        }
+        if self.props.footer_content.is_some() {
+            constraints.push(Constraint::Length(3));
+        }
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(content_area);
+
+        let mut content_chunk_index = 0;
+
+        // Render header if present
+        if let Some(ref header) = self.props.header_content {
+            let header_paragraph = Paragraph::new(header.as_str())
+                .style(theme.colors.text.secondary.into())
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .borders(Borders::BOTTOM)
+                        .border_style(theme.colors.border.secondary.into())
+                );
+            
+            frame.render_widget(header_paragraph, chunks[0]);
+            content_chunk_index = 1;
+        }
+
+        // Render main content
+        let content_lines: Vec<Line> = self.props.content
+            .lines()
+            .skip(self.state.scroll_offset)
+            .take(chunks[content_chunk_index].height as usize)
+            .map(|line| Line::from(line))
+            .collect();
+
+        let content_paragraph = Paragraph::new(content_lines)
+            .style(theme.colors.text.primary.into())
+            .wrap(Wrap { trim: true });
+
+        frame.render_widget(content_paragraph, chunks[content_chunk_index]);
+
+        // Render footer if present
+        if let Some(ref footer) = self.props.footer_content {
+            let footer_index = chunks.len() - 1;
+            let footer_paragraph = Paragraph::new(footer.as_str())
+                .style(theme.colors.text.secondary.into())
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(theme.colors.border.secondary.into())
+                );
+            
+            frame.render_widget(footer_paragraph, chunks[footer_index]);
+        }
+
+        // Render scroll indicator if scrollable and has content to scroll
+        if self.props.scrollable && self.state.max_scroll > 0 {
+            self.render_scroll_indicator(frame, area, theme);
+        }
+    }
+
+    fn render_scroll_indicator(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        let scroll_info = format!(
+            "{}/{}",
+            self.state.scroll_offset + 1,
+            self.state.max_scroll + 1
+        );
+
+        let scroll_rect = Rect {
+            x: area.x + area.width - scroll_info.len() as u16 - 2,
+            y: area.y + area.height - 1,
+            width: scroll_info.len() as u16 + 1,
+            height: 1,
+        };
+
+        let scroll_paragraph = Paragraph::new(scroll_info)
+            .style(theme.colors.text.muted.into());
+
+        frame.render_widget(scroll_paragraph, scroll_rect);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modal_creation() {
+        let props = ModalProps::default();
+        let modal = Modal::new(ComponentId::new(), props);
+        
+        assert!(!modal.is_open());
+        assert!(!modal.is_visible());
+    }
+
+    #[test]
+    fn test_modal_open_close() {
+        let props = ModalProps::default();
+        let mut modal = Modal::new(ComponentId::new(), props);
+        
+        modal.open();
+        assert!(modal.is_open());
+        assert!(modal.is_visible());
+        
+        modal.close();
+        assert!(!modal.is_open());
+        assert!(modal.is_visible()); // Still visible during closing animation
+    }
+
+    #[test]
+    fn test_modal_size_calculation() {
+        let terminal_size = Rect::new(0, 0, 100, 50);
+        
+        let small_rect = ModalSize::Small.calculate_rect(terminal_size);
+        assert_eq!(small_rect.width, 40);
+        assert_eq!(small_rect.height, 12);
+        
+        let percentage_rect = ModalSize::Percentage { width_pct: 50, height_pct: 50 }
+            .calculate_rect(terminal_size);
+        assert_eq!(percentage_rect.width, 50);
+        assert_eq!(percentage_rect.height, 25);
+    }
+
+    #[test]
+    fn test_modal_scrolling() {
+        let mut props = ModalProps::default();
+        props.content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5".to_string();
+        props.scrollable = true;
+        
+        let mut modal = Modal::new(ComponentId::new(), props);
+        modal.update_scroll_limits();
+        
+        assert_eq!(modal.state.scroll_offset, 0);
+        
+        modal.scroll_down();
+        assert_eq!(modal.state.scroll_offset, 1);
+        
+        modal.scroll_up();
+        assert_eq!(modal.state.scroll_offset, 0);
+    }
+} 

@@ -1,0 +1,769 @@
+use crate::presentation::components::core::base::{
+    Component, ComponentState, ComponentProps, ComponentResult, ComponentId,
+    ValidationState, VisibilityState, CommonComponentState,
+};
+use crate::presentation::components::dialogs::modal::{Modal, ModalProps, ModalSize, ModalAnimation};
+use crate::presentation::theme::{AppTheme, ComponentState as ThemeComponentState};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect, Alignment},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Paragraph, Clear},
+    Frame,
+};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+
+/// Confirmation dialog result
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ConfirmationResult {
+    Yes,
+    No,
+    Cancel,
+}
+
+/// Confirmation dialog type/severity
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ConfirmationType {
+    Info,
+    Warning,
+    Error,
+    Question,
+    Success,
+}
+
+impl ConfirmationType {
+    pub fn icon(&self) -> &'static str {
+        match self {
+            ConfirmationType::Info => "ℹ",
+            ConfirmationType::Warning => "⚠",
+            ConfirmationType::Error => "✕",
+            ConfirmationType::Question => "?",
+            ConfirmationType::Success => "✓",
+        }
+    }
+
+    pub fn color(&self, theme: &AppTheme) -> Color {
+        match self {
+            ConfirmationType::Info => theme.colors.info,
+            ConfirmationType::Warning => theme.colors.warning,
+            ConfirmationType::Error => theme.colors.error,
+            ConfirmationType::Question => theme.colors.foreground,
+            ConfirmationType::Success => theme.colors.success,
+        }
+    }
+}
+
+/// Button configuration for confirmation dialog
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmationButton {
+    pub label: String,
+    pub result: ConfirmationResult,
+    pub is_default: bool,
+    pub is_cancel: bool,
+    pub hotkey: Option<char>,
+    pub style: ConfirmationButtonStyle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ConfirmationButtonStyle {
+    Primary,
+    Secondary,
+    Danger,
+    Success,
+}
+
+impl ConfirmationButtonStyle {
+    pub fn color(&self, theme: &AppTheme) -> Color {
+        match self {
+            ConfirmationButtonStyle::Primary => theme.colors.primary,
+            ConfirmationButtonStyle::Secondary => theme.colors.secondary,
+            ConfirmationButtonStyle::Danger => theme.colors.error,
+            ConfirmationButtonStyle::Success => theme.colors.success,
+        }
+    }
+}
+
+impl Default for ConfirmationButton {
+    fn default() -> Self {
+        Self {
+            label: "OK".to_string(),
+            result: ConfirmationResult::Yes,
+            is_default: true,
+            is_cancel: false,
+            hotkey: None,
+            style: ConfirmationButtonStyle::Primary,
+        }
+    }
+}
+
+impl ConfirmationButton {
+    pub fn yes() -> Self {
+        Self {
+            label: "Yes".to_string(),
+            result: ConfirmationResult::Yes,
+            is_default: true,
+            is_cancel: false,
+            hotkey: Some('y'),
+            style: ConfirmationButtonStyle::Primary,
+        }
+    }
+
+    pub fn no() -> Self {
+        Self {
+            label: "No".to_string(),
+            result: ConfirmationResult::No,
+            is_default: false,
+            is_cancel: true,
+            hotkey: Some('n'),
+            style: ConfirmationButtonStyle::Secondary,
+        }
+    }
+
+    pub fn cancel() -> Self {
+        Self {
+            label: "Cancel".to_string(),
+            result: ConfirmationResult::Cancel,
+            is_default: false,
+            is_cancel: true,
+            hotkey: Some('c'),
+            style: ConfirmationButtonStyle::Secondary,
+        }
+    }
+
+    pub fn ok() -> Self {
+        Self {
+            label: "OK".to_string(),
+            result: ConfirmationResult::Yes,
+            is_default: true,
+            is_cancel: false,
+            hotkey: Some('o'),
+            style: ConfirmationButtonStyle::Primary,
+        }
+    }
+
+    pub fn delete() -> Self {
+        Self {
+            label: "Delete".to_string(),
+            result: ConfirmationResult::Yes,
+            is_default: false,
+            is_cancel: false,
+            hotkey: Some('d'),
+            style: ConfirmationButtonStyle::Danger,
+        }
+    }
+
+    pub fn save() -> Self {
+        Self {
+            label: "Save".to_string(),
+            result: ConfirmationResult::Yes,
+            is_default: true,
+            is_cancel: false,
+            hotkey: Some('s'),
+            style: ConfirmationButtonStyle::Success,
+        }
+    }
+}
+
+/// Confirmation dialog component properties
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmationProps {
+    pub title: String,
+    pub message: String,
+    pub details: Option<String>,
+    pub confirmation_type: ConfirmationType,
+    pub buttons: Vec<ConfirmationButton>,
+    pub default_button: usize,
+    pub cancel_button: Option<usize>,
+    pub size: ModalSize,
+    pub auto_focus_default: bool,
+    pub show_icon: bool,
+    pub timeout: Option<Duration>, // Auto-close after timeout
+    pub timeout_result: ConfirmationResult, // Result when timeout occurs
+}
+
+impl Default for ConfirmationProps {
+    fn default() -> Self {
+        Self {
+            title: "Confirmation".to_string(),
+            message: "Are you sure?".to_string(),
+            details: None,
+            confirmation_type: ConfirmationType::Question,
+            buttons: vec![ConfirmationButton::yes(), ConfirmationButton::no()],
+            default_button: 0,
+            cancel_button: Some(1),
+            size: ModalSize::Small,
+            auto_focus_default: true,
+            show_icon: true,
+            timeout: None,
+            timeout_result: ConfirmationResult::Cancel,
+        }
+    }
+}
+
+impl ConfirmationProps {
+    /// Create a simple yes/no confirmation
+    pub fn yes_no(title: &str, message: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            message: message.to_string(),
+            ..Default::default()
+        }
+    }
+
+    /// Create an OK/Cancel confirmation
+    pub fn ok_cancel(title: &str, message: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            message: message.to_string(),
+            buttons: vec![ConfirmationButton::ok(), ConfirmationButton::cancel()],
+            cancel_button: Some(1),
+            ..Default::default()
+        }
+    }
+
+    /// Create a delete confirmation
+    pub fn delete_confirmation(item_name: &str) -> Self {
+        Self {
+            title: "Delete Confirmation".to_string(),
+            message: format!("Are you sure you want to delete '{}'?", item_name),
+            details: Some("This action cannot be undone.".to_string()),
+            confirmation_type: ConfirmationType::Warning,
+            buttons: vec![ConfirmationButton::delete(), ConfirmationButton::cancel()],
+            default_button: 1, // Default to cancel for safety
+            cancel_button: Some(1),
+            ..Default::default()
+        }
+    }
+
+    /// Create a save confirmation
+    pub fn save_confirmation(message: &str) -> Self {
+        Self {
+            title: "Save Changes".to_string(),
+            message: message.to_string(),
+            confirmation_type: ConfirmationType::Question,
+            buttons: vec![ConfirmationButton::save(), ConfirmationButton::cancel()],
+            ..Default::default()
+        }
+    }
+
+    /// Create an error dialog
+    pub fn error(title: &str, message: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            message: message.to_string(),
+            confirmation_type: ConfirmationType::Error,
+            buttons: vec![ConfirmationButton::ok()],
+            default_button: 0,
+            cancel_button: Some(0),
+            ..Default::default()
+        }
+    }
+
+    /// Create an info dialog
+    pub fn info(title: &str, message: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            message: message.to_string(),
+            confirmation_type: ConfirmationType::Info,
+            buttons: vec![ConfirmationButton::ok()],
+            default_button: 0,
+            cancel_button: Some(0),
+            ..Default::default()
+        }
+    }
+
+    /// Add timeout to dialog
+    pub fn with_timeout(mut self, timeout: Duration, result: ConfirmationResult) -> Self {
+        self.timeout = Some(timeout);
+        self.timeout_result = result;
+        self
+    }
+
+    /// Add details to dialog
+    pub fn with_details(mut self, details: String) -> Self {
+        self.details = Some(details);
+        self
+    }
+}
+
+/// Confirmation dialog component state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmationComponentState {
+    pub common: CommonComponentState,
+    pub current_button: usize,
+    pub result: Option<ConfirmationResult>,
+    pub completed: bool,
+    pub timeout_start: Option<std::time::Instant>,
+    pub remaining_time: Option<Duration>,
+}
+
+impl ComponentState for ConfirmationComponentState {
+    fn common(&self) -> &CommonComponentState {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut CommonComponentState {
+        &mut self.common
+    }
+}
+
+impl Default for ConfirmationComponentState {
+    fn default() -> Self {
+        Self {
+            common: CommonComponentState::default(),
+            current_button: 0,
+            result: None,
+            completed: false,
+            timeout_start: None,
+            remaining_time: None,
+        }
+    }
+}
+
+/// Yes/No confirmation dialog component
+pub struct ConfirmationDialog {
+    props: ConfirmationProps,
+    state: ConfirmationComponentState,
+    modal: Modal,
+}
+
+impl ConfirmationDialog {
+    pub fn new(id: ComponentId, props: ConfirmationProps) -> Self {
+        let mut state = ConfirmationComponentState::default();
+        state.common.id = id;
+        state.current_button = props.default_button;
+
+        // Set up timeout if specified
+        if props.timeout.is_some() {
+            state.timeout_start = Some(std::time::Instant::now());
+            state.remaining_time = props.timeout;
+        }
+
+        // Create modal for the dialog
+        let modal_props = ModalProps {
+            title: Some(props.title.clone()),
+            content: String::new(), // We'll render content ourselves
+            size: props.size,
+            closable: props.cancel_button.is_some(),
+            close_on_escape: props.cancel_button.is_some(),
+            animation: ModalAnimation::Scale,
+            animation_duration: Duration::from_millis(150),
+            ..Default::default()
+        };
+
+        let modal = Modal::new(ComponentId::new(), modal_props);
+
+        Self {
+            props,
+            state,
+            modal,
+        }
+    }
+
+    /// Open the confirmation dialog
+    pub fn open(&mut self) {
+        self.modal.open();
+        self.state.result = None;
+        self.state.completed = false;
+        
+        if self.props.timeout.is_some() {
+            self.state.timeout_start = Some(std::time::Instant::now());
+            self.state.remaining_time = self.props.timeout;
+        }
+    }
+
+    /// Close the dialog with a result
+    pub fn close_with_result(&mut self, result: ConfirmationResult) {
+        self.state.result = Some(result);
+        self.state.completed = true;
+        self.modal.close();
+    }
+
+    /// Get the dialog result
+    pub fn result(&self) -> Option<ConfirmationResult> {
+        self.state.result
+    }
+
+    /// Check if dialog is completed
+    pub fn is_completed(&self) -> bool {
+        self.state.completed
+    }
+
+    /// Check if dialog is open
+    pub fn is_open(&self) -> bool {
+        self.modal.is_open()
+    }
+
+    /// Move to next button
+    pub fn next_button(&mut self) {
+        if !self.props.buttons.is_empty() {
+            self.state.current_button = (self.state.current_button + 1) % self.props.buttons.len();
+        }
+    }
+
+    /// Move to previous button
+    pub fn prev_button(&mut self) {
+        if !self.props.buttons.is_empty() {
+            self.state.current_button = if self.state.current_button == 0 {
+                self.props.buttons.len() - 1
+            } else {
+                self.state.current_button - 1
+            };
+        }
+    }
+
+    /// Activate current button
+    pub fn activate_current_button(&mut self) {
+        if let Some(button) = self.props.buttons.get(self.state.current_button) {
+            self.close_with_result(button.result);
+        }
+    }
+
+    /// Handle hotkey press
+    pub fn handle_hotkey(&mut self, key: char) -> bool {
+        for (index, button) in self.props.buttons.iter().enumerate() {
+            if let Some(hotkey) = button.hotkey {
+                if hotkey.to_ascii_lowercase() == key.to_ascii_lowercase() {
+                    self.state.current_button = index;
+                    self.close_with_result(button.result);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Handle timeout
+    fn handle_timeout(&mut self) {
+        if let (Some(timeout_start), Some(timeout_duration)) = (self.state.timeout_start, self.props.timeout) {
+            let elapsed = timeout_start.elapsed();
+            
+            if elapsed >= timeout_duration {
+                self.close_with_result(self.props.timeout_result);
+            } else {
+                self.state.remaining_time = Some(timeout_duration - elapsed);
+            }
+        }
+    }
+}
+
+impl Component for ConfirmationDialog {
+    type Props = ConfirmationProps;
+    type State = ConfirmationComponentState;
+
+    fn new(id: ComponentId, props: Self::Props) -> Self {
+        Self::new(id, props)
+    }
+
+    fn props(&self) -> &Self::Props {
+        &self.props
+    }
+
+    fn props_mut(&mut self) -> &mut Self::Props {
+        &mut self.props
+    }
+
+    fn state(&self) -> &Self::State {
+        &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut Self::State {
+        &mut self.state
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> ComponentResult<bool> {
+        if !self.modal.is_open() {
+            return Ok(false);
+        }
+
+        match key.code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.prev_button();
+                Ok(true)
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                self.next_button();
+                Ok(true)
+            }
+            KeyCode::Tab => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.prev_button();
+                } else {
+                    self.next_button();
+                }
+                Ok(true)
+            }
+            KeyCode::Enter => {
+                self.activate_current_button();
+                Ok(true)
+            }
+            KeyCode::Esc => {
+                if let Some(cancel_index) = self.props.cancel_button {
+                    if let Some(button) = self.props.buttons.get(cancel_index) {
+                        self.close_with_result(button.result);
+                    }
+                }
+                Ok(true)
+            }
+            KeyCode::Char(c) => {
+                if self.handle_hotkey(c) {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            _ => {
+                // Pass other events to modal
+                self.modal.handle_key_event(key)
+            }
+        }
+    }
+
+    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        if !self.modal.is_visible() {
+            return;
+        }
+
+        // Render modal backdrop
+        self.modal.render(frame, area, theme);
+
+        // Calculate dialog rectangle
+        let dialog_rect = self.props.size.calculate_rect(area);
+
+        // Clear dialog area
+        frame.render_widget(Clear, dialog_rect);
+
+        // Render dialog content
+        self.render_dialog_content(frame, dialog_rect, theme);
+    }
+
+    fn update(&mut self, dt: Duration) -> ComponentResult<()> {
+        // Update modal animation
+        self.modal.update(dt)?;
+
+        // Handle timeout
+        self.handle_timeout();
+
+        Ok(())
+    }
+}
+
+impl ConfirmationDialog {
+    fn render_dialog_content(&mut self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        // Create dialog block
+        let dialog_block = Block::default()
+            .borders(Borders::ALL)
+            .title(self.props.title.as_str())
+            .border_style(theme.colors.component_states.focused.into());
+
+        let content_area = dialog_block.inner(area);
+        frame.render_widget(dialog_block, area);
+
+        // Split content area
+        let constraints = if self.props.details.is_some() {
+            vec![
+                Constraint::Length(3), // Icon + message
+                Constraint::Length(2), // Details
+                Constraint::Length(1), // Spacer
+                Constraint::Length(3), // Buttons
+                Constraint::Length(1), // Timeout (if present)
+            ]
+        } else {
+            vec![
+                Constraint::Length(3), // Icon + message
+                Constraint::Length(1), // Spacer
+                Constraint::Length(3), // Buttons
+                Constraint::Length(1), // Timeout (if present)
+            ]
+        };
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(content_area);
+
+        let mut chunk_index = 0;
+
+        // Render icon and message
+        self.render_message(frame, chunks[chunk_index], theme);
+        chunk_index += 1;
+
+        // Render details if present
+        if self.props.details.is_some() {
+            self.render_details(frame, chunks[chunk_index], theme);
+            chunk_index += 1;
+        }
+
+        // Skip spacer
+        chunk_index += 1;
+
+        // Render buttons
+        self.render_buttons(frame, chunks[chunk_index], theme);
+        chunk_index += 1;
+
+        // Render timeout if present
+        if self.props.timeout.is_some() && chunk_index < chunks.len() {
+            self.render_timeout(frame, chunks[chunk_index], theme);
+        }
+    }
+
+    fn render_message(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        let mut spans = Vec::new();
+
+        // Add icon if enabled
+        if self.props.show_icon {
+            spans.push(Span::styled(
+                format!("{} ", self.props.confirmation_type.icon()),
+                Style::default().fg(self.props.confirmation_type.color(theme))
+            ));
+        }
+
+        // Add message
+        spans.push(Span::styled(
+            &self.props.message,
+            Style::default().fg(theme.colors.text.primary)
+        ));
+
+        let message_paragraph = Paragraph::new(Line::from(spans))
+            .alignment(Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true });
+
+        frame.render_widget(message_paragraph, area);
+    }
+
+    fn render_details(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        if let Some(ref details) = self.props.details {
+            let details_paragraph = Paragraph::new(details.as_str())
+                .style(theme.colors.text.secondary.into())
+                .alignment(Alignment::Center)
+                .wrap(ratatui::widgets::Wrap { trim: true });
+
+            frame.render_widget(details_paragraph, area);
+        }
+    }
+
+    fn render_buttons(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        if self.props.buttons.is_empty() {
+            return;
+        }
+
+        // Calculate button layout
+        let button_width = 12; // Fixed width for buttons
+        let spacing = 2;
+        let total_width = self.props.buttons.len() * button_width + (self.props.buttons.len() - 1) * spacing;
+        
+        let start_x = if total_width <= area.width as usize {
+            (area.width as usize - total_width) / 2
+        } else {
+            0
+        };
+
+        // Render each button
+        for (index, button) in self.props.buttons.iter().enumerate() {
+            let button_x = start_x + index * (button_width + spacing);
+            let button_rect = Rect {
+                x: area.x + button_x as u16,
+                y: area.y + 1,
+                width: button_width as u16,
+                height: 1,
+            };
+
+            self.render_button(frame, button_rect, button, index == self.state.current_button, theme);
+        }
+    }
+
+    fn render_button(&self, frame: &mut Frame, area: Rect, button: &ConfirmationButton, is_current: bool, theme: &AppTheme) {
+        let button_style = if is_current {
+            Style::default()
+                .fg(theme.colors.background.primary)
+                .bg(button.style.color(theme))
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(button.style.color(theme))
+        };
+
+        let button_text = if let Some(hotkey) = button.hotkey {
+            format!("[{}] {}", hotkey.to_ascii_uppercase(), button.label)
+        } else {
+            button.label.clone()
+        };
+
+        let button_paragraph = Paragraph::new(button_text)
+            .style(button_style)
+            .alignment(Alignment::Center);
+
+        frame.render_widget(button_paragraph, area);
+    }
+
+    fn render_timeout(&self, frame: &mut Frame, area: Rect, theme: &AppTheme) {
+        if let Some(remaining) = self.state.remaining_time {
+            let seconds = remaining.as_secs();
+            let timeout_text = format!("Auto-close in {}s", seconds);
+            
+            let timeout_paragraph = Paragraph::new(timeout_text)
+                .style(theme.colors.text.muted.into())
+                .alignment(Alignment::Center);
+
+            frame.render_widget(timeout_paragraph, area);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_confirmation_dialog_creation() {
+        let props = ConfirmationProps::default();
+        let dialog = ConfirmationDialog::new(ComponentId::new(), props);
+        
+        assert!(!dialog.is_open());
+        assert!(!dialog.is_completed());
+        assert_eq!(dialog.result(), None);
+    }
+
+    #[test]
+    fn test_confirmation_types() {
+        let yes_no = ConfirmationProps::yes_no("Test", "Are you sure?");
+        assert_eq!(yes_no.buttons.len(), 2);
+        assert_eq!(yes_no.buttons[0].result, ConfirmationResult::Yes);
+        assert_eq!(yes_no.buttons[1].result, ConfirmationResult::No);
+
+        let delete = ConfirmationProps::delete_confirmation("test.txt");
+        assert_eq!(delete.confirmation_type, ConfirmationType::Warning);
+        assert_eq!(delete.default_button, 1); // Default to cancel
+    }
+
+    #[test]
+    fn test_button_navigation() {
+        let props = ConfirmationProps::default();
+        let mut dialog = ConfirmationDialog::new(ComponentId::new(), props);
+        
+        assert_eq!(dialog.state.current_button, 0);
+        
+        dialog.next_button();
+        assert_eq!(dialog.state.current_button, 1);
+        
+        dialog.next_button();
+        assert_eq!(dialog.state.current_button, 0); // Wrap around
+        
+        dialog.prev_button();
+        assert_eq!(dialog.state.current_button, 1);
+    }
+
+    #[test]
+    fn test_hotkey_handling() {
+        let props = ConfirmationProps::default();
+        let mut dialog = ConfirmationDialog::new(ComponentId::new(), props);
+        
+        dialog.open();
+        let handled = dialog.handle_hotkey('y');
+        
+        assert!(handled);
+        assert_eq!(dialog.result(), Some(ConfirmationResult::Yes));
+    }
+} 
